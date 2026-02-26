@@ -1,0 +1,236 @@
+// ============================================================
+// PIK — Persistent Identity Kernel
+// Prisma Schema for PostgreSQL (Railway)
+//
+// This is the foundational schema for PIK v1.
+// Run: npx prisma migrate dev --name init
+// Then: npx prisma generate
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// IDENTITY KERNEL — Root identities and personas
+// ============================================================
+
+model RootIdentity {
+  id            String    @id @default(uuid()) @map("root_id")
+  heroName      String    @map("hero_name")
+  fateAlignment String    @map("fate_alignment")
+  origin        String?
+  fateXp        Int       @default(0) @map("fate_xp")
+  fateLevel     Int       @default(1) @map("fate_level")
+  enrolledBy    String    @map("enrolled_by")       // "self" | "operator:<id>"
+  enrolledAt    DateTime  @default(now()) @map("enrolled_at")
+  status        String    @default("active")        // active | suspended | deleted
+
+  // Relations
+  personas      Persona[]
+  keys          AuthKey[]
+  sourceLinks   SourceLink[]
+  events        IdentityEvent[]
+  titles        UserTitle[]
+  fateMarkers   FateMarker[]
+  challenges    WebAuthnChallenge[]
+
+  @@map("root_identities")
+}
+
+model Persona {
+  id            String    @id @default(uuid()) @map("persona_id")
+  rootId        String    @map("root_id")
+  displayName   String    @map("display_name")
+  metadata      Json?                                // Class, realm, oath state, etc.
+  status        String    @default("active")         // active | deactivated
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  root          RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId])
+  @@map("personas")
+}
+
+// ============================================================
+// AUTHENTICATION — WebAuthn keys and session tokens
+// ============================================================
+
+model AuthKey {
+  id              String    @id @default(uuid()) @map("key_id")
+  rootId          String    @map("root_id")
+  credentialId    String    @unique @map("credential_id")   // WebAuthn credential ID (base64url)
+  publicKey       Bytes     @map("public_key")               // COSE public key bytes
+  counter         BigInt    @default(0)                      // WebAuthn signature counter
+  deviceType      String?   @map("device_type")              // "singleDevice" | "multiDevice"
+  backedUp        Boolean   @default(false)                  // Passkey backup eligible
+  transports      String[]  @default([])                     // ["internal", "usb", "ble", "nfc"]
+  friendlyName    String?   @map("friendly_name")            // "iPhone 15", "YubiKey", etc.
+  status          String    @default("active")               // active | revoked | retired
+  createdAt       DateTime  @default(now()) @map("created_at")
+  revokedAt       DateTime? @map("revoked_at")
+  lastUsedAt      DateTime? @map("last_used_at")
+
+  root            RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId, status])
+  @@map("auth_keys")
+}
+
+model WebAuthnChallenge {
+  id          String    @id @default(uuid())
+  rootId      String?   @map("root_id")              // null during initial registration
+  challenge   String    @unique                       // base64url encoded challenge
+  type        String                                  // "registration" | "authentication"
+  metadata    Json?                                   // Stash heroName/alignment during registration
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  root        RootIdentity? @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([challenge])
+  @@index([expiresAt])
+  @@map("webauthn_challenges")
+}
+
+model SessionToken {
+  id          String    @id @default(uuid()) @map("token_id")
+  rootId      String    @map("root_id")
+  tokenHash   String    @unique @map("token_hash")    // SHA-256 hash — raw token never stored
+  expiresAt   DateTime  @map("expires_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("session_tokens")
+}
+
+// ============================================================
+// CONSENT — Sources, source links, and consent receipts
+// ============================================================
+
+model Source {
+  id          String    @id @map("source_id")         // e.g. "src-heroes-veritas-01"
+  name        String    @map("source_name")
+  apiKeyHash  String    @map("api_key_hash")           // SHA-256 of the API key
+  status      String    @default("active")             // active | suspended | deactivated
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  sourceLinks SourceLink[]
+
+  @@map("sources")
+}
+
+model SourceLink {
+  id          String    @id @default(uuid()) @map("link_id")
+  rootId      String    @map("root_id")
+  sourceId    String    @map("source_id")
+  scope       String    @default("xp fate_markers titles")  // Space-separated permission tokens
+  grantedBy   String    @map("granted_by")             // "self" | "operator:<id>"
+  grantedAt   DateTime  @default(now()) @map("granted_at")
+  revokedAt   DateTime? @map("revoked_at")
+  revokedBy   String?   @map("revoked_by")
+  status      String    @default("active")             // active | revoked
+
+  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  source      Source       @relation(fields: [sourceId], references: [id])
+
+  @@index([rootId, sourceId, status])
+  @@map("source_links")
+}
+
+// ============================================================
+// EVENT LEDGER — Append-only identity event log
+//
+// INVARIANT: Events are INSERT-ONLY. No UPDATE, no DELETE.
+// Enforce at application layer (EventsService) and with a
+// Postgres trigger after first migration:
+//
+//   CREATE OR REPLACE FUNCTION prevent_event_modification()
+//   RETURNS TRIGGER AS $$
+//   BEGIN
+//     RAISE EXCEPTION 'identity_events is append-only';
+//   END;
+//   $$ LANGUAGE plpgsql;
+//
+//   CREATE TRIGGER enforce_append_only
+//     BEFORE UPDATE OR DELETE ON identity_events
+//     FOR EACH ROW EXECUTE FUNCTION prevent_event_modification();
+// ============================================================
+
+model IdentityEvent {
+  id          String    @id @default(uuid()) @map("event_id")
+  rootId      String    @map("root_id")
+  eventType   String    @map("event_type")             // e.g. "identity.enrolled", "progression.session_completed"
+  sourceId    String?   @map("source_id")              // null for system/auth events
+  payload     Json      @default("{}")                  // Raw event data
+  changes     Json?     @map("changes_applied")        // Computed deltas: XP granted, level-ups, titles
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId, createdAt])
+  @@index([eventType])
+  @@index([sourceId])
+  @@map("identity_events")
+}
+
+// ============================================================
+// PROGRESSION — Titles, fate markers
+// ============================================================
+
+model Title {
+  id            String    @id @map("title_id")         // e.g. "title_fate_awakened"
+  displayName   String    @map("display_name")          // e.g. "FATE AWAKENED"
+  description   String?
+  category      String?                                 // "fate" | "boss" | "session" | "meta"
+
+  userTitles    UserTitle[]
+
+  @@map("titles")
+}
+
+model UserTitle {
+  id          String    @id @default(uuid())
+  rootId      String    @map("root_id")
+  titleId     String    @map("title_id")
+  grantedAt   DateTime  @default(now()) @map("granted_at")
+  sourceId    String?   @map("source_id")              // Which source granted this title
+
+  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  title       Title        @relation(fields: [titleId], references: [id])
+
+  @@unique([rootId, titleId])                           // A user can only hold each title once
+  @@map("user_titles")
+}
+
+model FateMarker {
+  id          String    @id @default(uuid())
+  rootId      String    @map("root_id")
+  marker      String                                    // Freeform narrative breadcrumb string
+  sourceId    String?   @map("source_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId])
+  @@map("fate_markers")
+}
+
+// ============================================================
+// CONFIG — Live-tunable system configuration
+// ============================================================
+
+model Config {
+  key         String    @id @map("config_key")          // e.g. "fate.xp_per_session_hard"
+  value       String    @map("config_value")             // Stored as string, parsed by consumers
+  description String?
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("config")
+}

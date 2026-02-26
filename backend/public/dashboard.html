@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIK — Persistent Identity Kernel</title>
+<style>
+  :root {
+    --bg:        #0a0c10;
+    --panel:     #0f1318;
+    --border:    #1e2530;
+    --accent:    #7c6aff;
+    --accent2:   #00d4a8;
+    --gold:      #f0c060;
+    --red:       #ff4d6a;
+    --text:      #cdd6e8;
+    --dim:       #5a6478;
+    --green:     #3ecf8e;
+    --amber:     #f5a623;
+    --card-bg:   #131820;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; min-height: 100vh; }
+
+  /* ── Header ── */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: #0b0e14;
+  }
+  .header-title { font-size: 16px; font-weight: 700; letter-spacing: 3px; color: var(--accent); text-transform: uppercase; }
+  .header-sub   { font-size: 10px; color: var(--dim); letter-spacing: 2px; margin-top: 2px; }
+  .status-dot   { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .header-right { display:flex; align-items:center; gap: 16px; }
+  .stat-pill { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 11px; color: var(--dim); }
+  .stat-pill span { color: var(--accent2); font-weight: 700; }
+
+  /* ── Layout ── */
+  .layout { display: grid; grid-template-columns: 300px 1fr 280px; height: calc(100vh - 52px); overflow: hidden; }
+  .panel { border-right: 1px solid var(--border); overflow-y: auto; }
+  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+  .panel-header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: #0c0f14; position: sticky; top:0; z-index:10; }
+  .panel-header h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); }
+
+  /* ── User cards ── */
+  .user-card {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background .15s;
+  }
+  .user-card:hover { background: var(--card-bg); }
+  .user-card.active { background: #161c28; border-left: 3px solid var(--accent); }
+  .user-card-name { font-size: 14px; font-weight: 700; color: #e8edf5; margin-bottom: 4px; }
+  .user-card-sub  { font-size: 10px; color: var(--dim); }
+  .user-card-meta { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-size: 9px; padding: 2px 8px; border-radius: 12px; border: 1px solid; }
+  .tag-veil   { border-color: #7c6aff44; color: var(--accent);  background: #7c6aff11; }
+  .tag-order  { border-color: #f0c06044; color: var(--gold);    background: #f0c06011; }
+  .tag-wild   { border-color: #3ecf8e44; color: var(--green);   background: #3ecf8e11; }
+  .tag-any    { border-color: #5a647844; color: var(--dim);     background: transparent; }
+
+  /* ── Detail center ── */
+  .detail { background: var(--bg); overflow-y: auto; }
+  .detail-empty { display:flex; align-items:center; justify-content:center; height:100%; color: var(--dim); font-size: 12px; letter-spacing:2px; }
+
+  .hero-banner {
+    padding: 24px 28px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #0f1318 0%, #131c2a 100%);
+  }
+  .hero-name   { font-size: 26px; font-weight: 700; color: #e8edf5; margin-bottom: 4px; }
+  .hero-origin { font-size: 12px; color: var(--dim); margin-bottom: 16px; }
+  .fate-bar-wrap { margin-bottom: 8px; }
+  .fate-label { display:flex; justify-content:space-between; font-size: 10px; color: var(--dim); margin-bottom: 4px; }
+  .fate-label span { color: var(--accent2); }
+  .fate-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .fate-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; transition: width .4s; }
+  .hero-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 16px; }
+  .stat-box { background: #0b0e14; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; text-align: center; }
+  .stat-box .val { font-size: 22px; font-weight: 700; color: var(--accent2); }
+  .stat-box .lbl { font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+  /* ── Sections ── */
+  .section { padding: 20px 28px; border-bottom: 1px solid var(--border); }
+  .section h4 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; }
+
+  /* ── Source links ── */
+  .source-link {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border: 1px solid var(--border);
+    border-radius: 6px; margin-bottom: 8px; background: var(--card-bg);
+  }
+  .source-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink:0; }
+  .source-active   { background: var(--green); }
+  .source-revoked  { background: var(--dim); }
+  .source-info { flex: 1; }
+  .source-name { font-size: 12px; font-weight: 700; color: #cdd6e8; }
+  .source-meta { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .btn-revoke {
+    font-size: 9px; padding: 3px 10px; border-radius: 4px;
+    border: 1px solid var(--red); background: transparent; color: var(--red);
+    cursor: pointer; letter-spacing: 1px; text-transform: uppercase;
+    transition: background .15s;
+  }
+  .btn-revoke:hover { background: #ff4d6a22; }
+
+  /* ── Timeline ── */
+  .timeline-item {
+    display: flex; gap: 12px; padding: 10px 0;
+    border-bottom: 1px solid #1a1f28;
+  }
+  .timeline-item:last-child { border-bottom: none; }
+  .timeline-icon { width: 28px; height: 28px; border-radius: 6px; display:flex; align-items:center; justify-content:center; font-size: 13px; flex-shrink:0; }
+  .evt-enrolled        { background: #7c6aff22; }
+  .evt-xp              { background: #00d4a822; }
+  .evt-level           { background: #f0c06022; }
+  .evt-title           { background: #f5a62322; }
+  .evt-link_granted    { background: #3ecf8e22; }
+  .evt-link_revoked    { background: #ff4d6a22; }
+  .evt-fate_marker     { background: #7c6aff22; }
+  .evt-default         { background: #1e253022; }
+  .timeline-body { flex: 1; }
+  .timeline-type { font-size: 10px; color: var(--accent); letter-spacing: 1px; }
+  .timeline-desc { font-size: 11px; color: var(--text); margin-top: 2px; }
+  .timeline-meta { font-size: 9px; color: var(--dim); margin-top: 2px; }
+
+  /* ── Titles ── */
+  .titles-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .title-chip { padding: 4px 12px; border-radius: 20px; font-size: 10px; border: 1px solid #f0c06044; color: var(--gold); background: #f0c06011; }
+
+  /* ── Enroll form ── */
+  .enroll-btn {
+    width: 100%; padding: 10px; margin: 12px 16px 0; width: calc(100% - 32px);
+    background: var(--accent); border: none; border-radius: 6px;
+    color: white; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; font-family: inherit; transition: opacity .15s;
+  }
+  .enroll-btn:hover { opacity: .85; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: #000a;
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 28px; width: 420px; max-width: 95vw;
+  }
+  .modal h3 { font-size: 14px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display:block; font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 8px 12px; background: #0a0c10; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: inherit; font-size: 12px;
+  }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+  .modal-actions { display: flex; gap: 12px; margin-top: 20px; }
+  .btn-primary {
+    flex: 1; padding: 10px; background: var(--accent); border: none; border-radius: 6px;
+    color: white; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-secondary {
+    flex: 1; padding: 10px; background: transparent; border: 1px solid var(--border);
+    border-radius: 6px; color: var(--dim); font-size: 11px; letter-spacing: 2px;
+    text-transform: uppercase; cursor: pointer; font-family: inherit;
+  }
+
+  /* ── Right panel ── */
+  .right-section { padding: 14px 14px; border-bottom: 1px solid var(--border); }
+  .right-section h4 { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin-bottom: 10px; }
+  .metric-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #1a1f28; }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-label { font-size: 10px; color: var(--dim); }
+  .metric-val   { font-size: 11px; color: var(--accent2); font-weight: 700; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Toast ── */
+  .toast { position:fixed; bottom:24px; right:24px; background:#1a2030; border:1px solid var(--border); border-left: 3px solid var(--green); padding:10px 16px; border-radius:6px; font-size:11px; color:var(--text); opacity:0; transition:opacity .3s; pointer-events:none; z-index:200; }
+  .toast.show { opacity:1; }
+
+  /* ── Ingest demo ── */
+  .ingest-form { padding: 14px 14px; border-bottom: 1px solid var(--border); }
+  .ingest-form h4 { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin-bottom: 10px; }
+  .ingest-select { width:100%; padding:6px 10px; background:#0a0c10; border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:inherit; font-size:11px; margin-bottom:8px; }
+  .btn-ingest { width:100%; padding:7px; background:#00d4a822; border:1px solid var(--accent2); border-radius:4px; color:var(--accent2); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; font-family:inherit; }
+  .btn-ingest:hover { background:#00d4a833; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<div class="header">
+  <div>
+    <div class="header-title">PIK</div>
+    <div class="header-sub">PERSISTENT IDENTITY KERNEL · v0.1 POC</div>
+  </div>
+  <div class="header-right">
+    <div class="stat-pill">Enrolled: <span id="hdr-enrolled">—</span></div>
+    <div class="stat-pill">Events: <span id="hdr-events">—</span></div>
+    <div class="stat-pill">Sources: <span id="hdr-sources">—</span></div>
+    <div class="status-dot" title="PIK API Live"></div>
+  </div>
+</div>
+
+<!-- ── Layout ─────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- LEFT: User list -->
+  <div class="panel" id="user-list-panel">
+    <div class="panel-header"><h3>Enrolled Identities</h3></div>
+    <button class="enroll-btn" onclick="openEnrollModal()">+ Enroll New Identity</button>
+    <div id="user-list"></div>
+  </div>
+
+  <!-- CENTER: Identity detail -->
+  <div class="detail" id="detail-panel">
+    <div class="detail-empty" id="detail-empty">SELECT AN IDENTITY TO INSPECT</div>
+    <div id="detail-content" style="display:none"></div>
+  </div>
+
+  <!-- RIGHT: Analytics + quick actions -->
+  <div class="panel" id="right-panel">
+    <div class="panel-header"><h3>System Overview</h3></div>
+
+    <div class="right-section">
+      <h4>Metrics</h4>
+      <div class="metric-row"><span class="metric-label">Enrolled users</span><span class="metric-val" id="m-enrolled">—</span></div>
+      <div class="metric-row"><span class="metric-label">Total events</span><span class="metric-val" id="m-events">—</span></div>
+      <div class="metric-row"><span class="metric-label">Active links</span><span class="metric-val" id="m-links">—</span></div>
+      <div class="metric-row"><span class="metric-label">Avg Fate XP</span><span class="metric-val" id="m-xp">—</span></div>
+      <div class="metric-row"><span class="metric-label">Avg Fate Level</span><span class="metric-val" id="m-level">—</span></div>
+    </div>
+
+    <div class="right-section">
+      <h4>Top Heroes</h4>
+      <div id="top-heroes"></div>
+    </div>
+
+    <!-- Ingest simulation for demo -->
+    <div class="ingest-form">
+      <h4>Simulate Ingest Event</h4>
+      <select class="ingest-select" id="ingest-user"></select>
+      <select class="ingest-select" id="ingest-event">
+        <option value="progression.session_completed:normal:0">Session Complete (Normal)</option>
+        <option value="progression.session_completed:hard:75">Session Complete (Hard, 75% boss)</option>
+        <option value="progression.session_completed:normal:100">Session Complete (Boss Victory!)</option>
+        <option value="progression.title_granted:title_rune_master">Grant: Rune Master title</option>
+        <option value="progression.fate_marker:veil_witness">Fate Marker: Veil Witness</option>
+      </select>
+      <button class="btn-ingest" onclick="simulateIngest()">▶ Send Event</button>
+    </div>
+
+    <div class="right-section">
+      <h4>Registered Sources</h4>
+      <div id="sources-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Enroll Modal ───────────────────────────────────────── -->
+<div class="modal-overlay" id="enroll-modal">
+  <div class="modal">
+    <h3>Enroll New Identity</h3>
+    <div class="form-group">
+      <label>Hero Name</label>
+      <input type="text" id="enroll-name" placeholder="e.g. Aelindra Voss">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fate Alignment</label>
+        <select id="enroll-alignment">
+          <option value="Order">Order</option>
+          <option value="Veil">Veil</option>
+          <option value="Wild">Wild</option>
+          <option value="Unaligned">Unaligned</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Origin</label>
+        <input type="text" id="enroll-origin" placeholder="e.g. Emberwatch Survivor">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Enrolled By</label>
+      <select id="enroll-by">
+        <option value="operator:demo">Operator (B2B)</option>
+        <option value="self">Self-Enrollment (B2C)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Link Source (optional)</label>
+      <select id="enroll-source">
+        <option value="">— None —</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeEnrollModal()">Cancel</button>
+      <button class="btn-primary"   onclick="submitEnroll()">Enroll Identity</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:8080';
+const HV_KEY = 'hv-demo-api-key-2025';
+let selectedRootId = null;
+let allSources = [];
+
+// ── Utilities ─────────────────────────────────────────────────
+
+function showToast(msg, color='var(--green)') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftColor = color;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+async function apiFetch(path, opts={}) {
+  const resp = await fetch(API + path, opts);
+  return resp.json();
+}
+
+function alignTag(alignment) {
+  const map = { Order:'tag-order', Veil:'tag-veil', Wild:'tag-wild' };
+  const cls = map[alignment] || 'tag-any';
+  return `<span class="tag ${cls}">${alignment || 'Unaligned'}</span>`;
+}
+
+function evtIcon(eventType) {
+  if (eventType.includes('enrolled'))       return { icon:'⚡', cls:'evt-enrolled' };
+  if (eventType.includes('xp'))             return { icon:'✦', cls:'evt-xp' };
+  if (eventType.includes('session'))        return { icon:'⚔', cls:'evt-xp' };
+  if (eventType.includes('level'))          return { icon:'★', cls:'evt-level' };
+  if (eventType.includes('title'))          return { icon:'🏆', cls:'evt-title' };
+  if (eventType.includes('link_granted'))   return { icon:'🔗', cls:'evt-link_granted' };
+  if (eventType.includes('link_revoked'))   return { icon:'✂', cls:'evt-link_revoked' };
+  if (eventType.includes('fate_marker'))    return { icon:'◈', cls:'evt-fate_marker' };
+  if (eventType.includes('node'))           return { icon:'◉', cls:'evt-xp' };
+  return { icon:'·', cls:'evt-default' };
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString();
+}
+
+function evtDescription(evt) {
+  const p = typeof evt.payload === 'string' ? JSON.parse(evt.payload) : (evt.payload || {});
+  const t = evt.event_type;
+  if (t === 'identity.enrolled')        return `Identity enrolled (${p.method || 'unknown'}) — ${p.persona || ''}`;
+  if (t === 'progression.session_completed') return `Session completed · ${p.difficulty || 'normal'} · ${p.nodes_completed || 0} nodes · boss ${p.boss_damage_pct || 0}%`;
+  if (t === 'progression.xp_granted')   return `+${p.xp || 0} Fate XP`;
+  if (t === 'progression.title_granted') return `Title granted: ${p.title_id || ''}`;
+  if (t === 'progression.fate_marker')  return `Fate marker: ${p.marker || ''}`;
+  if (t === 'progression.node_completed') return `Node completed: ${p.node_id || ''}`;
+  if (t === 'source.link_granted')      return `Source linked: ${p.source_name || evt.source_id}`;
+  if (t === 'source.link_revoked')      return `Source link revoked`;
+  return JSON.stringify(p);
+}
+
+
+// ── Data loading ──────────────────────────────────────────────
+
+async function loadAnalytics() {
+  const r = await apiFetch('/api/analytics');
+  if (r.status !== 'ok') return;
+  const d = r.data;
+  document.getElementById('hdr-enrolled').textContent = d.total_enrolled;
+  document.getElementById('hdr-events').textContent   = d.total_events;
+  document.getElementById('hdr-sources').textContent  = d.active_links;
+  document.getElementById('m-enrolled').textContent = d.total_enrolled;
+  document.getElementById('m-events').textContent   = d.total_events;
+  document.getElementById('m-links').textContent    = d.active_links;
+  document.getElementById('m-xp').textContent       = Math.round(d.avg_fate_xp);
+  document.getElementById('m-level').textContent    = d.avg_fate_level.toFixed(1);
+
+  const th = document.getElementById('top-heroes');
+  th.innerHTML = (d.top_heroes || []).map(h =>
+    `<div class="metric-row">
+       <span class="metric-label">${h.hero_name}</span>
+       <span class="metric-val">Lv${h.fate_level} · ${h.fate_xp}xp</span>
+     </div>`
+  ).join('') || '<div style="color:var(--dim);font-size:10px">No data yet</div>';
+}
+
+async function loadSources() {
+  const r = await apiFetch('/api/sources');
+  if (r.status !== 'ok') return;
+  allSources = r.data;
+
+  const sl = document.getElementById('sources-list');
+  sl.innerHTML = allSources.map(s =>
+    `<div class="metric-row">
+       <span class="metric-label">${s.source_name}</span>
+       <span class="metric-val" style="color:${s.status==='active'?'var(--green)':'var(--dim)'}">${s.status}</span>
+     </div>`
+  ).join('');
+
+  // populate enroll source select
+  const sel = document.getElementById('enroll-source');
+  allSources.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.source_id;
+    opt.textContent = s.source_name;
+    sel.appendChild(opt);
+  });
+}
+
+async function loadUsers() {
+  const r = await apiFetch('/api/users');
+  if (r.status !== 'ok') return;
+  const users = r.data;
+
+  // populate ingest user select
+  const iu = document.getElementById('ingest-user');
+  iu.innerHTML = users.map(u =>
+    `<option value="${u.root_id}">${u.hero_name || u.root_id.slice(0,16)}</option>`
+  ).join('');
+
+  const ul = document.getElementById('user-list');
+  ul.innerHTML = users.map(u => `
+    <div class="user-card ${u.root_id === selectedRootId ? 'active' : ''}"
+         onclick="selectUser('${u.root_id}')">
+      <div class="user-card-name">${u.hero_name || '(unnamed)'}</div>
+      <div class="user-card-sub">${u.root_id.slice(0,22)}…</div>
+      <div class="user-card-meta">
+        ${alignTag(u.fate_alignment)}
+        <span class="tag tag-any">Lv ${u.fate_level || 1}</span>
+        <span class="tag tag-any">${u.fate_xp || 0} XP</span>
+        <span class="tag tag-any">${u.active_sources || 0} src</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function selectUser(rootId) {
+  selectedRootId = rootId;
+  document.getElementById('detail-empty').style.display   = 'none';
+  document.getElementById('detail-content').style.display = 'block';
+  loadUsers(); // refresh active state
+
+  const r = await apiFetch(`/api/users/${rootId}`);
+  if (r.status !== 'ok') return;
+  const { identity, persona, progression, source_links, recent_events } = r.data;
+
+  const xp    = progression?.fate_xp || 0;
+  const level = progression?.fate_level || 1;
+  const xpIn  = progression?.xp_in_current_level || 0;
+  const xpNxt = progression?.xp_needed_for_next || 200;
+  const barPct = Math.min(100, Math.round((xpIn / xpNxt) * 100));
+
+  const titles = (progression?.titles || []);
+  const markers = (progression?.fate_markers || []);
+
+  const dc = document.getElementById('detail-content');
+  dc.innerHTML = `
+    <!-- Hero Banner -->
+    <div class="hero-banner">
+      <div class="hero-name">${persona?.hero_name || '—'}</div>
+      <div class="hero-origin">${persona?.origin || ''} · ${alignTag(persona?.fate_alignment)}</div>
+      <div class="fate-bar-wrap">
+        <div class="fate-label">
+          <span>Fate Level ${level}</span>
+          <span>${xpIn} / ${xpNxt} XP</span>
+        </div>
+        <div class="fate-bar"><div class="fate-bar-fill" style="width:${barPct}%"></div></div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-box"><div class="val">${level}</div><div class="lbl">Fate Level</div></div>
+        <div class="stat-box"><div class="val">${xp}</div><div class="lbl">Total XP</div></div>
+        <div class="stat-box"><div class="val">${progression?.total_sessions || 0}</div><div class="lbl">Sessions</div></div>
+        <div class="stat-box"><div class="val">${source_links?.filter(l=>l.status==='active').length || 0}</div><div class="lbl">Sources</div></div>
+      </div>
+    </div>
+
+    <!-- Source Links -->
+    <div class="section">
+      <h4>Source Links · Consent</h4>
+      ${(source_links || []).map(link => `
+        <div class="source-link">
+          <div class="source-dot ${link.status === 'active' ? 'source-active' : 'source-revoked'}"></div>
+          <div class="source-info">
+            <div class="source-name">${link.source_name}</div>
+            <div class="source-meta">
+              ${link.status === 'active' ? `Linked ${fmtTime(link.granted_at)} by ${link.granted_by}` : `Revoked ${fmtTime(link.revoked_at)}`}
+              · Scope: ${link.scope}
+            </div>
+          </div>
+          ${link.status === 'active'
+            ? `<button class="btn-revoke" onclick="revokeLink('${rootId}','${link.link_id}')">Revoke</button>`
+            : '<span style="font-size:9px;color:var(--dim)">REVOKED</span>'
+          }
+        </div>
+      `).join('') || '<div style="color:var(--dim);font-size:11px">No source links</div>'}
+      <button class="btn-secondary" style="margin-top:10px;padding:6px 14px;font-size:9px;letter-spacing:1px" onclick="openLinkModal('${rootId}')">+ Add Source Link</button>
+    </div>
+
+    <!-- Titles -->
+    ${titles.length ? `
+    <div class="section">
+      <h4>Titles Earned</h4>
+      <div class="titles-grid">
+        ${titles.map(t => `<div class="title-chip">${t.replace('title_','').replace(/_/g,' ').toUpperCase()}</div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Fate Markers -->
+    ${markers.length ? `
+    <div class="section">
+      <h4>Fate Markers</h4>
+      <div class="titles-grid">
+        ${markers.map(m => `<div class="title-chip" style="border-color:#7c6aff44;color:var(--accent)">${m}</div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Timeline -->
+    <div class="section">
+      <h4>Identity Timeline</h4>
+      ${(recent_events || []).map(evt => {
+        const { icon, cls } = evtIcon(evt.event_type);
+        return `
+          <div class="timeline-item">
+            <div class="timeline-icon ${cls}">${icon}</div>
+            <div class="timeline-body">
+              <div class="timeline-type">${evt.event_type}</div>
+              <div class="timeline-desc">${evtDescription(evt)}</div>
+              <div class="timeline-meta">${fmtTime(evt.occurred_at)}
+                ${evt.source_name ? '· ' + evt.source_name : ''}
+                ${evt.session_ref ? '· session: ' + evt.session_ref.slice(0,8) + '…' : ''}
+              </div>
+            </div>
+          </div>`;
+      }).join('') || '<div style="color:var(--dim);font-size:11px">No events yet</div>'}
+    </div>
+  `;
+}
+
+
+// ── Enroll ───────────────────────────────────────────────────
+
+function openEnrollModal() { document.getElementById('enroll-modal').classList.add('open'); }
+function closeEnrollModal() { document.getElementById('enroll-modal').classList.remove('open'); }
+
+async function submitEnroll() {
+  const heroName  = document.getElementById('enroll-name').value.trim();
+  if (!heroName) { showToast('Hero name is required', 'var(--red)'); return; }
+  const alignment = document.getElementById('enroll-alignment').value;
+  const origin    = document.getElementById('enroll-origin').value.trim();
+  const by        = document.getElementById('enroll-by').value;
+  const sourceId  = document.getElementById('enroll-source').value;
+
+  const body = { hero_name: heroName, fate_alignment: alignment, origin, enrolled_by: by };
+  if (sourceId) body.source_id = sourceId;
+
+  const r = await apiFetch('/api/users/enroll', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (r.status === 'ok') {
+    showToast(`${heroName} enrolled!`);
+    closeEnrollModal();
+    document.getElementById('enroll-name').value   = '';
+    document.getElementById('enroll-origin').value = '';
+    await loadUsers();
+    await loadAnalytics();
+    selectUser(r.data.root_id);
+  } else {
+    showToast(r.message || 'Enrollment failed', 'var(--red)');
+  }
+}
+
+
+// ── Revoke link ───────────────────────────────────────────────
+
+async function revokeLink(rootId, linkId) {
+  if (!confirm('Revoke this source link? The source will no longer be able to report progression for this user.')) return;
+  const r = await apiFetch(`/api/users/${rootId}/links/${linkId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revoked_by: 'operator:dashboard' })
+  });
+  if (r.status === 'ok') {
+    showToast('Link revoked');
+    selectUser(rootId);
+    loadAnalytics();
+  } else {
+    showToast(r.message || 'Revoke failed', 'var(--red)');
+  }
+}
+
+
+// ── Link modal (inline, simple) ───────────────────────────────
+
+function openLinkModal(rootId) {
+  const srcId = prompt('Source ID to link:\n' + allSources.map(s => `${s.source_id}  (${s.source_name})`).join('\n'));
+  if (!srcId) return;
+  apiFetch(`/api/users/${rootId}/links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_id: srcId.trim(), granted_by: 'operator:dashboard' })
+  }).then(r => {
+    if (r.status === 'ok') { showToast('Source linked!'); selectUser(rootId); loadAnalytics(); }
+    else showToast(r.message || 'Link failed', 'var(--red)');
+  });
+}
+
+
+// ── Simulate ingest ───────────────────────────────────────────
+
+async function simulateIngest() {
+  const rootId = document.getElementById('ingest-user').value;
+  if (!rootId) { showToast('Select a user first', 'var(--red)'); return; }
+
+  const evtVal = document.getElementById('ingest-event').value;
+  const parts  = evtVal.split(':');
+  const evtType = parts[0];
+
+  let payload = {};
+  if (evtType === 'progression.session_completed') {
+    payload = { difficulty: parts[1] || 'normal', boss_damage_pct: parseFloat(parts[2] || 0), nodes_completed: 6 };
+  } else if (evtType === 'progression.title_granted') {
+    payload = { title_id: parts[1] };
+  } else if (evtType === 'progression.fate_marker') {
+    payload = { marker: parts[1] };
+  }
+
+  const r = await fetch(`${API}/api/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-PIK-API-Key': HV_KEY },
+    body: JSON.stringify({ root_id: rootId, event_type: evtType, payload })
+  }).then(r => r.json());
+
+  if (r.status === 'ok') {
+    const c = r.data.changes_applied || {};
+    const xpTotal = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
+    let msg = `Event sent`;
+    if (xpTotal) msg += ` · +${xpTotal} XP`;
+    if (c.level_up) msg += ` · LEVEL UP ${c.level_up.from}→${c.level_up.to}!`;
+    if (c.title_granted) msg += ` · Title: ${c.title_granted}`;
+    showToast(msg);
+    await loadAnalytics();
+    await loadUsers();
+    if (selectedRootId === rootId) selectUser(rootId);
+  } else {
+    showToast(r.message || 'Ingest failed', 'var(--red)');
+  }
+}
+
+
+// ── Init + polling ────────────────────────────────────────────
+
+async function init() {
+  await loadSources();
+  await loadUsers();
+  await loadAnalytics();
+}
+
+setInterval(async () => {
+  await loadUsers();
+  await loadAnalytics();
+  if (selectedRootId) selectUser(selectedRootId);
+}, 5000);
+
+init();
+</script>
+</body>
+</html>
