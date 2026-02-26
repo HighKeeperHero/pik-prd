@@ -28,9 +28,13 @@ import sys
 import os
 import time
 import sqlite3
+import ssl
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+
+# SSL context for Windows compatibility (avoids cert revocation check timeout)
+SSL_CTX = ssl.create_default_context()
 from pathlib import Path
 
 # ── Config ─────────────────────────────────────────────────────
@@ -85,7 +89,7 @@ def hv_get(path: str) -> dict | None:
     url = f"{HV_API_URL}{path}"
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CTX) as resp:
             return json.loads(resp.read())
     except Exception as e:
         log(f"  HV fetch error ({url}): {e}")
@@ -105,7 +109,7 @@ def pik_post(path: str, body: dict) -> dict | None:
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CTX) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body_text = e.read().decode()
@@ -120,7 +124,7 @@ def pik_get(path: str) -> dict | None:
     url = f"{PIK_API_URL}{path}"
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CTX) as resp:
             return json.loads(resp.read())
     except Exception as e:
         log(f"  PIK fetch error ({url}): {e}")
