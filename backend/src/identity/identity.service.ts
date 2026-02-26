@@ -135,7 +135,7 @@ export class IdentityService {
     }));
   }
 
-  // ── GET USER ──────────────────────────────────────────────
+  // ── GET USER (nested format for dashboard) ────────────────
 
   async getUser(rootId: string) {
     const user = await this.prisma.rootIdentity.findUnique({
@@ -160,29 +160,59 @@ export class IdentityService {
       throw new NotFoundException(`Identity not found: ${rootId}`);
     }
 
+    // Get progression config for XP calculations
     const config = await this.getProgressionConfig();
     const nextLevelThreshold = Math.floor(
       config.xpBaseThreshold *
         Math.pow(config.xpLevelMultiplier, user.fateLevel - 1),
     );
 
+    // Calculate XP within current level
+    // Sum all thresholds up to current level to find how much XP was "spent" on previous levels
+    let xpSpentOnPreviousLevels = 0;
+    for (let i = 1; i < user.fateLevel; i++) {
+      xpSpentOnPreviousLevels += Math.floor(
+        config.xpBaseThreshold * Math.pow(config.xpLevelMultiplier, i - 1),
+      );
+    }
+    const xpInCurrentLevel = user.fateXp - xpSpentOnPreviousLevels;
+
+    // Count sessions from events
+    const totalSessions = await this.prisma.identityEvent.count({
+      where: { rootId, eventType: 'progression.session_completed' },
+    });
+
+    // Get recent events for timeline
+    const recentEvents = await this.prisma.identityEvent.findMany({
+      where: { rootId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    // Dashboard expects this nested structure:
+    // { identity, persona, progression, source_links, recent_events }
     return {
-      root_id: user.id,
-      hero_name: user.heroName,
-      fate_alignment: user.fateAlignment,
-      origin: user.origin,
-      fate_xp: user.fateXp,
-      fate_level: user.fateLevel,
-      fate_xp_next_level: nextLevelThreshold,
-      status: user.status,
-      enrolled_by: user.enrolledBy,
-      enrolled_at: user.enrolledAt.toISOString(),
-      personas: user.personas.map((p) => ({
-        persona_id: p.id,
-        display_name: p.displayName,
-        status: p.status,
-        created_at: p.createdAt.toISOString(),
-      })),
+      identity: {
+        root_id: user.id,
+        status: user.status,
+        enrolled_by: user.enrolledBy,
+        enrolled_at: user.enrolledAt.toISOString(),
+      },
+      persona: {
+        persona_id: user.personas[0]?.id ?? null,
+        hero_name: user.heroName,
+        origin: user.origin,
+        fate_alignment: user.fateAlignment,
+      },
+      progression: {
+        fate_xp: user.fateXp,
+        fate_level: user.fateLevel,
+        xp_in_current_level: Math.max(0, xpInCurrentLevel),
+        xp_needed_for_next: nextLevelThreshold,
+        total_sessions: totalSessions,
+        titles: user.titles.map((t) => t.titleId),
+        fate_markers: user.fateMarkers.map((m) => m.marker),
+      },
       source_links: user.sourceLinks.map((l) => ({
         link_id: l.id,
         source_id: l.sourceId,
@@ -194,16 +224,13 @@ export class IdentityService {
         revoked_at: l.revokedAt?.toISOString() ?? null,
         revoked_by: l.revokedBy ?? null,
       })),
-      titles: user.titles.map((t) => ({
-        title_id: t.titleId,
-        display_name: t.title.displayName,
-        category: t.title.category,
-        granted_at: t.grantedAt.toISOString(),
-      })),
-      fate_markers: user.fateMarkers.map((m) => ({
-        marker: m.marker,
-        source_id: m.sourceId,
-        created_at: m.createdAt.toISOString(),
+      recent_events: recentEvents.map((e) => ({
+        event_id: e.id,
+        event_type: e.eventType,
+        source_id: e.sourceId,
+        payload: e.payload,
+        changes: e.changes,
+        created_at: e.createdAt.toISOString(),
       })),
     };
   }
