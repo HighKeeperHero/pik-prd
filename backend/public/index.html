@@ -191,6 +191,7 @@
   .btn-ingest { width:100%; padding:7px; background:#00d4a822; border:1px solid var(--accent2); border-radius:4px; color:var(--accent2); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; font-family:inherit; }
   .btn-ingest:hover { background:#00d4a833; }
 </style>
+<script src="https://unpkg.com/@simplewebauthn/browser@11/dist/bundle/index.umd.min.js"></script>
 </head>
 <body>
 
@@ -204,6 +205,8 @@
     <div class="stat-pill">Enrolled: <span id="hdr-enrolled">—</span></div>
     <div class="stat-pill">Events: <span id="hdr-events">—</span></div>
     <div class="stat-pill">Sources: <span id="hdr-sources">—</span></div>
+    <button id="auth-signin-btn" onclick="signInWithPasskey()" class="stat-pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent);background:#7c6aff11;font-family:inherit">&#x1F511; Sign In</button>
+    <div id="auth-status" style="display:none;align-items:center;gap:6px;font-size:11px"></div>
     <div class="status-dot" title="PIK API Live"></div>
   </div>
 </div>
@@ -302,7 +305,8 @@
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeEnrollModal()">Cancel</button>
-      <button class="btn-primary"   onclick="submitEnroll()">Enroll Identity</button>
+      <button class="btn-primary" onclick="submitEnroll()">Enroll Identity</button>
+      <button class="btn-primary" style="background:var(--accent2)" onclick="registerWithPasskey()">&#x1F511; Enroll with Passkey</button>
     </div>
   </div>
 </div>
@@ -676,5 +680,6 @@ setInterval(async () => {
 
 init();
 </script>
+<script src="auth-ui.js"></script>
 </body>
 </html>
