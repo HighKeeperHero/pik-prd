@@ -35,7 +35,7 @@ from pathlib import Path
 
 # ── Config ─────────────────────────────────────────────────────
 HV_API_URL    = os.environ.get("HV_API_URL",    "http://localhost:8000")
-PIK_API_URL   = os.environ.get("PIK_API_URL",   "http://localhost:8080")
+PIK_API_URL   = os.environ.get("PIK_API_URL",   "https://pik-prd-production.up.railway.app")
 PIK_API_KEY   = os.environ.get("PIK_API_KEY",   "hv-demo-api-key-2025")
 PIK_SOURCE_ID = "src-heroes-veritas-01"
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "10"))
