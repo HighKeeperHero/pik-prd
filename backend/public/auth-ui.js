@@ -220,8 +220,13 @@ async function rotateKey() {
   let attestation;
   try {
     attestation = await startRegistration({ optionsJSON: options });
-  } catch (err) {
-    showToast(`Key registration cancelled`, 'var(--amber)');
+ } catch (err) {
+    console.error('Key rotation error:', err);
+    if (err.name === 'InvalidStateError') {
+      showToast('This device already has a passkey for PIK. Use a different device or security key.', 'var(--red)');
+    } else {
+      showToast(`Key rotation: ${err.message || err.name}`, 'var(--amber)');
+    }
     return;
   }
 
