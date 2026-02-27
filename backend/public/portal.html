@@ -672,7 +672,7 @@ async function doSignIn() {
     console.log('Auth options:', JSON.stringify(options).substring(0, 200));
 
     // 2. Browser WebAuthn ceremony
-    const assertion = await SimpleWebAuthnBrowser.startAuthentication(options);
+    const assertion = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
 
     // 3. Verify with server
     const verifyResp = await apiFetch('/auth/authenticate/verify', {
