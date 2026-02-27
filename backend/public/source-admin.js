@@ -60,7 +60,7 @@ function openSourceManager() {
 async function loadSourceManager() {
   const container = document.getElementById('src-mgr-content');
   try {
-    const resp = await apiFetch('/sources');
+    const resp = await apiFetch('/api/sources');
     let sources = resp;
     if (resp && resp.data && Array.isArray(resp.data)) sources = resp.data;
     if (!Array.isArray(sources)) { console.log('Sources resp:', JSON.stringify(resp).substring(0,300)); sources = []; }
@@ -152,7 +152,7 @@ async function createNewSource() {
   }
 
   try {
-    const resp = await apiFetch('/sources', {
+    const resp = await apiFetch('/api/sources', {
       method: 'POST',
       body: JSON.stringify({ source_id: sourceId, source_name: sourceName }),
     });
