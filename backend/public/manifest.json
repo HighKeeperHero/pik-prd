@@ -1,0 +1,17 @@
+{
+  "name": "PIK — Player Portal",
+  "short_name": "PIK",
+  "description": "Your identity. Every world.",
+  "start_url": "/portal.html",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%237c6aff'/><text x='50' y='65' text-anchor='middle' fill='white' font-family='serif' font-size='50' font-weight='bold'>P</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
