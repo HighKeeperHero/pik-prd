@@ -61,7 +61,9 @@ async function loadSourceManager() {
   const container = document.getElementById('src-mgr-content');
   try {
     const resp = await apiFetch('/sources');
-    const sources = resp.data || resp;
+    let sources = resp;
+    if (resp && resp.data && Array.isArray(resp.data)) sources = resp.data;
+    if (!Array.isArray(sources)) { console.log('Sources resp:', JSON.stringify(resp).substring(0,300)); sources = []; }
     renderSourceManager(sources);
   } catch (err) {
     container.innerHTML = `<div style="color:var(--accent2);padding:20px;text-align:center">${err.message}</div>`;
