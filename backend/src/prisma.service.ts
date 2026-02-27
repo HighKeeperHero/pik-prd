@@ -1,12 +1,12 @@
 // ============================================================
 // PIK — Persistent Identity Kernel
-// PrismaService — Injectable database client for NestJS
+// PrismaService (Sprint 3 — Resilient Connections)
 //
-// This is the single point of database access for the entire
-// application. Every module injects PrismaService rather than
-// instantiating its own PrismaClient.
+// Handles Railway sleep/wake gracefully. When the container
+// wakes up after sleeping, Prisma auto-reconnects on the next
+// query. We add explicit connection health logging.
 //
-// Place this file at: src/prisma.service.ts
+// Place at: src/prisma.service.ts
 // ============================================================
 
 import {
@@ -26,33 +26,38 @@ export class PrismaService
 
   constructor() {
     super({
-      // Log slow queries and errors in development.
-      // In production, Railway sets NODE_ENV=production automatically.
       log:
         process.env.NODE_ENV === 'production'
           ? ['error', 'warn']
           : ['query', 'error', 'warn'],
+      // Prisma's built-in connection pool handles reconnection.
+      // These datasource settings optimize for Railway's environment:
+      datasourceUrl: process.env.DATABASE_URL,
     });
   }
 
-  /**
-   * Connect to PostgreSQL when the NestJS module initializes.
-   * This runs automatically — no manual connection management needed.
-   */
   async onModuleInit(): Promise<void> {
-    try {
-      await this.$connect();
-      this.logger.log('Connected to PostgreSQL');
-    } catch (error) {
-      this.logger.error('Failed to connect to PostgreSQL', error);
-      throw error;
+    // Retry connection up to 3 times on startup (handles Railway cold starts)
+    let lastError: Error | undefined;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await this.$connect();
+        this.logger.log('Connected to PostgreSQL');
+        return;
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.warn(
+          `Connection attempt ${attempt}/3 failed: ${lastError.message}`,
+        );
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 2000 * attempt));
+        }
+      }
     }
+    this.logger.error('Failed to connect to PostgreSQL after 3 attempts');
+    throw lastError;
   }
 
-  /**
-   * Gracefully disconnect when the application shuts down.
-   * Ensures connections are returned to the pool on SIGTERM (Railway deploys).
-   */
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
     this.logger.log('Disconnected from PostgreSQL');
@@ -60,32 +65,37 @@ export class PrismaService
 
   /**
    * Clean up expired WebAuthn challenges and session tokens.
-   * Call this on a schedule (e.g., every 15 minutes) or at startup.
-   *
-   * Not strictly required — expired records are ignored by the auth
-   * service — but keeps the tables lean in production.
+   * Called at startup and every 15 minutes by main.ts.
    */
   async cleanupExpired(): Promise<{ challenges: number; tokens: number }> {
     const now = new Date();
 
-    const [challengeResult, tokenResult] = await this.$transaction([
-      this.webAuthnChallenge.deleteMany({
-        where: { expiresAt: { lt: now } },
-      }),
-      this.sessionToken.deleteMany({
-        where: { expiresAt: { lt: now } },
-      }),
-    ]);
+    try {
+      const [challengeResult, tokenResult] = await this.$transaction([
+        this.webAuthnChallenge.deleteMany({
+          where: { expiresAt: { lt: now } },
+        }),
+        this.sessionToken.deleteMany({
+          where: { expiresAt: { lt: now } },
+        }),
+      ]);
 
-    if (challengeResult.count > 0 || tokenResult.count > 0) {
-      this.logger.log(
-        `Cleanup: removed ${challengeResult.count} expired challenges, ${tokenResult.count} expired tokens`,
+      if (challengeResult.count > 0 || tokenResult.count > 0) {
+        this.logger.log(
+          `Cleanup: removed ${challengeResult.count} expired challenges, ${tokenResult.count} expired tokens`,
+        );
+      }
+
+      return {
+        challenges: challengeResult.count,
+        tokens: tokenResult.count,
+      };
+    } catch (error) {
+      // Non-fatal — log and continue
+      this.logger.warn(
+        'Cleanup failed (will retry): ' + (error as Error).message,
       );
+      return { challenges: 0, tokens: 0 };
     }
-
-    return {
-      challenges: challengeResult.count,
-      tokens: tokenResult.count,
-    };
   }
 }

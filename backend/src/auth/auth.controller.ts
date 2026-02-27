@@ -1,10 +1,10 @@
 // ============================================================
-// PIK — Auth Controller
+// PIK — Auth Controller (Sprint 3 — Rate Limited)
 // Routes: /api/auth/*
 //
-// WebAuthn registration, authentication, key rotation,
-// and key revocation. Session-protected routes use the
-// SessionGuard to require a valid Bearer token.
+// Rate limits:
+//   - Register/Authenticate: 10 per minute (prevent brute force)
+//   - Key management: 20 per minute (normal use)
 //
 // Place at: src/auth/auth.controller.ts
 // ============================================================
@@ -18,11 +18,15 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { KeyService } from './key.service';
 import { SessionGuard } from './guards/session.guard';
 import { RegisterOptionsDto, RegisterVerifyDto } from './dto/register.dto';
-import { AuthenticateOptionsDto, AuthenticateVerifyDto } from './dto/authenticate.dto';
+import {
+  AuthenticateOptionsDto,
+  AuthenticateVerifyDto,
+} from './dto/authenticate.dto';
 
 @Controller('api/auth')
 export class AuthController {
@@ -31,32 +35,16 @@ export class AuthController {
     private readonly keyService: KeyService,
   ) {}
 
-  // ── Registration ──────────────────────────────────────────
+  // ── Registration (strict: 10/min) ────────────────────────
 
-  /**
-   * POST /api/auth/register/options
-   *
-   * Generate WebAuthn registration challenge.
-   * Called before navigator.credentials.create().
-   *
-   * Request:  { hero_name, fate_alignment, origin?, enrolled_by?, source_id? }
-   * Response: PublicKeyCredentialCreationOptions (JSON)
-   */
   @Post('register/options')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async registerOptions(@Body() dto: RegisterOptionsDto) {
     return this.authService.generateRegistrationOptions(dto);
   }
 
-  /**
-   * POST /api/auth/register/verify
-   *
-   * Verify the attestation response from the browser.
-   * Creates RootID, stores public key, issues session token.
-   *
-   * Request:  { attestation: <browser response>, friendly_name? }
-   * Response: { root_id, persona_id, key_id, session_token, ... }
-   */
   @Post('register/verify')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async registerVerify(@Body() dto: RegisterVerifyDto) {
     return this.authService.verifyRegistration(
       dto.attestation,
@@ -64,81 +52,43 @@ export class AuthController {
     );
   }
 
-  // ── Authentication ────────────────────────────────────────
+  // ── Authentication (strict: 10/min) ──────────────────────
 
-  /**
-   * POST /api/auth/authenticate/options
-   *
-   * Generate WebAuthn authentication challenge.
-   * Called before navigator.credentials.get().
-   *
-   * Request:  { root_id? }  — omit for discoverable credentials
-   * Response: PublicKeyCredentialRequestOptions (JSON)
-   */
   @Post('authenticate/options')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async authenticateOptions(@Body() dto: AuthenticateOptionsDto) {
     return this.authService.generateAuthenticationOptions(dto);
   }
 
-  /**
-   * POST /api/auth/authenticate/verify
-   *
-   * Verify the assertion response from the browser.
-   * Issues a session token on success.
-   *
-   * Request:  { assertion: <browser response> }
-   * Response: { root_id, hero_name, key_id, session_token, ... }
-   */
   @Post('authenticate/verify')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async authenticateVerify(@Body() dto: AuthenticateVerifyDto) {
     return this.authService.verifyAuthentication(dto.assertion);
   }
 
-  // ── Key Management (requires active session) ──────────────
+  // ── Key Management (session-protected, 20/min) ───────────
 
-  /**
-   * GET /api/auth/keys
-   *
-   * List all credentials for the authenticated user.
-   * Requires: Authorization: Bearer <session_token>
-   *
-   * Response: [ { key_id, device_type, status, created_at, ... } ]
-   */
   @Get('keys')
   @UseGuards(SessionGuard)
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
   async listKeys(@Req() req: Request & { rootId: string }) {
     return this.keyService.listKeys(req.rootId);
   }
 
-  /**
-   * POST /api/auth/keys/rotate
-   *
-   * Generate registration options for a NEW credential.
-   * The old key remains active until explicitly revoked.
-   * Requires: Authorization: Bearer <session_token>
-   *
-   * Response: PublicKeyCredentialCreationOptions (JSON)
-   */
   @Post('keys/rotate')
   @UseGuards(SessionGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async rotateKeyOptions(@Req() req: Request & { rootId: string }) {
     return this.keyService.generateRotationOptions(req.rootId);
   }
 
-  /**
-   * POST /api/auth/keys/rotate/verify
-   *
-   * Verify and store the new rotated credential.
-   * Requires: Authorization: Bearer <session_token>
-   *
-   * Request:  { attestation: <browser response>, friendly_name? }
-   * Response: { key_id, device_type, created_at }
-   */
   @Post('keys/rotate/verify')
   @UseGuards(SessionGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async rotateKeyVerify(
     @Req() req: Request & { rootId: string },
-    @Body() body: { attestation: Record<string, unknown>; friendly_name?: string },
+    @Body()
+    body: { attestation: Record<string, unknown>; friendly_name?: string },
   ) {
     return this.keyService.verifyRotation(
       req.rootId,
@@ -147,17 +97,9 @@ export class AuthController {
     );
   }
 
-  /**
-   * POST /api/auth/keys/:key_id/revoke
-   *
-   * Revoke a credential. Immediately fails authentication.
-   * SAFETY: Cannot revoke the last active key (returns 409).
-   * Requires: Authorization: Bearer <session_token>
-   *
-   * Response: { key_id, status: "revoked", revoked_at }
-   */
   @Post('keys/:key_id/revoke')
   @UseGuards(SessionGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
   async revokeKey(
     @Req() req: Request & { rootId: string },
     @Param('key_id') keyId: string,

@@ -1,21 +1,16 @@
 // ============================================================
 // PIK — Persistent Identity Kernel
-// Root Application Module (COMPLETE — all modules enabled)
+// Root Application Module (Sprint 3 — Hardened)
 //
-// This is the full PIK v1 backend:
-//   - Identity kernel (enrollment, profiles, timelines)
-//   - Consent engine (source links, consent receipts)
-//   - Progression ingest (XP, titles, fate markers)
-//   - Config tuning + analytics
-//   - WebAuthn authentication (passkeys, key rotation/revocation)
+// Added: ThrottlerModule for rate limiting
 //
 // Place at: src/app.module.ts
 // ============================================================
-
 import { Module, Global } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
-
 import { PrismaService } from './prisma.service';
 import { EventsModule } from './events/events.module';
 import { IdentityModule } from './identity/identity.module';
@@ -28,14 +23,26 @@ import { AuthModule } from './auth/auth.module';
 @Global()
 @Module({
   imports: [
-    // Serve dashboard.html at the root URL (GET /)
+    // ── Rate Limiting ───────────────────────────────────
+    // Global default: 60 requests per 60 seconds per IP.
+    // Individual controllers can override with @Throttle()
+    // or skip with @SkipThrottle().
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000, // 60 seconds
+        limit: 60,  // 60 requests per window
+      },
+    ]),
+
+    // Serve dashboard at root URL
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
       serveRoot: '/',
       exclude: ['/api/(.*)'],
     }),
 
-    // All feature modules
+    // Feature modules
     EventsModule,
     IdentityModule,
     ConsentModule,
@@ -44,8 +51,14 @@ import { AuthModule } from './auth/auth.module';
     AnalyticsModule,
     AuthModule,
   ],
-
-  providers: [PrismaService],
+  providers: [
+    PrismaService,
+    // Apply ThrottlerGuard globally — every route gets rate limiting
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
   exports: [PrismaService],
 })
 export class AppModule {}
