@@ -146,6 +146,59 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .cache-card.sealed.legendary{animation:cacheGlow 2s ease-in-out infinite}
 .cache-card.sealed.epic{animation:cacheGlow 3s ease-in-out infinite}
 
+/* ── Armory ───────────────────────────────────────── */
+.armory-container{max-width:500px;margin:0 auto;padding:16px}
+.loadout-title{font-family:'Cinzel',serif;font-size:16px;letter-spacing:2px;color:var(--text2);text-align:center;margin-bottom:16px}
+.loadout-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px}
+.slot-card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;text-align:center;min-height:90px;cursor:pointer;transition:all .2s;position:relative}
+.slot-card:hover{border-color:var(--accent);background:#7c6aff08}
+.slot-card.has-item{border-color:#f0c05030}
+.slot-card.has-item:hover{border-color:var(--gold)}
+.slot-icon{font-size:22px;line-height:1}
+.slot-label{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text3)}
+.slot-item-name{font-size:11px;color:var(--text);font-weight:500;line-height:1.2;margin-top:2px}
+.slot-item-rarity{font-size:8px;letter-spacing:1px;text-transform:uppercase;padding:1px 6px;border-radius:6px;margin-top:2px}
+.slot-empty{font-size:10px;color:var(--text3);font-style:italic;margin-top:4px}
+.slot-unequip{position:absolute;top:4px;right:6px;font-size:10px;color:var(--text3);cursor:pointer;opacity:0;transition:opacity .2s}
+.slot-card:hover .slot-unequip{opacity:1}
+.slot-card.rarity-common{border-color:var(--border)}.slot-card.rarity-uncommon{border-color:#3ecf8e33}.slot-card.rarity-rare{border-color:#7c6aff33}.slot-card.rarity-epic{border-color:#ff884433}.slot-card.rarity-legendary{border-color:#f0c05044;box-shadow:0 0 12px #f0c05011}
+
+.stats-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.stat-pill{display:flex;align-items:center;gap:4px;padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:16px;font-size:11px}
+.stat-pill-icon{font-size:12px}
+.stat-pill-val{color:var(--teal);font-weight:700}
+.stat-pill-name{color:var(--text3);font-size:10px}
+.stat-pill.zero{opacity:.35}
+
+.inv-section{margin-bottom:20px}
+.inv-section-title{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.inv-count{font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 8px;border-radius:8px}
+.inv-grid{display:flex;flex-direction:column;gap:6px}
+.inv-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all .2s}
+.inv-row:hover{border-color:var(--accent);background:#7c6aff06}
+.inv-row.equipped{border-color:#f0c05044;background:#f0c05006}
+.inv-icon{font-size:20px;flex-shrink:0;width:28px;text-align:center}
+.inv-info{flex:1;min-width:0}
+.inv-name{font-size:13px;font-weight:500;line-height:1.2}
+.inv-meta{font-size:10px;color:var(--text3);margin-top:2px;display:flex;gap:6px;align-items:center}
+.inv-rarity{font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:1px 6px;border-radius:6px}
+.inv-rarity.common{color:var(--text3);border:1px solid var(--text3)33}
+.inv-rarity.uncommon{color:var(--green);border:1px solid var(--green)33}
+.inv-rarity.rare{color:var(--accent);border:1px solid var(--accent)33}
+.inv-rarity.epic{color:var(--ember);border:1px solid var(--ember)33}
+.inv-rarity.legendary{color:var(--gold);border:1px solid var(--gold)44}
+.inv-action{font-size:10px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;flex-shrink:0}
+.inv-row.equipped .inv-action{color:var(--gold)}
+
+/* Gear detail tooltip */
+.gear-tooltip{position:fixed;z-index:200;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:280px;box-shadow:0 12px 40px rgba(0,0,0,.5);pointer-events:none;animation:fadeUp .2s ease-out}
+.gear-tooltip-name{font-family:'Cinzel',serif;font-size:14px;margin-bottom:2px}
+.gear-tooltip-rarity{font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.gear-tooltip-desc{font-size:12px;color:var(--text2);margin-bottom:6px}
+.gear-tooltip-lore{font-size:11px;color:var(--text3);font-style:italic;margin-bottom:8px}
+.gear-tooltip-mods{display:flex;flex-direction:column;gap:3px}
+.gear-tooltip-mod{font-size:11px;color:var(--teal)}
+
 /* ── Cache Open Modal ────────────────────────────── */
 .cache-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;align-items:center;justify-content:center;animation:fadeUp .2s ease-out}
 .cache-modal{background:var(--bg2);border-radius:16px;border:1px solid var(--border);padding:32px;text-align:center;max-width:340px;width:90%}
@@ -329,6 +382,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
       <span class="portal-header-title">PIK</span>
     </div>
     <div class="header-actions">
+      <button class="btn-header" onclick="goArmory()">⚔ Armory</button>
       <button class="btn-header" onclick="goSettings()">⚙ Settings</button>
       <button class="btn-header danger" onclick="doSignOut()">Sign Out</button>
     </div>
@@ -351,6 +405,22 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   </div>
   <div id="settings-content">
     <div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading...</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN 6: ARMORY (gear loadout)                   -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen" id="screen-armory">
+  <div class="portal-header">
+    <div class="portal-header-left">
+      <div class="logo-mark sm">P</div>
+      <span class="portal-header-title">ARMORY</span>
+    </div>
+    <button class="btn-header" onclick="goProfile()">← Profile</button>
+  </div>
+  <div id="armory-content">
+    <div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading gear...</div></div>
   </div>
 </div>
 
@@ -394,6 +464,7 @@ function showScreen(id){
 }
 function goProfile(){ showScreen('screen-profile'); loadProfile(); }
 function goSettings(){ showScreen('screen-settings'); renderSettings(); }
+function goArmory(){ showScreen('screen-armory'); renderArmory(); }
 
 // ── API Helper ────────────────────────────────────────────
 async function apiFetch(path, opts={}){
@@ -860,6 +931,184 @@ async function addNewPasskey(){
     loadPasskeys();
   } catch(err){ if(err.name!=='NotAllowedError') showToast(err.message,'var(--accent2)'); }
 }
+
+// ════════════════════════════════════════════════════════════
+// ARMORY (gear loadout + inventory)
+// ════════════════════════════════════════════════════════════
+const SLOT_META = {
+  weapon:{label:'Weapon',icon:'⚔',empty:'🗡'},helm:{label:'Helm',icon:'👑',empty:'🪖'},
+  chest:{label:'Chest',icon:'🛡',empty:'🛡'},arms:{label:'Arms',icon:'🧤',empty:'🧤'},
+  legs:{label:'Legs',icon:'👢',empty:'👢'},rune:{label:'Rune',icon:'✨',empty:'🔮'}
+};
+const STAT_LABELS = {
+  xp_bonus_pct:{icon:'⚡',name:'XP Bonus',suffix:'%'},boss_damage_pct:{icon:'💥',name:'Boss DMG',suffix:'%'},
+  crit_pct:{icon:'🎯',name:'Crit',suffix:'%'},defense:{icon:'🛡',name:'Defense',suffix:''},
+  luck_pct:{icon:'🍀',name:'Luck',suffix:'%'},cooldown_pct:{icon:'⏱',name:'Cooldown',suffix:'%'},
+  fate_affinity:{icon:'✦',name:'Fate',suffix:''}
+};
+const RARITY_ORDER = {legendary:0,epic:1,rare:2,uncommon:3,common:4};
+const SLOT_ORDER = ['weapon','helm','chest','arms','legs','rune'];
+
+async function renderArmory(){
+  if(!profileData){
+    try { const r = await apiFetch(`/users/${session.rootId}`); profileData=r.data; }
+    catch(err){ document.getElementById('armory-content').innerHTML=`<div class="loading-screen"><div class="loading-text" style="color:var(--accent2)">${esc(err.message)}</div></div>`; return; }
+  }
+  const gear = profileData.gear || {};
+  const equipment = gear.equipment || {};
+  const inventory = gear.inventory || [];
+  const mods = gear.computed_modifiers || {};
+
+  // Build slot cards
+  const slotsHtml = SLOT_ORDER.map(slot=>{
+    const eq = equipment[slot];
+    const sm = SLOT_META[slot];
+    if(eq){
+      return `<div class="slot-card has-item rarity-${eq.rarity}" onclick="showGearDetail(event,'${eq.inventory_id}')">
+        <span class="slot-unequip" onclick="event.stopPropagation();unequipSlot('${slot}')">✕</span>
+        <div class="slot-icon">${eq.icon||sm.icon}</div>
+        <div class="slot-label">${sm.label}</div>
+        <div class="slot-item-name">${esc(eq.item_name)}</div>
+        <span class="inv-rarity ${eq.rarity}">${eq.rarity}</span>
+      </div>`;
+    }
+    return `<div class="slot-card" onclick="scrollToSlotInventory('${slot}')">
+      <div class="slot-icon" style="opacity:.3">${sm.empty}</div>
+      <div class="slot-label">${sm.label}</div>
+      <div class="slot-empty">Empty</div>
+    </div>`;
+  }).join('');
+
+  // Build stat pills
+  const statsHtml = Object.entries(STAT_LABELS).map(([key,meta])=>{
+    const val = mods[key]||0;
+    return `<div class="stat-pill ${val===0?'zero':''}">
+      <span class="stat-pill-icon">${meta.icon}</span>
+      <span class="stat-pill-val">${val>0?'+':''}${val}${meta.suffix}</span>
+      <span class="stat-pill-name">${meta.name}</span>
+    </div>`;
+  }).join('');
+
+  // Group inventory by slot
+  const bySlot = {};
+  SLOT_ORDER.forEach(s=>bySlot[s]=[]);
+  inventory.forEach(item=>{
+    if(bySlot[item.slot]) bySlot[item.slot].push(item);
+  });
+  // Sort each slot: equipped first, then by rarity
+  Object.values(bySlot).forEach(arr=>arr.sort((a,b)=>{
+    if(a.is_equipped && !b.is_equipped) return -1;
+    if(!a.is_equipped && b.is_equipped) return 1;
+    return (RARITY_ORDER[a.rarity]||5)-(RARITY_ORDER[b.rarity]||5);
+  }));
+
+  const invSections = SLOT_ORDER.map(slot=>{
+    const items = bySlot[slot];
+    if(!items.length) return '';
+    const sm = SLOT_META[slot];
+    return `
+      <div class="inv-section" id="inv-slot-${slot}">
+        <div class="inv-section-title">${sm.icon} ${sm.label}s <span class="inv-count">${items.length}</span></div>
+        <div class="inv-grid">
+          ${items.map(item=>`
+            <div class="inv-row ${item.is_equipped?'equipped':''}" onclick="${item.is_equipped ? `unequipSlot('${slot}')` : `equipGearItem('${item.inventory_id}')`}" onmouseenter="showGearDetail(event,'${item.inventory_id}')" onmouseleave="hideGearDetail()">
+              <div class="inv-icon">${item.icon||sm.icon}</div>
+              <div class="inv-info">
+                <div class="inv-name">${esc(item.item_name)}</div>
+                <div class="inv-meta">
+                  <span class="inv-rarity ${item.rarity}">${item.rarity}</span>
+                  ${formatModsSummary(item.modifiers)}
+                </div>
+              </div>
+              <div class="inv-action">${item.is_equipped?'✦ Equipped':'Equip →'}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('armory-content').innerHTML = `
+    <div class="armory-container">
+      <div class="loadout-title fade-up">EQUIPMENT</div>
+      <div class="loadout-grid fade-up delay-1">${slotsHtml}</div>
+
+      <div class="loadout-title fade-up delay-1" style="margin-top:8px">MODIFIERS</div>
+      <div class="stats-bar fade-up delay-2">${statsHtml}</div>
+
+      <div class="loadout-title fade-up delay-2" style="margin-top:8px">INVENTORY <span style="font-family:'Alegreya Sans';font-weight:400;font-size:12px;color:var(--text3)">(${inventory.length} items)</span></div>
+      <div class="fade-up delay-3">
+        ${invSections || '<div class="empty-state">No gear collected yet. Open Fate Caches to find equipment!</div>'}
+      </div>
+
+      <div class="portal-footer">Soulbound gear cannot be traded.</div>
+    </div>
+  `;
+}
+
+function formatModsSummary(mods){
+  if(!mods || typeof mods !== 'object') return '';
+  const parts = Object.entries(mods).slice(0,3).map(([k,v])=>{
+    const meta = STAT_LABELS[k];
+    return meta ? `<span style="color:var(--teal)">+${v}${meta.suffix||''}</span> ${meta.name}` : '';
+  }).filter(Boolean);
+  return parts.length ? `<span style="font-size:9px;color:var(--text3)">${parts.join(' · ')}</span>` : '';
+}
+
+async function equipGearItem(inventoryId){
+  try {
+    await apiFetch(`/users/${session.rootId}/equipment/equip`,{method:'POST',body:JSON.stringify({inventory_id:inventoryId})});
+    showToast('Item equipped!','var(--gold)');
+    const r = await apiFetch(`/users/${session.rootId}`); profileData=r.data;
+    renderArmory();
+  } catch(err){ showToast(err.message,'var(--accent2)'); }
+}
+
+async function unequipSlot(slot){
+  try {
+    await apiFetch(`/users/${session.rootId}/equipment/unequip`,{method:'POST',body:JSON.stringify({slot})});
+    showToast('Item unequipped','var(--text3)');
+    const r = await apiFetch(`/users/${session.rootId}`); profileData=r.data;
+    renderArmory();
+  } catch(err){ showToast(err.message,'var(--accent2)'); }
+}
+
+function scrollToSlotInventory(slot){
+  const el = document.getElementById('inv-slot-'+slot);
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// Gear tooltip
+let tooltipEl = null;
+function showGearDetail(event, inventoryId){
+  hideGearDetail();
+  const gear = (profileData?.gear?.inventory||[]).find(i=>i.inventory_id===inventoryId);
+  if(!gear) return;
+  const mods = gear.modifiers || {};
+  const modsHtml = Object.entries(mods).map(([k,v])=>{
+    const meta = STAT_LABELS[k];
+    return meta ? `<div class="gear-tooltip-mod">${meta.icon} +${v}${meta.suffix||''} ${meta.name}</div>` : '';
+  }).filter(Boolean).join('');
+
+  tooltipEl = document.createElement('div');
+  tooltipEl.className = 'gear-tooltip';
+  const rarityColors = {common:'var(--text3)',uncommon:'var(--green)',rare:'var(--accent)',epic:'var(--ember)',legendary:'var(--gold)'};
+  tooltipEl.innerHTML = `
+    <div class="gear-tooltip-name">${esc(gear.item_name)}</div>
+    <div class="gear-tooltip-rarity" style="color:${rarityColors[gear.rarity]||'var(--text3)'}">${gear.rarity} ${gear.slot}</div>
+    ${gear.description ? `<div class="gear-tooltip-desc">${esc(gear.description)}</div>` : ''}
+    ${gear.lore_text ? `<div class="gear-tooltip-lore">"${esc(gear.lore_text)}"</div>` : ''}
+    <div class="gear-tooltip-mods">${modsHtml}</div>
+  `;
+  document.body.appendChild(tooltipEl);
+  // Position near the cursor
+  const r = event.currentTarget.getBoundingClientRect();
+  const x = Math.min(r.left, window.innerWidth - 300);
+  const y = r.bottom + 8;
+  tooltipEl.style.left = x + 'px';
+  tooltipEl.style.top = (y > window.innerHeight - 200 ? r.top - tooltipEl.offsetHeight - 8 : y) + 'px';
+  tooltipEl.style.pointerEvents = 'none';
+}
+function hideGearDetail(){ if(tooltipEl){tooltipEl.remove();tooltipEl=null;} }
 
 // ════════════════════════════════════════════════════════════
 // SIGN OUT

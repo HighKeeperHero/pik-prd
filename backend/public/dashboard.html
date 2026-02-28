@@ -190,6 +190,43 @@
   .ingest-select { width:100%; padding:6px 10px; background:#0a0c10; border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:inherit; font-size:11px; margin-bottom:8px; }
   .btn-ingest { width:100%; padding:7px; background:#00d4a822; border:1px solid var(--accent2); border-radius:4px; color:var(--accent2); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; font-family:inherit; }
   .btn-ingest:hover { background:#00d4a833; }
+
+  /* ── Gear/Loot Dashboard ── */
+  .gear-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .gear-slot { padding: 8px; background: #0b0e14; border: 1px solid var(--border); border-radius: 6px; text-align: center; font-size: 10px; }
+  .gear-slot.filled { border-color: #f0c06033; }
+  .gear-slot .gs-icon { font-size: 16px; margin-bottom: 2px; }
+  .gear-slot .gs-label { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
+  .gear-slot .gs-name { font-size: 9px; color: var(--text); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gear-slot .gs-rarity { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .gear-slot .gs-empty { font-size: 9px; color: var(--dim); font-style: italic; }
+  .mod-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .mod-chip { font-size: 9px; padding: 2px 8px; background: #0b0e14; border: 1px solid var(--border); border-radius: 10px; color: var(--accent2); }
+  .mod-chip.zero { opacity: .3; }
+  .inv-list { margin-top: 8px; }
+  .inv-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #1a1f28; font-size: 10px; }
+  .inv-item:last-child { border-bottom: none; }
+  .inv-item .ii-icon { font-size: 14px; }
+  .inv-item .ii-name { flex: 1; color: var(--text); }
+  .inv-item .ii-rarity { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; }
+  .inv-item .ii-eq { font-size: 8px; color: var(--gold); }
+  .rcolor-common { color: #6b7280; } .rcolor-uncommon { color: #3ecf8e; } .rcolor-rare { color: #7c6aff; } .rcolor-epic { color: #f5a623; } .rcolor-legendary { color: #f0c050; }
+  .cache-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #1a1f28; font-size: 10px; }
+  .cache-row:last-child { border-bottom: none; }
+  .cache-row .cr-icon { font-size: 14px; }
+  .cache-row .cr-info { flex: 1; }
+  .cache-row .cr-name { color: var(--text); }
+  .cache-row .cr-meta { font-size: 9px; color: var(--dim); }
+  .loot-pool { margin-bottom: 12px; }
+  .loot-pool-title { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+  .loot-entry { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #1a1f2810; font-size: 9px; }
+  .loot-entry .le-name { color: var(--text); flex: 1; }
+  .loot-entry .le-type { color: var(--dim); margin-right: 8px; }
+  .loot-entry .le-pct { color: var(--accent2); font-weight: 700; min-width: 36px; text-align: right; }
+  .grant-form { margin-top: 10px; }
+  .grant-select { width:100%; padding:5px 8px; background:#0a0c10; border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:inherit; font-size:10px; margin-bottom:6px; }
+  .btn-grant { width:100%; padding:6px; background:#f0c05022; border:1px solid #f0c05066; border-radius:4px; color:var(--gold); font-size:9px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; font-family:inherit; }
+  .btn-grant:hover { background:#f0c05033; }
 </style>
 </head>
 <body>
@@ -262,6 +299,32 @@
       <div id="sources-list"></div>
     </div>
 
+    <div class="right-section">
+      <h4>Loot Table Odds</h4>
+      <div id="loot-table-view"><div style="font-size:9px;color:var(--dim)">Loading...</div></div>
+    </div>
+
+    <div class="right-section">
+      <h4>Grant Fate Cache</h4>
+      <div class="grant-form">
+        <select class="grant-select" id="grant-user"></select>
+        <select class="grant-select" id="grant-type">
+          <option value="level_up">Level Up Cache</option>
+          <option value="boss_kill">Boss Kill Cache</option>
+          <option value="milestone">Milestone Cache</option>
+        </select>
+        <select class="grant-select" id="grant-rarity">
+          <option value="">Auto (by level)</option>
+          <option value="common">Common</option>
+          <option value="uncommon">Uncommon</option>
+          <option value="rare">Rare</option>
+          <option value="epic">Epic</option>
+          <option value="legendary">Legendary</option>
+        </select>
+        <button class="btn-grant" onclick="grantCache()">🎁 Grant Cache</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -311,7 +374,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const API = 'http://localhost:8080';
+const API = window.location.origin;
 const HV_KEY = 'hv-demo-api-key-2025';
 let selectedRootId = null;
 let allSources = [];
@@ -339,6 +402,11 @@ function alignTag(alignment) {
 
 function evtIcon(eventType) {
   if (eventType.includes('enrolled'))       return { icon:'⚡', cls:'evt-enrolled' };
+  if (eventType.includes('cache_granted'))  return { icon:'🎁', cls:'evt-level' };
+  if (eventType.includes('cache_opened'))   return { icon:'✨', cls:'evt-level' };
+  if (eventType.includes('item_acquired'))  return { icon:'⚔', cls:'evt-xp' };
+  if (eventType.includes('item_equipped'))  return { icon:'🛡', cls:'evt-xp' };
+  if (eventType.includes('item_unequipped'))return { icon:'↩', cls:'evt-default' };
   if (eventType.includes('xp'))             return { icon:'✦', cls:'evt-xp' };
   if (eventType.includes('session'))        return { icon:'⚔', cls:'evt-xp' };
   if (eventType.includes('level'))          return { icon:'★', cls:'evt-level' };
@@ -347,6 +415,7 @@ function evtIcon(eventType) {
   if (eventType.includes('link_revoked'))   return { icon:'✂', cls:'evt-link_revoked' };
   if (eventType.includes('fate_marker'))    return { icon:'◈', cls:'evt-fate_marker' };
   if (eventType.includes('node'))           return { icon:'◉', cls:'evt-xp' };
+  if (eventType.includes('profile'))        return { icon:'✎', cls:'evt-default' };
   return { icon:'·', cls:'evt-default' };
 }
 
@@ -358,6 +427,7 @@ function fmtTime(iso) {
 
 function evtDescription(evt) {
   const p = typeof evt.payload === 'string' ? JSON.parse(evt.payload) : (evt.payload || {});
+  const c = typeof evt.changes === 'string' ? JSON.parse(evt.changes) : (evt.changes || {});
   const t = evt.event_type;
   if (t === 'identity.enrolled')        return `Identity enrolled (${p.method || 'unknown'}) — ${p.persona || ''}`;
   if (t === 'progression.session_completed') return `Session completed · ${p.difficulty || 'normal'} · ${p.nodes_completed || 0} nodes · boss ${p.boss_damage_pct || 0}%`;
@@ -367,6 +437,13 @@ function evtDescription(evt) {
   if (t === 'progression.node_completed') return `Node completed: ${p.node_id || ''}`;
   if (t === 'source.link_granted')      return `Source linked: ${p.source_name || evt.source_id}`;
   if (t === 'source.link_revoked')      return `Source link revoked`;
+  if (t === 'loot.cache_granted')       return `Cache dropped: ${p.rarity || ''} ${p.cache_type || ''} (${p.trigger || ''})`;
+  if (t === 'loot.cache_opened')        return `Cache opened → ${c.reward_name || p.reward_name || 'reward'} (${c.reward_rarity || ''})`;
+  if (t === 'gear.item_acquired')       return `Gear acquired: ${p.item_name || ''} (${p.rarity || ''} ${p.slot || ''})`;
+  if (t === 'gear.item_equipped')       return `Equipped: ${p.item_name || ''} → ${p.slot || ''}`;
+  if (t === 'gear.item_unequipped')     return `Unequipped: ${p.item_name || ''} from ${p.slot || ''}`;
+  if (t === 'identity.profile_updated') return `Profile updated`;
+  if (t === 'identity.title_equipped')  return `Title equipped: ${p.title_id || ''}`;
   return JSON.stringify(p);
 }
 
@@ -429,6 +506,10 @@ async function loadUsers() {
     `<option value="${u.root_id}">${u.hero_name || u.root_id.slice(0,16)}</option>`
   ).join('');
 
+  // populate grant cache user select
+  const gu = document.getElementById('grant-user');
+  if (gu) gu.innerHTML = iu.innerHTML;
+
   const ul = document.getElementById('user-list');
   ul.innerHTML = users.map(u => `
     <div class="user-card ${u.root_id === selectedRootId ? 'active' : ''}"
@@ -453,7 +534,7 @@ async function selectUser(rootId) {
 
   const r = await apiFetch(`/api/users/${rootId}`);
   if (r.status !== 'ok') return;
-  const { identity, persona, progression, source_links, recent_events } = r.data;
+  const { identity, persona, progression, source_links, recent_events, fate_caches, gear } = r.data;
 
   const xp    = progression?.fate_xp || 0;
   const level = progression?.fate_level || 1;
@@ -463,6 +544,11 @@ async function selectUser(rootId) {
 
   const titles = (progression?.titles || []);
   const markers = (progression?.fate_markers || []);
+  const caches = fate_caches || [];
+  const gearData = gear || {};
+  const equipment = gearData.equipment || {};
+  const inventory = gearData.inventory || [];
+  const mods = gearData.computed_modifiers || {};
 
   const dc = document.getElementById('detail-content');
   dc.innerHTML = `
@@ -523,6 +609,61 @@ async function selectUser(rootId) {
       <div class="titles-grid">
         ${markers.map(m => `<div class="title-chip" style="border-color:#7c6aff44;color:var(--accent)">${m}</div>`).join('')}
       </div>
+    </div>` : ''}
+
+    <!-- Gear / Equipment -->
+    <div class="section">
+      <h4>Equipment Loadout</h4>
+      <div class="gear-grid">
+        ${['weapon','helm','chest','arms','legs','rune'].map(slot => {
+          const eq = equipment[slot];
+          const icons = {weapon:'⚔',helm:'👑',chest:'🛡',arms:'🧤',legs:'👢',rune:'🔮'};
+          return `<div class="gear-slot ${eq ? 'filled' : ''}">
+            <div class="gs-icon">${eq ? (eq.icon || icons[slot]) : icons[slot]}</div>
+            <div class="gs-label">${slot}</div>
+            ${eq
+              ? `<div class="gs-name">${eq.item_name}</div><div class="gs-rarity rcolor-${eq.rarity}">${eq.rarity}</div>`
+              : '<div class="gs-empty">Empty</div>'
+            }
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="mod-bar">
+        ${Object.entries(mods).map(([k,v]) => {
+          const names = {xp_bonus_pct:'XP',boss_damage_pct:'Boss',crit_pct:'Crit',defense:'Def',luck_pct:'Luck',cooldown_pct:'CD',fate_affinity:'Fate'};
+          return `<span class="mod-chip ${v===0?'zero':''}">+${v} ${names[k]||k}</span>`;
+        }).join('')}
+      </div>
+      ${inventory.length ? `
+      <div class="inv-list">
+        ${inventory.slice(0,12).map(item => `
+          <div class="inv-item">
+            <span class="ii-icon">${item.icon||'⚔'}</span>
+            <span class="ii-name">${item.item_name}</span>
+            <span class="ii-rarity rcolor-${item.rarity}">${item.rarity}</span>
+            ${item.is_equipped ? '<span class="ii-eq">✦ EQ</span>' : ''}
+          </div>
+        `).join('')}
+        ${inventory.length > 12 ? `<div style="font-size:9px;color:var(--dim);padding:4px 8px">+${inventory.length - 12} more items</div>` : ''}
+      </div>` : '<div style="font-size:10px;color:var(--dim);margin-top:8px">No gear collected</div>'}
+    </div>
+
+    <!-- Fate Caches -->
+    ${caches.length ? `
+    <div class="section">
+      <h4>Fate Caches (${caches.filter(c=>c.status==='sealed').length} sealed / ${caches.length} total)</h4>
+      ${caches.slice(0,10).map(c => {
+        const icons = {common:'📦',uncommon:'📦',rare:'💎',epic:'🔮',legendary:'👑'};
+        const labels = {common:'Fate Cache',uncommon:'Gleaming',rare:'Radiant',epic:'Mythic',legendary:'Legendary'};
+        return `<div class="cache-row">
+          <span class="cr-icon">${icons[c.rarity]||'📦'}</span>
+          <div class="cr-info">
+            <div class="cr-name rcolor-${c.rarity}">${labels[c.rarity]||'Cache'} · ${c.status}</div>
+            <div class="cr-meta">${c.trigger||''} · ${fmtTime(c.granted_at)}</div>
+            ${c.reward ? `<div class="cr-meta" style="color:var(--gold)">→ ${c.reward.name} (${c.reward.rarity})</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
     </div>` : ''}
 
     <!-- Timeline -->
@@ -661,12 +802,68 @@ async function simulateIngest() {
 }
 
 
+// ── Loot Table Viewer ────────────────────────────────────────
+
+async function loadLootTable() {
+  const el = document.getElementById('loot-table-view');
+  try {
+    const r = await apiFetch('/api/loot/table');
+    if (r.status !== 'ok' && typeof r !== 'object') { el.innerHTML = '<div style="font-size:9px;color:var(--dim)">Failed to load</div>'; return; }
+    const pools = r.data || r;
+    let html = '';
+    for (const [poolName, pool] of Object.entries(pools)) {
+      const entries = (pool.entries || []);
+      html += `<div class="loot-pool">
+        <div class="loot-pool-title">${poolName.replace(/_/g,' ')} (${pool.total_weight || '?'}w)</div>
+        ${entries.slice(0,8).map(e =>
+          `<div class="loot-entry">
+            <span class="le-name rcolor-${e.rarity_tier}">${e.display_name}</span>
+            <span class="le-type">${e.reward_type}</span>
+            <span class="le-pct">${e.probability}</span>
+          </div>`
+        ).join('')}
+        ${entries.length > 8 ? `<div style="font-size:8px;color:var(--dim)">+${entries.length - 8} more</div>` : ''}
+      </div>`;
+    }
+    el.innerHTML = html || '<div style="font-size:9px;color:var(--dim)">No loot entries</div>';
+  } catch(err) {
+    el.innerHTML = `<div style="font-size:9px;color:var(--dim)">${err.message}</div>`;
+  }
+}
+
+async function grantCache() {
+  const rootId = document.getElementById('grant-user').value;
+  const cacheType = document.getElementById('grant-type').value;
+  const rarity = document.getElementById('grant-rarity').value || undefined;
+
+  if (!rootId) { showToast('Select a user first', 'var(--red)'); return; }
+
+  try {
+    const r = await fetch(`${API}/api/loot/grant`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ root_id: rootId, cache_type: cacheType, rarity })
+    }).then(r => r.json());
+
+    if (r.cache_id) {
+      showToast(`${r.label || 'Cache'} (${r.rarity}) granted!`);
+      if (selectedRootId === rootId) selectUser(rootId);
+    } else {
+      showToast(r.message || 'Grant failed', 'var(--red)');
+    }
+  } catch(err) {
+    showToast(err.message, 'var(--red)');
+  }
+}
+
+
 // ── Init + polling ────────────────────────────────────────────
 
 async function init() {
   await loadSources();
   await loadUsers();
   await loadAnalytics();
+  await loadLootTable();
 }
 
 setInterval(async () => {
