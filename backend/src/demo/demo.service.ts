@@ -13,6 +13,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
+import { LootService } from '../loot/loot.service';
 
 // ── Narrative Character Data ──────────────────────────────
 
@@ -112,6 +113,7 @@ export class DemoService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly sse: SseService,
+    private readonly loot: LootService,
   ) {}
 
   isRunning(): boolean {
@@ -435,6 +437,36 @@ export class DemoService {
             title_name: title?.displayName ?? titleId,
           },
         });
+      }
+
+      // Fate Cache drops
+      if (newLevel > user.fateLevel) {
+        await sleep(delayMs * 0.4);
+        try {
+          await this.loot.grantCache({
+            rootId,
+            cacheType: 'level_up',
+            sourceId,
+            trigger: `level_up:${newLevel}`,
+            level: newLevel,
+          });
+        } catch { /* non-fatal */ }
+      }
+
+      if (s.boss_pct >= 50) {
+        await sleep(delayMs * 0.3);
+        const isLastSession = i === scripts.length - 1;
+        try {
+          await this.loot.grantCache({
+            rootId,
+            cacheType: 'boss_kill',
+            sourceId,
+            trigger: `boss_kill:${s.boss_pct}`,
+            level: newLevel,
+            // Force legendary on the final perfect run for demo impact
+            rarityOverride: isLastSession && s.boss_pct === 100 ? 'legendary' : undefined,
+          });
+        } catch { /* non-fatal */ }
       }
 
       await sleep(delayMs);

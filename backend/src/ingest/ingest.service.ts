@@ -28,6 +28,7 @@ import { ConsentService } from '../consent/consent.service';
 import { IdentityService } from '../identity/identity.service';
 import { IngestEventDto } from './dto/ingest-event.dto';
 import { ResolvedSource } from '../auth/guards/api-key.guard';
+import { LootService } from '../loot/loot.service';
 
 /** Titles automatically granted at specific Fate Levels */
 const LEVEL_TITLES: Record<number, string> = {
@@ -52,6 +53,7 @@ export class IngestService {
     private readonly events: EventsService,
     private readonly consent: ConsentService,
     private readonly identity: IdentityService,
+    private readonly loot: LootService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -180,6 +182,45 @@ export class IngestService {
 
     if (titlesGranted.length > 0) {
       changesApplied.title_granted = titlesGranted[0]; // MVP returns single title
+    }
+
+    // ── Fate Cache drops ────────────────────────────────────
+    const cachesGranted: string[] = [];
+
+    // Level-up cache
+    if (changes.levelUp) {
+      try {
+        const cache = await this.loot.grantCache({
+          rootId: user.id,
+          cacheType: 'level_up',
+          sourceId: source.id,
+          trigger: `level_up:${changes.newLevel}`,
+          level: changes.newLevel,
+        });
+        cachesGranted.push(cache.cache_id);
+      } catch (err) {
+        this.logger.warn(`Cache grant failed (level_up): ${err}`);
+      }
+    }
+
+    // Boss kill cache (≥ 50% damage)
+    if (boss_damage_pct >= 50) {
+      try {
+        const cache = await this.loot.grantCache({
+          rootId: user.id,
+          cacheType: 'boss_kill',
+          sourceId: source.id,
+          trigger: `boss_kill:${boss_damage_pct}`,
+          level: changes.newLevel,
+        });
+        cachesGranted.push(cache.cache_id);
+      } catch (err) {
+        this.logger.warn(`Cache grant failed (boss_kill): ${err}`);
+      }
+    }
+
+    if (cachesGranted.length > 0) {
+      changesApplied.caches_granted = cachesGranted;
     }
 
     // Log the event

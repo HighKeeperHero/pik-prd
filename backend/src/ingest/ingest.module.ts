@@ -15,9 +15,10 @@ import { IngestService } from './ingest.service';
 import { EventsModule } from '../events/events.module';
 import { ConsentModule } from '../consent/consent.module';
 import { IdentityModule } from '../identity/identity.module';
+import { LootModule } from '../loot/loot.module';
 
 @Module({
-  imports: [EventsModule, ConsentModule, IdentityModule],
+  imports: [EventsModule, ConsentModule, IdentityModule, LootModule],
   controllers: [IngestController],
   providers: [IngestService],
 })

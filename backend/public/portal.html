@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0f">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Alegreya+Sans:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Alegreya+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
 <title>PIK — Player Portal</title>
 <link rel="manifest" href="manifest.json">
 <script src="https://unpkg.com/@simplewebauthn/browser@11/dist/bundle/index.umd.min.js"></script>
@@ -14,724 +14,538 @@
 /* ── Reset & Root ────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root {
-  --bg:       #0a0a0f;
-  --bg2:      #12121a;
-  --bg3:      #1a1a26;
-  --surface:  #1e1e2e;
-  --border:   #2a2a3a;
-  --text:     #e0dde6;
-  --text2:    #8a8698;
-  --text3:    #5a5670;
-  --accent:   #7c6aff;
-  --accent2:  #ff6a8a;
-  --gold:     #f0c050;
-  --teal:     #40e8c0;
-  --ember:    #ff8844;
-  --radius:   12px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bot: env(safe-area-inset-bottom, 0px);
+  --bg:#0a0a0f; --bg2:#12121a; --bg3:#1a1a26; --surface:#1e1e2e;
+  --border:#2a2a3a; --text:#e0dde6; --text2:#8a8698; --text3:#5a5670;
+  --accent:#7c6aff; --accent2:#ff6a8a; --gold:#f0c050; --teal:#40e8c0;
+  --ember:#ff8844; --green:#3ecf8e; --radius:12px;
+  --safe-top:env(safe-area-inset-top,0px); --safe-bot:env(safe-area-inset-bottom,0px);
 }
-html { background: var(--bg); }
-body {
-  font-family: 'Alegreya Sans', Georgia, serif;
-  color: var(--text);
-  background: var(--bg);
-  min-height: 100dvh;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  padding-top: var(--safe-top);
-  padding-bottom: var(--safe-bot);
-}
+html{background:var(--bg)}
+body{font-family:'Alegreya Sans',sans-serif;color:var(--text);background:var(--bg);min-height:100dvh;overflow-x:hidden;-webkit-font-smoothing:antialiased;padding-top:var(--safe-top);padding-bottom:var(--safe-bot)}
 
 /* ── Animations ──────────────────────────────────── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes glow {
-  0%, 100% { box-shadow: 0 0 20px #7c6aff33; }
-  50%      { box-shadow: 0 0 40px #7c6aff55; }
-}
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-@keyframes pulse {
-  0%, 100% { opacity: 0.6; }
-  50%      { opacity: 1; }
-}
-@keyframes orbFloat {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50%      { transform: translateY(-8px) scale(1.05); }
-}
-.fade-up {
-  animation: fadeUp 0.5s ease-out both;
-}
-.delay-1 { animation-delay: 0.1s; }
-.delay-2 { animation-delay: 0.2s; }
-.delay-3 { animation-delay: 0.3s; }
-.delay-4 { animation-delay: 0.4s; }
-.delay-5 { animation-delay: 0.5s; }
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px #7c6aff33}50%{box-shadow:0 0 40px #7c6aff55}}
+@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes orbFloat{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.05)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-up{animation:fadeUp .5s ease-out both}
+.delay-1{animation-delay:.1s}.delay-2{animation-delay:.2s}.delay-3{animation-delay:.3s}
+.delay-4{animation-delay:.4s}.delay-5{animation-delay:.5s}
 
-/* ── Background Texture ──────────────────────────── */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 20% 0%, #7c6aff08 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, #ff6a8a06 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
-}
+/* ── Background ──────────────────────────────────── */
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 0%,#7c6aff08 0%,transparent 50%),radial-gradient(ellipse at 80% 100%,#ff6a8a06 0%,transparent 50%);pointer-events:none;z-index:0}
 
-/* ── Login Screen ────────────────────────────────── */
-#login-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100dvh;
-  padding: 32px 24px;
-  text-align: center;
-  position: relative;
-  z-index: 1;
-}
-.login-logo {
-  width: 80px; height: 80px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Cinzel', serif;
-  font-size: 28px;
-  color: white;
-  margin-bottom: 24px;
-  animation: glow 3s ease-in-out infinite;
-}
-.login-title {
-  font-family: 'Cinzel', serif;
-  font-size: 28px;
-  letter-spacing: 3px;
-  color: var(--text);
-  margin-bottom: 8px;
-}
-.login-subtitle {
-  color: var(--text2);
-  font-size: 15px;
-  margin-bottom: 48px;
-  letter-spacing: 0.5px;
-}
-.login-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 40px;
-  background: linear-gradient(135deg, var(--accent), #6a56ee);
-  color: white;
-  border: none;
-  border-radius: 50px;
-  font-family: 'Alegreya Sans', serif;
-  font-size: 17px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  letter-spacing: 0.5px;
-}
-.login-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px #7c6aff44;
-}
-.login-btn:active { transform: scale(0.97); }
-.login-btn svg { width: 22px; height: 22px; }
-.login-error {
-  margin-top: 16px;
-  color: var(--accent2);
-  font-size: 13px;
-  min-height: 20px;
-}
-.login-footer {
-  position: absolute;
-  bottom: 32px;
-  color: var(--text3);
-  font-size: 11px;
-  letter-spacing: 1px;
-}
+/* ── Screen Management ───────────────────────────── */
+.screen{display:none;position:relative;z-index:1}
+.screen.active{display:block}
+.screen-center{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:32px 24px;text-align:center;position:relative;z-index:1}
+.screen-center.active{display:flex}
 
-/* ── Portal (post-login) ─────────────────────────── */
-#portal { display: none; position: relative; z-index: 1; }
-#portal.active { display: block; }
-#login-screen.hidden { display: none; }
+/* ── Shared Components ───────────────────────────── */
+.logo-mark{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:28px;color:white;animation:glow 3s ease-in-out infinite}
+.logo-mark.sm{width:28px;height:28px;font-size:12px;animation:none}
+.screen-title{font-family:'Cinzel',serif;font-size:28px;letter-spacing:3px;margin-bottom:8px}
+.screen-sub{color:var(--text2);font-size:15px;margin-bottom:40px;letter-spacing:.5px}
+
+.btn-primary{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 36px;background:linear-gradient(135deg,var(--accent),#6a56ee);color:white;border:none;border-radius:50px;font-family:'Alegreya Sans',serif;font-size:16px;font-weight:500;cursor:pointer;transition:all .3s;letter-spacing:.5px;width:100%}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px #7c6aff44}
+.btn-primary:active{transform:scale(.97)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-secondary{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 28px;background:none;border:1px solid var(--border);color:var(--text2);border-radius:50px;font-family:inherit;font-size:15px;cursor:pointer;transition:all .2s;width:100%}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent);background:#7c6aff08}
+.btn-ghost{background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:8px;transition:color .2s}
+.btn-ghost:hover{color:var(--accent)}
+.btn-group{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px}
+.error-msg{margin-top:12px;color:var(--accent2);font-size:13px;min-height:18px;text-align:center}
+.footer-text{position:absolute;bottom:32px;color:var(--text3);font-size:11px;letter-spacing:1px}
+
+/* Toast */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:20px;font-size:13px;z-index:999;animation:fadeUp .3s ease-out;pointer-events:none;background:var(--bg3);color:var(--text);border:1px solid var(--border)}
 
 /* ── Header Bar ──────────────────────────────────── */
-.portal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-.portal-header-left {
-  display: flex; align-items: center; gap: 10px;
-}
-.portal-header-mark {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Cinzel', serif;
-  font-size: 12px; color: white;
-}
-.portal-header-title {
-  font-family: 'Cinzel', serif;
-  font-size: 13px;
-  letter-spacing: 2px;
-  color: var(--text2);
-}
-.btn-signout {
-  background: none; border: 1px solid var(--border);
-  color: var(--text2); font-size: 12px;
-  padding: 6px 14px; border-radius: 20px;
-  font-family: inherit; cursor: pointer;
-  transition: all 0.2s;
-}
-.btn-signout:hover { border-color: var(--accent2); color: var(--accent2); }
+.portal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.portal-header-left{display:flex;align-items:center;gap:10px}
+.portal-header-title{font-family:'Cinzel',serif;font-size:13px;letter-spacing:2px;color:var(--text2)}
+.header-actions{display:flex;gap:8px}
+.btn-header{background:none;border:1px solid var(--border);color:var(--text2);font-size:12px;padding:6px 14px;border-radius:20px;font-family:inherit;cursor:pointer;transition:all .2s}
+.btn-header:hover{border-color:var(--accent);color:var(--accent)}
+.btn-header.danger:hover{border-color:var(--accent2);color:var(--accent2)}
 
 /* ── Hero Section ────────────────────────────────── */
-.hero-section {
-  padding: 32px 20px 24px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: -60px; left: 50%;
-  transform: translateX(-50%);
-  width: 300px; height: 300px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
-  opacity: 0.06;
-  pointer-events: none;
-}
-.hero-orb {
-  width: 96px; height: 96px;
-  margin: 0 auto 20px;
-  border-radius: 50%;
-  position: relative;
-  animation: orbFloat 4s ease-in-out infinite;
-}
-.hero-orb-ring {
-  position: absolute; inset: 0;
-  border-radius: 50%;
-  border: 3px solid transparent;
-  border-top-color: var(--accent);
-  border-right-color: var(--accent);
-  animation: spin 3s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.hero-orb-inner {
-  position: absolute;
-  inset: 8px;
-  border-radius: 50%;
-  background: var(--surface);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.hero-orb-level {
-  font-family: 'Cinzel', serif;
-  font-size: 28px;
-  color: var(--gold);
-  line-height: 1;
-}
-.hero-orb-label {
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  margin-top: 2px;
-}
-.hero-name {
-  font-family: 'Cinzel', serif;
-  font-size: 24px;
-  letter-spacing: 1px;
-  margin-bottom: 4px;
-}
-.hero-origin {
-  color: var(--text2);
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-.hero-alignment {
-  display: inline-block;
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  padding: 3px 14px;
-  border-radius: 20px;
-  border: 1px solid;
-}
-.hero-alignment.Order  { color: var(--teal); border-color: var(--teal); }
-.hero-alignment.Chaos  { color: var(--accent2); border-color: var(--accent2); }
-.hero-alignment.Wild   { color: var(--ember); border-color: var(--ember); }
+.hero-section{padding:32px 20px 24px;text-align:center;position:relative;overflow:hidden}
+.hero-section::before{content:'';position:absolute;top:-60px;left:50%;transform:translateX(-50%);width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,var(--accent) 0%,transparent 70%);opacity:.06;pointer-events:none}
+.hero-orb{width:96px;height:96px;margin:0 auto 20px;border-radius:50%;position:relative;animation:orbFloat 4s ease-in-out infinite}
+.hero-orb-ring{position:absolute;inset:0;border-radius:50%;border:3px solid transparent;border-top-color:var(--accent);border-right-color:var(--accent);animation:spin 3s linear infinite}
+.hero-orb-inner{position:absolute;inset:8px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hero-orb-level{font-family:'Cinzel',serif;font-size:28px;color:var(--gold);line-height:1}
+.hero-orb-label{font-size:9px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.hero-name{font-family:'Cinzel',serif;font-size:24px;letter-spacing:1px;margin-bottom:4px}
+.hero-origin{color:var(--text2);font-size:14px;margin-bottom:4px}
+.hero-alignment{display:inline-block;font-size:11px;letter-spacing:2px;text-transform:uppercase;padding:3px 14px;border-radius:20px;border:1px solid}
+.hero-alignment.Order{color:var(--teal);border-color:var(--teal)}
+.hero-alignment.Chaos{color:var(--accent2);border-color:var(--accent2)}
+.hero-alignment.Wild{color:var(--ember);border-color:var(--ember)}
+.hero-alignment.Veil{color:var(--accent);border-color:var(--accent)}
+.hero-alignment.Unaligned{color:var(--text3);border-color:var(--text3)}
+.equipped-badge{display:inline-block;font-size:11px;letter-spacing:1px;padding:3px 12px;border-radius:12px;color:var(--gold);border:1px solid #f0c05044;background:#f0c05011;margin-top:8px}
 
 /* ── XP Bar ──────────────────────────────────────── */
-.xp-section {
-  padding: 0 20px 28px;
-}
-.xp-bar-wrap {
-  background: var(--bg3);
-  border-radius: 8px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-}
-.xp-bar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-.xp-bar-label {
-  font-size: 11px;
-  color: var(--text3);
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-}
-.xp-bar-numbers {
-  font-size: 13px;
-  color: var(--text2);
-}
-.xp-bar-numbers strong {
-  color: var(--gold);
-  font-weight: 500;
-}
-.xp-bar-track {
-  height: 6px;
-  background: var(--bg);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.xp-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--gold));
-  transition: width 1s ease-out;
-  position: relative;
-}
-.xp-bar-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
-}
-.xp-stats {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-.xp-stat {
-  font-size: 12px;
-  color: var(--text3);
-}
-.xp-stat strong {
-  color: var(--text);
-  font-weight: 500;
-}
+.xp-section{padding:0 20px 28px}
+.xp-bar-wrap{background:var(--bg3);border-radius:8px;padding:14px 16px;border:1px solid var(--border)}
+.xp-bar-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.xp-bar-label{font-size:11px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase}
+.xp-bar-numbers{font-size:13px;color:var(--text2)}
+.xp-bar-numbers strong{color:var(--gold);font-weight:500}
+.xp-bar-track{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.xp-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--gold));transition:width 1s ease-out;position:relative}
+.xp-bar-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);background-size:200% 100%;animation:shimmer 2s ease-in-out infinite}
+.xp-stats{display:flex;justify-content:space-between;margin-top:10px}
+.xp-stat{font-size:12px;color:var(--text3)}
+.xp-stat strong{color:var(--text);font-weight:500}
 
 /* ── Section Cards ───────────────────────────────── */
-.section {
-  padding: 0 16px 20px;
-}
-.section-card {
-  background: var(--bg2);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px 10px;
-  font-size: 11px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text3);
-}
-.section-header svg { width: 14px; height: 14px; opacity: 0.5; }
+.section{padding:0 16px 20px}
+.section-card{background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+.section-header{display:flex;align-items:center;gap:8px;padding:14px 16px 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text3)}
+.section-header svg{width:14px;height:14px;opacity:.5}
+.section-header-hint{font-size:10px;color:var(--text3);margin-left:auto;letter-spacing:0;text-transform:none;font-style:italic}
 
 /* ── Titles ──────────────────────────────────────── */
-.titles-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 16px 16px;
-}
-.title-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--bg3);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--gold);
-  border: 1px solid #f0c05020;
-  letter-spacing: 0.3px;
-}
-.title-badge .icon { font-size: 13px; }
-.empty-state {
-  padding: 20px 16px;
-  text-align: center;
-  color: var(--text3);
-  font-size: 13px;
-  font-style: italic;
-}
+.titles-grid{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 16px}
+.title-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg3);border-radius:20px;font-size:12px;color:var(--gold);border:1px solid #f0c05020;letter-spacing:.3px;cursor:pointer;transition:all .2s}
+.title-chip:hover{border-color:#f0c05066;background:#f0c05011}
+.title-chip.equipped{border-color:var(--gold);background:#f0c05018;box-shadow:0 0 12px #f0c05022}
+.title-chip .eq-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);display:none;flex-shrink:0}
+.title-chip.equipped .eq-dot{display:block}
+.empty-state{padding:20px 16px;text-align:center;color:var(--text3);font-size:13px;font-style:italic}
 
 /* ── Fate Markers ────────────────────────────────── */
-.markers-list {
-  padding: 0 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.marker-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  background: var(--bg3);
-  border-radius: 8px;
-  font-size: 13px;
-}
-.marker-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
+.markers-list{padding:0 16px 16px;display:flex;flex-direction:column;gap:6px}
+.marker-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:13px}
+.marker-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* ── Fate Caches ─────────────────────────────────── */
+.caches-grid{display:flex;flex-wrap:wrap;gap:10px;padding:0 16px 16px}
+.cache-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 16px;background:var(--bg3);border-radius:12px;border:1px solid var(--border);min-width:120px;flex:1;max-width:180px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.cache-card:hover{transform:translateY(-2px);border-color:var(--gold)}
+.cache-card.opened{opacity:.6;cursor:default}
+.cache-card.opened:hover{transform:none;border-color:var(--border)}
+.cache-icon{font-size:28px;line-height:1}
+.cache-rarity{font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:2px 8px;border-radius:8px}
+.cache-rarity.common{color:var(--text3);border:1px solid var(--text3)33}
+.cache-rarity.uncommon{color:var(--green);border:1px solid var(--green)33}
+.cache-rarity.rare{color:var(--accent);border:1px solid var(--accent)33}
+.cache-rarity.epic{color:var(--ember);border:1px solid var(--ember)33}
+.cache-rarity.legendary{color:var(--gold);border:1px solid var(--gold)44;text-shadow:0 0 8px #f0c05066}
+.cache-label{font-size:11px;color:var(--text2);text-align:center}
+.cache-status{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3)}
+.cache-reward{font-size:11px;color:var(--gold);margin-top:2px;text-align:center}
+@keyframes cacheGlow{0%,100%{box-shadow:0 0 12px #f0c05022}50%{box-shadow:0 0 24px #f0c05044}}
+.cache-card.sealed.legendary{animation:cacheGlow 2s ease-in-out infinite}
+.cache-card.sealed.epic{animation:cacheGlow 3s ease-in-out infinite}
+
+/* ── Cache Open Modal ────────────────────────────── */
+.cache-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;align-items:center;justify-content:center;animation:fadeUp .2s ease-out}
+.cache-modal{background:var(--bg2);border-radius:16px;border:1px solid var(--border);padding:32px;text-align:center;max-width:340px;width:90%}
+.cache-modal-icon{font-size:48px;margin-bottom:12px}
+.cache-modal-title{font-family:'Cinzel',serif;font-size:18px;margin-bottom:4px}
+.cache-modal-rarity{font-size:11px;letter-spacing:2px;text-transform:uppercase;margin-bottom:20px}
+.cache-modal-reward{padding:16px;background:var(--bg3);border-radius:12px;margin-bottom:20px;border:1px solid var(--border)}
+.cache-modal-reward-name{font-family:'Cinzel',serif;font-size:16px;color:var(--gold);margin-bottom:4px}
+.cache-modal-reward-type{font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase}
+.cache-modal-btn{padding:10px 28px;background:linear-gradient(135deg,var(--accent),#6a56ee);color:white;border:none;border-radius:8px;font-family:inherit;font-size:14px;cursor:pointer;transition:all .2s;margin:0 4px}
+.cache-modal-btn:hover{background:#6a56ee}
+.cache-modal-btn.secondary{background:none;border:1px solid var(--border);color:var(--text2)}
 
 /* ── Source Links ────────────────────────────────── */
-.sources-list {
-  padding: 0 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.source-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  background: var(--bg3);
-  border-radius: 10px;
-  border: 1px solid var(--border);
-}
-.source-info { flex: 1; min-width: 0; }
-.source-name {
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.source-scope {
-  font-size: 11px;
-  color: var(--text3);
-  margin-top: 2px;
-}
-.source-status {
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  padding: 3px 10px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-.source-status.active {
-  color: var(--teal);
-  background: #40e8c010;
-  border: 1px solid #40e8c030;
-}
-.source-status.revoked {
-  color: var(--accent2);
-  background: #ff6a8a10;
-  border: 1px solid #ff6a8a30;
-}
+.sources-list{padding:0 16px 16px;display:flex;flex-direction:column;gap:8px}
+.source-card{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)}
+.source-info{flex:1;min-width:0}
+.source-name{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-scope{font-size:11px;color:var(--text3);margin-top:2px}
+.source-status{font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:12px;flex-shrink:0}
+.source-status.active{color:var(--teal);background:#40e8c010;border:1px solid #40e8c030}
+.source-status.revoked{color:var(--accent2);background:#ff6a8a10;border:1px solid #ff6a8a30}
 
 /* ── Timeline ────────────────────────────────────── */
-.timeline-list {
-  padding: 0 16px 16px;
-}
-.tl-item {
-  display: flex;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-.tl-item:last-child { border-bottom: none; }
-.tl-dot-col {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 4px;
-  flex-shrink: 0;
-  width: 20px;
-}
-.tl-dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.tl-dot.session   { background: var(--accent); }
-.tl-dot.marker    { background: var(--ember); }
-.tl-dot.enrolled  { background: var(--teal); }
-.tl-dot.link      { background: var(--gold); }
-.tl-dot.auth      { background: var(--text3); }
-.tl-dot.key       { background: var(--accent2); }
-.tl-line {
-  width: 1px;
-  flex: 1;
-  background: var(--border);
-  margin-top: 4px;
-}
-.tl-content { flex: 1; min-width: 0; }
-.tl-title {
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-.tl-detail {
-  font-size: 12px;
-  color: var(--text2);
-}
-.tl-detail .xp-gain {
-  color: var(--gold);
-  font-weight: 500;
-}
-.tl-detail .level-up {
-  color: var(--teal);
-  font-weight: 500;
-}
-.tl-detail .title-earn {
-  color: var(--accent);
-}
-.tl-time {
-  font-size: 11px;
-  color: var(--text3);
-  margin-top: 3px;
-}
-.tl-source {
-  display: inline-block;
-  font-size: 10px;
-  color: var(--text3);
-  background: var(--bg3);
-  padding: 1px 8px;
-  border-radius: 8px;
-  margin-top: 4px;
-}
+.timeline-list{padding:0 16px 16px}
+.tl-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.tl-item:last-child{border-bottom:none}
+.tl-dot-col{display:flex;flex-direction:column;align-items:center;padding-top:4px;flex-shrink:0;width:20px}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.tl-dot.session{background:var(--accent)}.tl-dot.marker{background:var(--ember)}.tl-dot.enrolled{background:var(--teal)}.tl-dot.link{background:var(--gold)}.tl-dot.auth{background:var(--text3)}.tl-dot.key{background:var(--accent2)}.tl-dot.profile{background:var(--green)}.tl-dot.title-eq{background:var(--gold)}
+.tl-line{width:1px;flex:1;background:var(--border);margin-top:4px}
+.tl-content{flex:1;min-width:0}
+.tl-title{font-size:13px;font-weight:500;margin-bottom:2px}
+.tl-detail{font-size:12px;color:var(--text2)}
+.tl-detail .xp-gain{color:var(--gold);font-weight:500}
+.tl-detail .level-up{color:var(--teal);font-weight:500}
+.tl-detail .title-earn{color:var(--accent)}
+.tl-time{font-size:11px;color:var(--text3);margin-top:3px}
+.tl-source{display:inline-block;font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 8px;border-radius:8px;margin-top:4px}
+
+/* ── Hero Build ──────────────────────────────────── */
+.build-container{max-width:440px;width:100%;margin:0 auto;text-align:left}
+.build-title{font-family:'Cinzel',serif;font-size:20px;letter-spacing:2px;text-align:center;margin-bottom:6px}
+.build-sub{text-align:center;color:var(--text2);font-size:14px;margin-bottom:28px}
+.build-field{margin-bottom:20px}
+.build-label{font-size:11px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:6px}
+.build-input{width:100%;padding:12px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:15px;transition:border-color .2s}
+.build-input:focus{outline:none;border-color:var(--accent)}
+.build-input::placeholder{color:var(--text3)}
+.build-row{display:flex;gap:8px;align-items:stretch}
+.build-roll-btn{padding:10px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--accent);font-family:'Cinzel',serif;font-size:14px;cursor:pointer;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.build-roll-btn:hover{border-color:var(--accent);background:#7c6aff11}
+.build-options{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.build-option{padding:8px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:13px;cursor:pointer;transition:all .2s;color:var(--text2)}
+.build-option:hover{border-color:var(--accent);color:var(--text)}
+.build-option.selected{border-color:var(--accent);color:var(--accent);background:#7c6aff11}
+.build-actions{display:flex;flex-direction:column;gap:12px;margin-top:28px}
+
+/* ── Settings ────────────────────────────────────── */
+.settings-container{max-width:500px;margin:0 auto;padding:20px}
+.settings-section{margin-bottom:24px}
+.settings-section h3{font-family:'Cinzel',serif;font-size:14px;letter-spacing:2px;color:var(--text2);margin-bottom:14px;text-transform:uppercase}
+.settings-field{margin-bottom:14px}
+.settings-label{font-size:11px;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:4px}
+.settings-input{width:100%;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:14px}
+.settings-input:focus{outline:none;border-color:var(--accent)}
+.settings-save{padding:10px 28px;background:var(--accent);color:white;border:none;border-radius:8px;font-family:inherit;font-size:14px;cursor:pointer;transition:all .2s}
+.settings-save:hover{background:#6a56ee}
+.settings-save:disabled{opacity:.5;cursor:not-allowed}
+.settings-info{font-size:12px;color:var(--text3);padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)}
+.settings-info code{color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px}
+.passkey-card{display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);margin-bottom:8px}
+.passkey-card .pk-info{flex:1;min-width:0}
+.passkey-card .pk-name{font-size:14px;font-weight:500}
+.passkey-card .pk-meta{font-size:11px;color:var(--text3);margin-top:2px}
+.passkey-card .pk-status{font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:8px}
 
 /* ── Footer ──────────────────────────────────────── */
-.portal-footer {
-  text-align: center;
-  padding: 32px 20px 48px;
-  color: var(--text3);
-  font-size: 11px;
-  letter-spacing: 1px;
-}
-.portal-footer a {
-  color: var(--accent);
-  text-decoration: none;
-}
+.portal-footer{text-align:center;padding:32px 20px 48px;color:var(--text3);font-size:11px;letter-spacing:1px}
 
 /* ── Loading ─────────────────────────────────────── */
-.loading-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 60dvh;
-  gap: 16px;
-}
-.loading-spinner {
-  width: 40px; height: 40px;
-  border-radius: 50%;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  animation: spin 0.8s linear infinite;
-}
-.loading-text {
-  color: var(--text3);
-  font-size: 13px;
-  animation: pulse 1.5s ease-in-out infinite;
-}
+.loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60dvh;gap:16px}
+.loading-spinner{width:40px;height:40px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite}
+.loading-text{color:var(--text3);font-size:13px;animation:pulse 1.5s ease-in-out infinite}
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════════════ -->
-<!--  LOGIN SCREEN                                          -->
-<!-- ═══════════════════════════════════════════════════════ -->
-<div id="login-screen">
-  <div class="login-logo fade-up">P</div>
-  <div class="login-title fade-up delay-1">PLAYER PORTAL</div>
-  <div class="login-subtitle fade-up delay-2">Your identity. Every world.</div>
-
-  <button class="login-btn fade-up delay-3" onclick="doSignIn()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-    </svg>
-    Sign in with Passkey
-  </button>
-
-  <div id="login-error" class="login-error fade-up delay-4"></div>
-  <div class="login-footer fade-up delay-5">PIK — PERSISTENT IDENTITY KERNEL</div>
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN 1: LANDING (Sign In / Create Account)     -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen-center active" id="screen-landing">
+  <div class="logo-mark fade-up">P</div>
+  <div class="screen-title fade-up delay-1">PLAYER PORTAL</div>
+  <div class="screen-sub fade-up delay-2">Your identity. Every world.</div>
+  <div class="btn-group fade-up delay-3">
+    <button class="btn-primary" onclick="doSignIn()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Sign In
+    </button>
+    <button class="btn-secondary" onclick="showScreen('screen-create')">Create Account</button>
+  </div>
+  <div id="login-error" class="error-msg fade-up delay-4"></div>
+  <div class="footer-text fade-up delay-5">PIK — PERSISTENT IDENTITY KERNEL</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════ -->
-<!--  PORTAL (shown after auth)                             -->
-<!-- ═══════════════════════════════════════════════════════ -->
-<div id="portal">
-  <!-- Header -->
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN 2: CREATE ACCOUNT (passkey setup only)     -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen-center" id="screen-create">
+  <div class="logo-mark fade-up" style="width:64px;height:64px;font-size:22px">P</div>
+  <div class="screen-title fade-up delay-1" style="font-size:22px">CREATE ACCOUNT</div>
+  <div class="screen-sub fade-up delay-2" style="margin-bottom:24px">
+    Choose a name and set up your passkey.<br>
+    <span style="color:var(--text3);font-size:13px">You can build your hero identity after.</span>
+  </div>
+  <div class="build-container fade-up delay-2">
+    <div class="build-field">
+      <div class="build-label">Hero Name</div>
+      <div class="build-row">
+        <input class="build-input" id="create-name" placeholder="Enter a name or roll…">
+        <button class="build-roll-btn" onclick="rollNameInto('create-name')" title="Random name">🎲</button>
+      </div>
+    </div>
+    <div class="build-actions">
+      <button class="btn-primary" onclick="doCreateAccount()" id="create-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Create with Passkey
+      </button>
+      <button class="btn-ghost" onclick="showScreen('screen-landing')">← Back</button>
+    </div>
+    <div id="create-error" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN 3: HERO BUILD (optional, post-create)     -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen-center" id="screen-build" style="padding-top:60px;justify-content:flex-start">
+  <div class="build-container fade-up">
+    <div class="build-title">BUILD YOUR HERO</div>
+    <div class="build-sub">Roll the dice to shape your mythic identity — or skip and do it later.</div>
+
+    <div class="build-field">
+      <div class="build-label">Fate Alignment</div>
+      <div class="build-row">
+        <div class="build-options" id="alignment-options" style="flex:1">
+          <div class="build-option" onclick="pickOption(this,'alignment','Order')">Order</div>
+          <div class="build-option" onclick="pickOption(this,'alignment','Chaos')">Chaos</div>
+          <div class="build-option" onclick="pickOption(this,'alignment','Wild')">Wild</div>
+          <div class="build-option" onclick="pickOption(this,'alignment','Veil')">Veil</div>
+        </div>
+        <button class="build-roll-btn" onclick="rollAlignment()" title="Random">🎲</button>
+      </div>
+    </div>
+
+    <div class="build-field">
+      <div class="build-label">Origin</div>
+      <div class="build-row">
+        <input class="build-input" id="build-origin" placeholder="Tap roll to discover your origin…" readonly style="cursor:pointer" onclick="rollOrigin()">
+        <button class="build-roll-btn" onclick="rollOrigin()" title="Roll origin">🎲 Roll</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px">Tap to roll a new origin</div>
+    </div>
+
+    <div class="build-actions">
+      <button class="btn-primary" onclick="saveBuild()">✦ Forge Identity</button>
+      <button class="btn-ghost" onclick="skipBuild()">Skip for now →</button>
+    </div>
+    <div id="build-error" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN 4: PROFILE (main portal view)             -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen" id="screen-profile">
   <div class="portal-header">
     <div class="portal-header-left">
-      <div class="portal-header-mark">P</div>
+      <div class="logo-mark sm">P</div>
       <span class="portal-header-title">PIK</span>
     </div>
-    <button class="btn-signout" onclick="doSignOut()">Sign Out</button>
-  </div>
-
-  <!-- Content container -->
-  <div id="portal-content">
-    <div class="loading-screen">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Loading your identity...</div>
+    <div class="header-actions">
+      <button class="btn-header" onclick="goSettings()">⚙ Settings</button>
+      <button class="btn-header danger" onclick="doSignOut()">Sign Out</button>
     </div>
+  </div>
+  <div id="portal-content">
+    <div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading your identity...</div></div>
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════ -->
+<!--  SCREEN 5: SETTINGS (account management)          -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="screen" id="screen-settings">
+  <div class="portal-header">
+    <div class="portal-header-left">
+      <div class="logo-mark sm">P</div>
+      <span class="portal-header-title">SETTINGS</span>
+    </div>
+    <button class="btn-header" onclick="goProfile()">← Profile</button>
+  </div>
+  <div id="settings-content">
+    <div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading...</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
 <script>
-// ── Config ────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// PIK PLAYER PORTAL
+// ════════════════════════════════════════════════════════════
 const API = window.location.origin + '/api';
-let session = null; // { token, rootId, heroName }
+let session = null;   // { token, rootId, heroName }
+let profileData = null;
+let buildState = { alignment: null, origin: null, settingsAlignment: null };
+
+// ── Narrative Data ────────────────────────────────────────
+const HERO_NAMES = [
+  'Kael Duskwalker','Lyra Ashveil','Thorne Ironbound','Mira Starforge',
+  'Ash Blackthorn','Sable Voidkeeper','Draven Flameheart','Elowen Nightshade',
+  'Orion Dawnblade','Rune Stormcaller','Vex Shadowmend','Isolde Frostweaver',
+  'Cael Embertide','Nyx Ravenclaw','Zara Moonshard','Fenris Nighthollow',
+  'Sera Brightveil','Theron Ashwalker','Liora Stormveil','Dax Ironflame',
+];
+const ORIGINS = [
+  'Forged in the Crucible of Shattered Stars',
+  "Born beneath the Bleeding Moon of Khar'Duum",
+  'Awakened from the Dreaming Vault of Aethon',
+  'Emerged from the Whispering Wastes of Solara',
+  'Descended from the Sky Citadels of the Eternal Storm',
+  'Risen from the Bone Gardens of Old Verath',
+  'Called by the Singing Stones of the Deep Road',
+  'Tempered in the Forge of the Last Flame',
+  'Anointed by the Pale Warden of the Threshold',
+  'Shaped by the Echoes of the First War',
+];
+const ALIGNMENTS = ['Order','Chaos','Wild','Veil'];
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// ── Screen Nav ────────────────────────────────────────────
+function showScreen(id){
+  document.querySelectorAll('.screen,.screen-center').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goProfile(){ showScreen('screen-profile'); loadProfile(); }
+function goSettings(){ showScreen('screen-settings'); renderSettings(); }
 
 // ── API Helper ────────────────────────────────────────────
-async function apiFetch(path, opts = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
-  if (session?.token) headers['Authorization'] = `Bearer ${session.token}`;
-  const resp = await fetch(API + path, { ...opts, headers });
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    throw new Error(body.message || `HTTP ${resp.status}`);
-  }
+async function apiFetch(path, opts={}){
+  const headers = {'Content-Type':'application/json',...(opts.headers||{})};
+  if(session?.token) headers['Authorization'] = `Bearer ${session.token}`;
+  const resp = await fetch(API+path,{...opts,headers});
+  if(!resp.ok){ const b=await resp.json().catch(()=>({})); throw new Error(b.message||`HTTP ${resp.status}`); }
   return resp.json();
 }
 
-// ── Sign In ───────────────────────────────────────────────
-async function doSignIn() {
+// ── Toast ─────────────────────────────────────────────────
+function showToast(msg,bg){
+  const t=document.createElement('div'); t.className='toast';
+  if(bg) t.style.borderColor=bg;
+  t.textContent=msg; document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2500);
+}
+
+// ════════════════════════════════════════════════════════════
+// SIGN IN (existing account)
+// ════════════════════════════════════════════════════════════
+async function doSignIn(){
   const errEl = document.getElementById('login-error');
-  errEl.textContent = '';
-
+  errEl.textContent='';
   try {
-    // 1. Get authentication options (discoverable)
-    const optResp = await apiFetch('/auth/authenticate/options', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-    // Unwrap — response interceptor nests in {status, data}
-    let options = optResp.data || optResp;
-    // Handle if auth service double-wraps
-    if (options.data) options = options.data;
-    console.log('Auth options:', JSON.stringify(options).substring(0, 200));
-
-    // 2. Browser WebAuthn ceremony
-    const assertion = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
-
-    // 3. Verify with server
-    const verifyResp = await apiFetch('/auth/authenticate/verify', {
-      method: 'POST',
-      body: JSON.stringify({ assertion }),
-    });
-
-    const d = verifyResp.data;
-    session = {
-      token: d.token || d.session_token,
-      rootId: d.root_id,
-      heroName: d.hero_name,
-    };
-
-    // Switch to portal
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('portal').classList.add('active');
-
+    let r = await apiFetch('/auth/authenticate/options',{method:'POST',body:JSON.stringify({})});
+    let opts = r.data||r; if(opts.data) opts=opts.data;
+    const assertion = await SimpleWebAuthnBrowser.startAuthentication({optionsJSON:opts});
+    const v = await apiFetch('/auth/authenticate/verify',{method:'POST',body:JSON.stringify({assertion})});
+    const d = v.data;
+    session = {token:d.token||d.session_token, rootId:d.root_id, heroName:d.hero_name};
+    showScreen('screen-profile');
     await loadProfile();
-  } catch (err) {
-    console.error('Sign-in error:', err);
-    if (err.name === 'NotAllowedError') {
-      errEl.textContent = 'Authentication was cancelled.';
-    } else {
-      errEl.textContent = err.message || 'Sign-in failed. Try again.';
-    }
+  } catch(err){
+    console.error('Sign-in error:',err);
+    errEl.textContent = err.name==='NotAllowedError' ? 'Authentication cancelled.' : (err.message||'Sign-in failed.');
   }
 }
 
-// ── Sign Out ──────────────────────────────────────────────
-function doSignOut() {
-  session = null;
-  document.getElementById('portal').classList.remove('active');
-  document.getElementById('login-screen').classList.remove('hidden');
-  document.getElementById('portal-content').innerHTML =
-    '<div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading your identity...</div></div>';
+// ════════════════════════════════════════════════════════════
+// CREATE ACCOUNT (passkey → optional hero build)
+// ════════════════════════════════════════════════════════════
+async function doCreateAccount(){
+  const nameEl=document.getElementById('create-name');
+  const errEl=document.getElementById('create-error');
+  const btn=document.getElementById('create-btn');
+  errEl.textContent='';
+  const heroName=nameEl.value.trim();
+  if(!heroName){errEl.textContent='Enter a hero name first.';return;}
+
+  btn.disabled=true;
+  try {
+    // 1. Registration options
+    let r = await apiFetch('/auth/register/options',{method:'POST',body:JSON.stringify({
+      hero_name:heroName, fate_alignment:'Unaligned', enrolled_by:'self'
+    })});
+    let opts = r.data||r; if(opts.data) opts=opts.data;
+
+    // 2. Browser ceremony
+    const attestation = await SimpleWebAuthnBrowser.startRegistration({optionsJSON:opts});
+
+    // 3. Verify
+    const v = await apiFetch('/auth/register/verify',{method:'POST',body:JSON.stringify({
+      attestation, friendly_name:'First passkey'
+    })});
+    const d = v.data;
+    session = {token:d.token||d.session_token, rootId:d.root_id, heroName:d.hero_name};
+
+    // Go to hero build (optional)
+    showScreen('screen-build');
+    rollOrigin(); // pre-roll an origin
+  } catch(err){
+    console.error('Create error:',err);
+    errEl.textContent = err.name==='NotAllowedError' ? 'Registration cancelled.' : (err.message||'Account creation failed.');
+  } finally { btn.disabled=false; }
 }
 
-// ── Load Profile ──────────────────────────────────────────
-async function loadProfile() {
+// ════════════════════════════════════════════════════════════
+// HERO BUILD (optional, roll-based)
+// ════════════════════════════════════════════════════════════
+function rollNameInto(inputId){ document.getElementById(inputId).value = pick(HERO_NAMES); }
+
+function pickOption(el,field,value){
+  el.parentElement.querySelectorAll('.build-option').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  buildState[field]=value;
+}
+
+function rollAlignment(){
+  const a=pick(ALIGNMENTS);
+  document.querySelectorAll('#alignment-options .build-option').forEach(o=>{
+    o.classList.toggle('selected',o.textContent.trim()===a);
+  });
+  buildState.alignment=a;
+}
+
+function rollOrigin(){
+  const el=document.getElementById('build-origin');
+  el.value=pick(ORIGINS);
+  buildState.origin=el.value;
+}
+
+async function saveBuild(){
+  const errEl=document.getElementById('build-error'); errEl.textContent='';
+  const updates={};
+  if(buildState.alignment) updates.fate_alignment=buildState.alignment;
+  if(buildState.origin) updates.origin=buildState.origin;
+  if(!Object.keys(updates).length){errEl.textContent='Select at least one option, or skip.';return;}
+
+  try {
+    await apiFetch(`/users/${session.rootId}/profile`,{method:'PUT',body:JSON.stringify(updates)});
+    showToast('Hero identity forged!','var(--accent)');
+    showScreen('screen-profile');
+    await loadProfile();
+  } catch(err){ errEl.textContent=err.message; }
+}
+
+function skipBuild(){ showScreen('screen-profile'); loadProfile(); }
+
+// ════════════════════════════════════════════════════════════
+// PROFILE
+// ════════════════════════════════════════════════════════════
+async function loadProfile(){
   try {
     const resp = await apiFetch(`/users/${session.rootId}`);
-    const d = resp.data;
-    renderProfile(d);
-  } catch (err) {
-    console.error('Load error:', err);
+    profileData = resp.data;
+    renderProfile(profileData);
+  } catch(err){
+    console.error('Load error:',err);
     document.getElementById('portal-content').innerHTML =
-      `<div class="loading-screen"><div class="loading-text" style="color:var(--accent2)">${err.message}</div></div>`;
+      `<div class="loading-screen"><div class="loading-text" style="color:var(--accent2)">${esc(err.message)}</div></div>`;
   }
 }
 
-// ── Render ────────────────────────────────────────────────
-function renderProfile(d) {
-  const p = d.persona;
-  const prog = d.progression;
-  const links = d.source_links || [];
-  const events = d.recent_events || [];
+function renderProfile(d){
+  const p=d.persona, prog=d.progression, links=d.source_links||[], events=d.recent_events||[];
+  const xpPct = prog.xp_needed_for_next>0 ? Math.min(100,Math.round((prog.xp_in_current_level/prog.xp_needed_for_next)*100)) : 100;
 
-  const xpPct = prog.xp_needed_for_next > 0
-    ? Math.min(100, Math.round((prog.xp_in_current_level / prog.xp_needed_for_next) * 100))
-    : 100;
+  // Equipped title
+  const eqDetail = (prog.titles_detail||[]).find(t=>t.title_id===p.equipped_title);
+  const eqName = eqDetail ? eqDetail.display_name : null;
 
-  const container = document.getElementById('portal-content');
-  container.innerHTML = `
+  document.getElementById('portal-content').innerHTML = `
     <!-- Hero -->
     <div class="hero-section fade-up">
-      <div class="hero-orb">
-        <div class="hero-orb-ring"></div>
-        <div class="hero-orb-inner">
-          <div class="hero-orb-level">${prog.fate_level}</div>
-          <div class="hero-orb-label">LEVEL</div>
-        </div>
+      <div class="hero-orb"><div class="hero-orb-ring"></div>
+        <div class="hero-orb-inner"><div class="hero-orb-level">${prog.fate_level}</div><div class="hero-orb-label">LEVEL</div></div>
       </div>
       <div class="hero-name">${esc(p.hero_name)}</div>
-      <div class="hero-origin">${esc(p.origin || 'Unknown Origin')}</div>
-      <span class="hero-alignment ${p.fate_alignment}">${p.fate_alignment}</span>
+      <div class="hero-origin">${esc(p.origin||'Origin unknown')}</div>
+      <span class="hero-alignment ${p.fate_alignment}">${esc(p.fate_alignment)}</span>
+      ${eqName ? `<div class="equipped-badge">✦ ${esc(eqName)}</div>` : ''}
     </div>
 
     <!-- XP -->
@@ -741,29 +555,35 @@ function renderProfile(d) {
           <span class="xp-bar-label">Fate Progress</span>
           <span class="xp-bar-numbers"><strong>${prog.fate_xp.toLocaleString()}</strong> Total XP</span>
         </div>
-        <div class="xp-bar-track">
-          <div class="xp-bar-fill" style="width: ${xpPct}%"></div>
-        </div>
+        <div class="xp-bar-track"><div class="xp-bar-fill" style="width:${xpPct}%"></div></div>
         <div class="xp-stats">
-          <span class="xp-stat"><strong>${prog.xp_in_current_level}</strong> / ${prog.xp_needed_for_next} to next level</span>
+          <span class="xp-stat"><strong>${prog.xp_in_current_level}</strong> / ${prog.xp_needed_for_next} to next</span>
           <span class="xp-stat"><strong>${prog.total_sessions}</strong> sessions</span>
         </div>
       </div>
     </div>
 
-    <!-- Titles -->
+    <!-- Titles (tappable) -->
     <div class="section fade-up delay-2">
       <div class="section-card">
         <div class="section-header">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           TITLES EARNED
+          <span class="section-header-hint">Tap to equip</span>
         </div>
-        ${prog.titles.length
-          ? `<div class="titles-grid">${prog.titles.map(t => `<span class="title-badge"><span class="icon">✦</span>${formatTitle(t)}</span>`).join('')}</div>`
+        ${(prog.titles_detail||[]).length
+          ? `<div class="titles-grid">${(prog.titles_detail||[]).map(t=>{
+              const eq = t.title_id===p.equipped_title;
+              return `<span class="title-chip ${eq?'equipped':''}" onclick="equipTitle('${t.title_id}',${eq})">
+                <span class="eq-dot"></span>✦ ${esc(t.display_name)}</span>`;
+            }).join('')}</div>`
           : '<div class="empty-state">No titles earned yet — complete sessions to unlock.</div>'
         }
       </div>
     </div>
+
+    <!-- Fate Caches -->
+    ${renderCachesSection(d.fate_caches || [])}
 
     <!-- Fate Markers -->
     <div class="section fade-up delay-3">
@@ -773,13 +593,13 @@ function renderProfile(d) {
           FATE MARKERS
         </div>
         ${prog.fate_markers.length
-          ? `<div class="markers-list">${prog.fate_markers.map(m => `<div class="marker-row"><div class="marker-dot"></div>${esc(formatMarker(m))}</div>`).join('')}</div>`
-          : '<div class="empty-state">No fate markers yet — explore deeper to unlock.</div>'
+          ? `<div class="markers-list">${prog.fate_markers.map(m=>`<div class="marker-row"><div class="marker-dot"></div>${esc(formatMarker(m))}</div>`).join('')}</div>`
+          : '<div class="empty-state">No fate markers yet.</div>'
         }
       </div>
     </div>
 
-    <!-- Connected Sources -->
+    <!-- Sources -->
     <div class="section fade-up delay-4">
       <div class="section-card">
         <div class="section-header">
@@ -787,15 +607,11 @@ function renderProfile(d) {
           CONNECTED WORLDS
         </div>
         ${links.length
-          ? `<div class="sources-list">${links.map(l => `
-              <div class="source-card">
-                <div class="source-info">
-                  <div class="source-name">${esc(l.source_name)}</div>
-                  <div class="source-scope">${esc(l.scope)}</div>
-                </div>
-                <span class="source-status ${l.status}">${l.status}</span>
-              </div>
-            `).join('')}</div>`
+          ? `<div class="sources-list">${links.map(l=>`
+              <div class="source-card"><div class="source-info">
+                <div class="source-name">${esc(l.source_name)}</div>
+                <div class="source-scope">${esc(l.scope)}</div>
+              </div><span class="source-status ${l.status}">${l.status}</span></div>`).join('')}</div>`
           : '<div class="empty-state">No worlds connected yet.</div>'
         }
       </div>
@@ -808,123 +624,295 @@ function renderProfile(d) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           JOURNEY
         </div>
-        <div class="timeline-list">
-          ${events.map(ev => renderTimelineItem(ev)).join('')}
-        </div>
+        <div class="timeline-list">${events.slice(0,20).map(renderTimelineItem).join('')}</div>
       </div>
     </div>
 
-    <!-- Footer -->
-    <div class="portal-footer">
-      PIK — PERSISTENT IDENTITY KERNEL<br>
-      <span style="opacity:0.5">Your identity. Every world.</span>
-    </div>
+    <div class="portal-footer">PIK — PERSISTENT IDENTITY KERNEL<br><span style="opacity:.5">Your identity. Every world.</span></div>
   `;
 }
 
-// ── Timeline Item ─────────────────────────────────────────
-function renderTimelineItem(ev) {
-  const type = ev.event_type;
-  const ch = ev.changes || ev.changes_applied || {};
-  const pl = ev.payload || {};
-  let dot = 'auth';
-  let title = type;
-  let detail = '';
+// ── Equip / Unequip Title ─────────────────────────────────
+async function equipTitle(titleId,isEquipped){
+  const val = isEquipped ? null : titleId;
+  try {
+    await apiFetch(`/users/${session.rootId}/equipped-title`,{method:'PUT',body:JSON.stringify({title_id:val})});
+    showToast(val ? 'Title equipped!' : 'Title unequipped', val ? 'var(--gold)' : 'var(--text3)');
+    await loadProfile();
+  } catch(err){ showToast(err.message,'var(--accent2)'); }
+}
 
-  if (type === 'progression.session_completed') {
-    dot = 'session';
-    title = 'Session Completed';
-    const parts = [];
-    if (ch.total_xp) parts.push(`<span class="xp-gain">+${ch.total_xp} XP</span>`);
-    if (ch.level_up) parts.push(`<span class="level-up">Level ${ch.level_up.from} → ${ch.level_up.to}</span>`);
-    if (ch.title_granted) parts.push(`<span class="title-earn">🏆 ${formatTitle(ch.title_granted)}</span>`);
-    if (pl.difficulty) parts.push(`${pl.difficulty} difficulty`);
-    detail = parts.join(' · ');
-  } else if (type === 'progression.fate_marker') {
-    dot = 'marker';
-    title = 'Fate Marker Unlocked';
-    detail = formatMarker(pl.marker || ch.marker || '');
-  } else if (type === 'identity.enrolled') {
-    dot = 'enrolled';
-    title = 'Identity Created';
-    detail = `${esc(pl.hero_name || '')} enrolled`;
-  } else if (type === 'source.link_granted') {
-    dot = 'link';
-    title = 'World Connected';
-    detail = ev.source_name || pl.source_id || '';
-  } else if (type === 'identity.authenticated') {
-    dot = 'auth';
-    title = 'Signed In';
-    detail = pl.device_type || '';
-  } else if (type === 'key.registered') {
-    dot = 'key';
-    title = 'Passkey Registered';
-    detail = pl.friendly_name || '';
-  }
+// ════════════════════════════════════════════════════════════
+// FATE CACHES
+// ════════════════════════════════════════════════════════════
+const CACHE_LABELS = {
+  common:'Fate Cache', uncommon:'Gleaming Fate Cache', rare:'Radiant Fate Cache',
+  epic:'Mythic Fate Cache', legendary:'Legendary Fate Cache'
+};
+const CACHE_ICONS = { common:'📦', uncommon:'📦', rare:'💎', epic:'🔮', legendary:'👑' };
+
+function renderCachesSection(caches){
+  if(!caches || !caches.length) return '';
+  const sealed = caches.filter(c=>c.status==='sealed');
+  const opened = caches.filter(c=>c.status==='opened');
+  const allCards = [...sealed,...opened.slice(0,6)]; // show sealed first + last 6 opened
+  if(!allCards.length) return '';
 
   return `
-    <div class="tl-item">
-      <div class="tl-dot-col">
-        <div class="tl-dot ${dot}"></div>
-        <div class="tl-line"></div>
+    <div class="section fade-up delay-2">
+      <div class="section-card">
+        <div class="section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          FATE CACHES
+          ${sealed.length ? `<span class="section-header-hint">${sealed.length} sealed — tap to open</span>` : ''}
+        </div>
+        <div class="caches-grid">
+          ${allCards.map(c=>{
+            const icon = CACHE_ICONS[c.rarity]||'📦';
+            const label = CACHE_LABELS[c.rarity]||'Fate Cache';
+            const isSealed = c.status==='sealed';
+            return `<div class="cache-card ${c.status} ${c.rarity}" onclick="${isSealed ? `openCacheModal('${c.cache_id}','${c.rarity}','${c.cache_type}')` : ''}">
+              <div class="cache-icon">${icon}</div>
+              <span class="cache-rarity ${c.rarity}">${c.rarity}</span>
+              <div class="cache-label">${esc(label)}</div>
+              ${isSealed ? '<div class="cache-status">sealed</div>' : ''}
+              ${c.reward ? `<div class="cache-reward">✦ ${esc(c.reward.name)}</div>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
       </div>
-      <div class="tl-content">
-        <div class="tl-title">${title}</div>
-        ${detail ? `<div class="tl-detail">${detail}</div>` : ''}
-        <div class="tl-time">${fmtTime(ev.created_at)}</div>
-        ${ev.source_name ? `<span class="tl-source">${esc(ev.source_name)}</span>` : ''}
+    </div>`;
+}
+
+function openCacheModal(cacheId,rarity,cacheType){
+  const label = CACHE_LABELS[rarity]||'Fate Cache';
+  const icon = CACHE_ICONS[rarity]||'📦';
+  const rarityColors = {common:'var(--text3)',uncommon:'var(--green)',rare:'var(--accent)',epic:'var(--ember)',legendary:'var(--gold)'};
+
+  const overlay = document.createElement('div');
+  overlay.className = 'cache-modal-overlay';
+  overlay.id = 'cacheModal';
+  overlay.innerHTML = `
+    <div class="cache-modal">
+      <div class="cache-modal-icon">${icon}</div>
+      <div class="cache-modal-title">${esc(label)}</div>
+      <div class="cache-modal-rarity" style="color:${rarityColors[rarity]||'var(--text3)'}">${rarity} · ${cacheType.replace('_',' ')}</div>
+      <div id="cacheModalContent">
+        <p style="color:var(--text2);font-size:14px;margin-bottom:20px">Open this cache to reveal a random reward from the fate pool?</p>
+        <button class="cache-modal-btn" onclick="openCacheConfirm('${cacheId}')">🎲 Open Cache</button>
+        <button class="cache-modal-btn secondary" onclick="closeCacheModal()">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',(e)=>{if(e.target===overlay) closeCacheModal();});
+}
+
+function closeCacheModal(){
+  const m = document.getElementById('cacheModal');
+  if(m) m.remove();
+}
+
+async function openCacheConfirm(cacheId){
+  const content = document.getElementById('cacheModalContent');
+  content.innerHTML = '<div class="loading-spinner" style="margin:20px auto;width:30px;height:30px;border-width:2px"></div><div style="color:var(--text3);font-size:12px;margin-top:8px">Rolling the dice of fate...</div>';
+
+  try {
+    const resp = await apiFetch(`/users/${session.rootId}/caches/${cacheId}/open`,{method:'POST'});
+    const reward = resp.reward || resp;
+    const rarityColors = {common:'var(--text3)',uncommon:'var(--green)',rare:'var(--accent)',epic:'var(--ember)',legendary:'var(--gold)'};
+    const rewardIcons = {title:'👑',marker:'◆',xp_boost:'⚡'};
+
+    content.innerHTML = `
+      <div class="cache-modal-reward" style="border-color:${rarityColors[reward.rarity]||'var(--border)'}44">
+        <div style="font-size:24px;margin-bottom:8px">${rewardIcons[reward.type]||'✦'}</div>
+        <div class="cache-modal-reward-name">${esc(reward.name)}</div>
+        <div class="cache-modal-reward-type" style="color:${rarityColors[reward.rarity]||'var(--text3)'}">${reward.rarity} ${reward.type.replace('_',' ')}</div>
+        ${reward.type==='xp_boost' ? `<div style="color:var(--gold);font-size:13px;margin-top:6px">+${reward.value} XP</div>` : ''}
+      </div>
+      <button class="cache-modal-btn" onclick="closeCacheModal();loadProfile()">Claim</button>`;
+  } catch(err){
+    content.innerHTML = `<div style="color:var(--accent2);margin:20px 0">${esc(err.message)}</div>
+      <button class="cache-modal-btn secondary" onclick="closeCacheModal()">Close</button>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// SETTINGS (self-service account management)
+// ════════════════════════════════════════════════════════════
+function renderSettings(){
+  if(!profileData){
+    apiFetch(`/users/${session.rootId}`).then(r=>{profileData=r.data;renderSettings();}).catch(err=>{
+      document.getElementById('settings-content').innerHTML=`<div class="loading-screen"><div class="loading-text" style="color:var(--accent2)">${esc(err.message)}</div></div>`;
+    });
+    return;
+  }
+  const p=profileData.persona, id=profileData.identity;
+
+  document.getElementById('settings-content').innerHTML = `
+    <div class="settings-container">
+      <!-- Hero Identity -->
+      <div class="settings-section">
+        <h3>Hero Identity</h3>
+        <div class="settings-field">
+          <div class="settings-label">Hero Name</div>
+          <div style="display:flex;gap:8px">
+            <input class="settings-input" id="set-name" value="${esc(p.hero_name)}" style="flex:1">
+            <button class="build-roll-btn" onclick="rollNameInto('set-name')">🎲</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <div class="settings-label">Fate Alignment</div>
+          <div class="build-options" id="set-alignment-opts">
+            ${ALIGNMENTS.map(a=>`<div class="build-option ${a===p.fate_alignment?'selected':''}" onclick="pickOption(this,'settingsAlignment','${a}')">${a}</div>`).join('')}
+          </div>
+        </div>
+        <div class="settings-field">
+          <div class="settings-label">Origin</div>
+          <div style="display:flex;gap:8px">
+            <input class="settings-input" id="set-origin" value="${esc(p.origin||'')}" style="flex:1">
+            <button class="build-roll-btn" onclick="document.getElementById('set-origin').value=pick(ORIGINS)">🎲</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="settings-save" onclick="saveProfileSettings()" id="save-profile-btn">Save Changes</button>
+          <div id="settings-msg" class="error-msg" style="margin:0;text-align:left;flex:1"></div>
+        </div>
+      </div>
+
+      <!-- Account Info -->
+      <div class="settings-section">
+        <h3>Account</h3>
+        <div class="settings-info">
+          <div style="margin-bottom:6px"><span style="color:var(--text3)">Root ID:</span> <code>${esc(id.root_id)}</code></div>
+          <div style="margin-bottom:6px"><span style="color:var(--text3)">Status:</span> <span style="color:var(--green)">${esc(id.status)}</span></div>
+          <div><span style="color:var(--text3)">Enrolled:</span> ${fmtTime(id.enrolled_at)}</div>
+        </div>
+      </div>
+
+      <!-- Passkeys -->
+      <div class="settings-section">
+        <h3>Passkeys</h3>
+        <div id="passkeys-list"><div class="loading-text" style="font-size:12px">Loading passkeys...</div></div>
+        <button class="btn-secondary" style="margin-top:12px;max-width:none" onclick="addNewPasskey()">+ Add New Passkey</button>
       </div>
     </div>
   `;
+
+  buildState.settingsAlignment = p.fate_alignment;
+  loadPasskeys();
+}
+
+async function saveProfileSettings(){
+  const btn=document.getElementById('save-profile-btn');
+  const msgEl=document.getElementById('settings-msg');
+  msgEl.textContent=''; btn.disabled=true;
+
+  const updates={};
+  const name=document.getElementById('set-name').value.trim();
+  const origin=document.getElementById('set-origin').value.trim();
+  const align=buildState.settingsAlignment;
+
+  if(name && name!==profileData.persona.hero_name) updates.hero_name=name;
+  if(align && align!==profileData.persona.fate_alignment) updates.fate_alignment=align;
+  if(origin!==(profileData.persona.origin||'')) updates.origin=origin;
+
+  if(!Object.keys(updates).length){ msgEl.textContent='No changes.'; btn.disabled=false; return; }
+
+  try {
+    await apiFetch(`/users/${session.rootId}/profile`,{method:'PUT',body:JSON.stringify(updates)});
+    // Refresh
+    const resp = await apiFetch(`/users/${session.rootId}`);
+    profileData=resp.data;
+    if(updates.hero_name) session.heroName=updates.hero_name;
+    msgEl.style.color='var(--green)'; msgEl.textContent='✓ Saved!';
+    setTimeout(()=>{msgEl.textContent='';msgEl.style.color='';},2000);
+  } catch(err){ msgEl.textContent=err.message; }
+  finally { btn.disabled=false; }
+}
+
+async function loadPasskeys(){
+  try {
+    const resp = await apiFetch('/auth/keys');
+    const keys = resp.data||resp;
+    const list = document.getElementById('passkeys-list');
+    if(!Array.isArray(keys)||!keys.length){ list.innerHTML='<div class="empty-state">No passkeys found.</div>'; return; }
+    list.innerHTML = keys.map(k=>`
+      <div class="passkey-card">
+        <div class="pk-info">
+          <div class="pk-name">${esc(k.friendly_name||'Passkey')}</div>
+          <div class="pk-meta">${k.device_type||'Unknown'} · ${k.backed_up?'Backed up':'Device-bound'}${k.last_used_at?' · Used '+fmtTime(k.last_used_at):''}</div>
+        </div>
+        <span class="pk-status" style="color:${k.status==='active'?'var(--green)':'var(--accent2)'};border:1px solid ${k.status==='active'?'var(--green)':'var(--accent2)'}33">${k.status}</span>
+      </div>
+    `).join('');
+  } catch(err){
+    document.getElementById('passkeys-list').innerHTML=`<div style="color:var(--accent2);font-size:12px">${esc(err.message)}</div>`;
+  }
+}
+
+async function addNewPasskey(){
+  try {
+    let r = await apiFetch('/auth/keys/rotate',{method:'POST'});
+    let opts = r.data||r; if(opts.data) opts=opts.data;
+    const attestation = await SimpleWebAuthnBrowser.startRegistration({optionsJSON:opts});
+    await apiFetch('/auth/keys/rotate/verify',{method:'POST',body:JSON.stringify({attestation,friendly_name:'Additional passkey'})});
+    showToast('New passkey added!','var(--green)');
+    loadPasskeys();
+  } catch(err){ if(err.name!=='NotAllowedError') showToast(err.message,'var(--accent2)'); }
+}
+
+// ════════════════════════════════════════════════════════════
+// SIGN OUT
+// ════════════════════════════════════════════════════════════
+function doSignOut(){
+  session=null; profileData=null; buildState={alignment:null,origin:null,settingsAlignment:null};
+  document.getElementById('portal-content').innerHTML='<div class="loading-screen"><div class="loading-spinner"></div><div class="loading-text">Loading your identity...</div></div>';
+  showScreen('screen-landing');
+}
+
+// ════════════════════════════════════════════════════════════
+// TIMELINE
+// ════════════════════════════════════════════════════════════
+function renderTimelineItem(ev){
+  const type=ev.event_type, ch=ev.changes||ev.changes_applied||{}, pl=ev.payload||{};
+  let dot='auth',title=type,detail='';
+
+  if(type==='progression.session_completed'){
+    dot='session'; title='Session Completed';
+    const parts=[];
+    if(ch.total_xp) parts.push(`<span class="xp-gain">+${ch.total_xp} XP</span>`);
+    if(ch.level_up) parts.push(`<span class="level-up">Level ${ch.level_up.from} → ${ch.level_up.to}</span>`);
+    if(pl.difficulty) parts.push(`${pl.difficulty} mode`);
+    detail=parts.join(' · ');
+  } else if(type==='progression.fate_marker'){ dot='marker'; title='Fate Marker'; detail=formatMarker(pl.marker||ch.marker||'');
+  } else if(type==='progression.title_granted'){ dot='session'; title='Title Earned'; detail=`<span class="title-earn">✦ ${formatTitle(ch.title_id||pl.title_id||'')}</span>`;
+  } else if(type==='identity.enrolled'){ dot='enrolled'; title='Identity Created'; detail=`${esc(pl.hero_name||'')} enrolled`;
+  } else if(type==='source.link_granted'){ dot='link'; title='World Connected'; detail=ev.source_name||pl.source_id||'';
+  } else if(type==='identity.authenticated'){ dot='auth'; title='Signed In';
+  } else if(type==='key.registered'){ dot='key'; title='Passkey Registered'; detail=pl.friendly_name||'';
+  } else if(type==='identity.profile_updated'){ dot='profile'; title='Profile Updated'; detail=Object.keys(pl).join(', ');
+  } else if(type==='identity.title_equipped'){ dot='title-eq'; title='Title Equipped'; detail=pl.title_id?formatTitle(pl.title_id):'Unequipped';
+  } else if(type==='loot.cache_granted'){ dot='title-eq'; title='Fate Cache Dropped'; detail=`${ch.cache_label||'Cache'} (${ch.rarity||'?'})`;
+  } else if(type==='loot.cache_opened'){ dot='title-eq'; title='Cache Opened'; detail=`<span class="title-earn">✦ ${esc(ch.reward_name||'Reward')}</span> (${ch.reward_rarity||'?'})`;
+  }
+
+  return `<div class="tl-item"><div class="tl-dot-col"><div class="tl-dot ${dot}"></div><div class="tl-line"></div></div>
+    <div class="tl-content"><div class="tl-title">${title}</div>${detail?`<div class="tl-detail">${detail}</div>`:''}<div class="tl-time">${fmtTime(ev.created_at)}</div></div></div>`;
 }
 
 // ── Helpers ───────────────────────────────────────────────
-function esc(s) {
-  if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+function esc(s){if(!s)return '';const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function formatTitle(t){if(!t)return '';return t.replace(/^title_/,'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
+function formatMarker(m){if(!m)return '';return m.replace(/^node:/,'').replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}
+function fmtTime(iso){
+  if(!iso)return '';const d=new Date(iso),now=new Date(),ms=now-d;
+  const min=Math.floor(ms/60000),hr=Math.floor(ms/3600000),day=Math.floor(ms/86400000);
+  if(min<1)return 'Just now';if(min<60)return min+'m ago';if(hr<24)return hr+'h ago';if(day<7)return day+'d ago';
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 
-function formatTitle(t) {
-  if (!t) return '';
-  return t
-    .replace(/^title_/, '')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function formatMarker(m) {
-  if (!m) return '';
-  return m
-    .replace(/^node:/, '')
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function fmtTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now - d;
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDay = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-// ── Deep Link: auto-sign-in if hash has root_id ───────────
-// Future: QR codes can link to /portal#auto which triggers sign-in
-if (window.location.hash === '#auto') {
-  window.addEventListener('load', () => {
-    setTimeout(doSignIn, 500);
-  });
-}
+// Auto-sign-in deep link
+if(window.location.hash==='#auto') window.addEventListener('load',()=>setTimeout(doSignIn,500));
 </script>
 </body>
 </html>

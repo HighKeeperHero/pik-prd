@@ -30,6 +30,7 @@ model RootIdentity {
   enrolledBy    String    @map("enrolled_by")       // "self" | "operator:<id>"
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")        // active | suspended | deleted
+  equippedTitle String?   @map("equipped_title")    // title_id of equipped/displayed title
 
   // Relations
   personas      Persona[]
@@ -38,6 +39,7 @@ model RootIdentity {
   events        IdentityEvent[]
   titles        UserTitle[]
   fateMarkers   FateMarker[]
+  fateCaches    FateCache[]
   challenges    WebAuthnChallenge[]
 
   @@map("root_identities")
@@ -122,6 +124,7 @@ model Source {
   createdAt   DateTime  @default(now()) @map("created_at")
 
   sourceLinks SourceLink[]
+  fateCaches  FateCache[]
 
   @@map("sources")
 }
@@ -220,6 +223,51 @@ model FateMarker {
 
   @@index([rootId])
   @@map("fate_markers")
+}
+
+// ============================================================
+// LOOT SYSTEM — Fate Caches & Loot Tables
+// ============================================================
+
+/// Defines reward pools for each cache type.
+/// Weighted random roll selects from entries matching cache_type.
+model LootTable {
+  id          String  @id @default(uuid()) @map("loot_table_id")
+  cacheType   String  @map("cache_type")        // "level_up" | "boss_kill" | "milestone"
+  rewardType  String  @map("reward_type")        // "title" | "marker" | "xp_boost"
+  rewardValue String  @map("reward_value")       // title_id, marker text, xp amount
+  displayName String  @map("display_name")       // human-readable reward name
+  weight      Int     @default(100)              // higher = more common
+  rarityTier  String  @default("common") @map("rarity_tier")  // common | uncommon | rare | epic | legendary
+  minLevel    Int     @default(1) @map("min_level")
+
+  @@index([cacheType])
+  @@map("loot_table")
+}
+
+/// A Fate Cache instance granted to a player.
+/// Sealed on grant; opening rolls against LootTable.
+model FateCache {
+  id           String    @id @default(uuid()) @map("cache_id")
+  rootId       String    @map("root_id")
+  cacheType    String    @map("cache_type")
+  rarity       String    @default("common")
+  sourceId     String?   @map("source_id")
+  trigger      String?                           // "level_up:5", "boss_kill:100"
+  status       String    @default("sealed")      // sealed | opened
+  grantedAt    DateTime  @default(now()) @map("granted_at")
+  openedAt     DateTime? @map("opened_at")
+  rewardType   String?   @map("reward_type")
+  rewardValue  String?   @map("reward_value")
+  rewardName   String?   @map("reward_name")
+  rewardRarity String?   @map("reward_rarity")
+
+  root   RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  source Source?      @relation(fields: [sourceId], references: [id])
+
+  @@index([rootId])
+  @@index([rootId, status])
+  @@map("fate_caches")
 }
 
 // ============================================================

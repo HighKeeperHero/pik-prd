@@ -297,6 +297,8 @@ body::before {
 .evt-narration      .event-icon { background:#ffffff08; }
 .evt-narration      .event-type { color:var(--text3); }
 .evt-demo           .event-icon { background:#ff4d6a11; }
+.evt-cache          .event-icon { background:#f0c05022; }
+.evt-cache          .event-type { color:#f0c050; }
 .evt-demo           .event-type { color:#ff4d6a; }
 
 /* Console footer — launch button */
@@ -512,6 +514,8 @@ function connectSSE() {
     'progression.fate_marker',
     'progression.xp_granted',
     'key.registered',
+    'loot.cache_granted',
+    'loot.cache_opened',
     'demo.started',
     'demo.narration',
     'demo.completed',
@@ -555,6 +559,12 @@ function handleEvent(type, payload) {
       break;
     case 'progression.fate_marker':
       handleFateMarker(data);
+      break;
+    case 'loot.cache_granted':
+      handleCacheGranted(data);
+      break;
+    case 'loot.cache_opened':
+      handleCacheOpened(data);
       break;
     case 'demo.narration':
       addConsoleEvent('narration', '📖', data.narration || 'Narration',
@@ -684,6 +694,27 @@ function handleFateMarker(data) {
 
   addConsoleEvent('fate_marker', '◆', 'progression.fate_marker',
     marker, null);
+}
+
+function handleCacheGranted(data) {
+  const changes = data.changes || {};
+  const payload = data.payload || {};
+  const rarity = changes.rarity || payload.rarity || 'common';
+  const label = changes.cache_label || 'Fate Cache';
+  const rarityColors = {
+    common: 'var(--text2)', uncommon: 'var(--green)', rare: 'var(--accent)',
+    epic: 'var(--ember)', legendary: 'var(--gold)'
+  };
+  addConsoleEvent('cache', '🎁', 'loot.cache_granted',
+    `${label} dropped!`,
+    { rarity, trigger: payload.trigger, cache_id: truncId(payload.cache_id) });
+}
+
+function handleCacheOpened(data) {
+  const changes = data.changes || {};
+  addConsoleEvent('cache', '✨', 'loot.cache_opened',
+    `${changes.reward_name || 'Reward'} (${changes.reward_rarity || '?'})`,
+    { type: changes.reward_type, rarity: changes.reward_rarity });
 }
 
 function handleDemoCompleted(data) {

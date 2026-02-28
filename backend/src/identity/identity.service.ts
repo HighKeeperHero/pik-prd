@@ -153,6 +153,7 @@ export class IdentityService {
           orderBy: { grantedAt: 'desc' },
         },
         fateMarkers: { orderBy: { createdAt: 'desc' } },
+        fateCaches: { orderBy: { grantedAt: 'desc' } },
       },
     });
 
@@ -203,6 +204,7 @@ export class IdentityService {
         hero_name: user.heroName,
         origin: user.origin,
         fate_alignment: user.fateAlignment,
+        equipped_title: user.equippedTitle ?? null,
       },
       progression: {
         fate_xp: user.fateXp,
@@ -211,6 +213,12 @@ export class IdentityService {
         xp_needed_for_next: nextLevelThreshold,
         total_sessions: totalSessions,
         titles: user.titles.map((t) => t.titleId),
+        titles_detail: user.titles.map((t) => ({
+          title_id: t.titleId,
+          display_name: t.title.displayName,
+          category: t.title.category,
+          granted_at: t.grantedAt.toISOString(),
+        })),
         fate_markers: user.fateMarkers.map((m) => m.marker),
       },
       source_links: user.sourceLinks.map((l) => ({
@@ -232,6 +240,18 @@ export class IdentityService {
         changes: e.changes,
         created_at: e.createdAt.toISOString(),
       })),
+      fate_caches: user.fateCaches.map((c) => ({
+        cache_id: c.id,
+        cache_type: c.cacheType,
+        rarity: c.rarity,
+        status: c.status,
+        trigger: c.trigger,
+        granted_at: c.grantedAt.toISOString(),
+        opened_at: c.openedAt?.toISOString() ?? null,
+        reward: c.status === 'opened'
+          ? { type: c.rewardType, value: c.rewardValue, name: c.rewardName, rarity: c.rewardRarity }
+          : null,
+      })),
     };
   }
 
@@ -246,6 +266,122 @@ export class IdentityService {
       throw new NotFoundException(`Identity not found: ${rootId}`);
     }
     return this.events.getTimeline(rootId);
+  }
+
+  // ── UPDATE PROFILE ────────────────────────────────────────
+
+  async updateProfile(
+    rootId: string,
+    dto: { hero_name?: string; fate_alignment?: string; origin?: string },
+  ) {
+    const user = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId },
+    });
+    if (!user) {
+      throw new NotFoundException(`Identity not found: ${rootId}`);
+    }
+    if (user.status !== 'active') {
+      throw new BadRequestException(`Identity is ${user.status}`);
+    }
+
+    const updateData: Record<string, unknown> = {};
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+
+    if (dto.hero_name && dto.hero_name !== user.heroName) {
+      updateData.heroName = dto.hero_name;
+      changes.hero_name = { from: user.heroName, to: dto.hero_name };
+
+      // Also update the primary persona displayName
+      const persona = await this.prisma.persona.findFirst({
+        where: { rootId, status: 'active' },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (persona) {
+        await this.prisma.persona.update({
+          where: { id: persona.id },
+          data: { displayName: dto.hero_name },
+        });
+      }
+    }
+
+    if (dto.fate_alignment && dto.fate_alignment !== user.fateAlignment) {
+      updateData.fateAlignment = dto.fate_alignment;
+      changes.fate_alignment = { from: user.fateAlignment, to: dto.fate_alignment };
+    }
+
+    if (dto.origin !== undefined && dto.origin !== user.origin) {
+      updateData.origin = dto.origin || null;
+      changes.origin = { from: user.origin, to: dto.origin || null };
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return { message: 'No changes', root_id: rootId };
+    }
+
+    await this.prisma.rootIdentity.update({
+      where: { id: rootId },
+      data: updateData,
+    });
+
+    await this.events.log({
+      rootId,
+      eventType: 'identity.profile_updated',
+      payload: dto,
+      changes: changes as unknown as Record<string, unknown>,
+    });
+
+    this.logger.log(`Profile updated: ${rootId} — ${JSON.stringify(changes)}`);
+
+    return {
+      root_id: rootId,
+      ...updateData,
+      changes,
+    };
+  }
+
+  // ── EQUIP TITLE ───────────────────────────────────────────
+
+  async equipTitle(rootId: string, titleId: string | null) {
+    const user = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId },
+      include: { titles: { select: { titleId: true } } },
+    });
+    if (!user) {
+      throw new NotFoundException(`Identity not found: ${rootId}`);
+    }
+
+    // null = unequip
+    if (titleId !== null) {
+      // Verify user actually holds this title
+      const held = user.titles.some((t) => t.titleId === titleId);
+      if (!held) {
+        throw new BadRequestException(
+          `You do not hold title: ${titleId}`,
+        );
+      }
+    }
+
+    const prev = user.equippedTitle;
+    await this.prisma.rootIdentity.update({
+      where: { id: rootId },
+      data: { equippedTitle: titleId },
+    });
+
+    await this.events.log({
+      rootId,
+      eventType: 'identity.title_equipped',
+      payload: { title_id: titleId, previous: prev },
+    });
+
+    this.logger.log(
+      `Title equipped: ${rootId} → ${titleId || 'none'} (was ${prev || 'none'})`,
+    );
+
+    return {
+      root_id: rootId,
+      equipped_title: titleId,
+      previous: prev,
+    };
   }
 
   // ── HELPERS ───────────────────────────────────────────────

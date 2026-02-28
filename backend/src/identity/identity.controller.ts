@@ -12,11 +12,15 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Param,
   Body,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { EnrollUserDto } from './dto/enroll-user.dto';
+import { SessionGuard } from '../auth/guards/session.guard';
 
 @Controller('api/users')
 export class IdentityController {
@@ -79,5 +83,45 @@ export class IdentityController {
   @Get(':root_id/timeline')
   async getTimeline(@Param('root_id') rootId: string) {
     return this.identityService.getTimeline(rootId);
+  }
+
+  /**
+   * PUT /api/users/:root_id/profile
+   *
+   * Update hero name, alignment, or origin.
+   * Session-protected: only the identity owner can update.
+   */
+  @Put(':root_id/profile')
+  @UseGuards(SessionGuard)
+  async updateProfile(
+    @Param('root_id') rootId: string,
+    @Req() req: Request & { rootId: string },
+    @Body() body: { hero_name?: string; fate_alignment?: string; origin?: string },
+  ) {
+    // Verify session owner matches path param
+    if (req.rootId !== rootId) {
+      return { status: 'error', message: 'Unauthorized' };
+    }
+    return this.identityService.updateProfile(rootId, body);
+  }
+
+  /**
+   * PUT /api/users/:root_id/equipped-title
+   *
+   * Set or unset the equipped/displayed title.
+   * Send { title_id: "title_fate_awakened" } to equip,
+   * or { title_id: null } to unequip.
+   */
+  @Put(':root_id/equipped-title')
+  @UseGuards(SessionGuard)
+  async equipTitle(
+    @Param('root_id') rootId: string,
+    @Req() req: Request & { rootId: string },
+    @Body() body: { title_id: string | null },
+  ) {
+    if (req.rootId !== rootId) {
+      return { status: 'error', message: 'Unauthorized' };
+    }
+    return this.identityService.equipTitle(rootId, body.title_id);
   }
 }

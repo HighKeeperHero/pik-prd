@@ -232,6 +232,62 @@ async function main() {
   });
 
   console.log('');
+  console.log('  Seeding loot tables...');
+
+  const lootEntries = [
+    // ── Level Up Cache Pool ─────────────────────────────
+    { cacheType: 'level_up', rewardType: 'xp_boost',  rewardValue: '50',   displayName: 'Minor Fate Spark',        weight: 200, rarityTier: 'common',    minLevel: 1 },
+    { cacheType: 'level_up', rewardType: 'xp_boost',  rewardValue: '150',  displayName: 'Fate Ember',              weight: 100, rarityTier: 'uncommon',  minLevel: 1 },
+    { cacheType: 'level_up', rewardType: 'marker',    rewardValue: 'Felt the threads of fate shift and realign',   displayName: 'Fate Thread Marker',      weight: 80,  rarityTier: 'uncommon',  minLevel: 2 },
+    { cacheType: 'level_up', rewardType: 'marker',    rewardValue: 'Glimpsed the weave between worlds',            displayName: 'Veil Sight Marker',       weight: 40,  rarityTier: 'rare',     minLevel: 3 },
+    { cacheType: 'level_up', rewardType: 'xp_boost',  rewardValue: '400',  displayName: 'Blazing Fate Core',       weight: 20,  rarityTier: 'epic',      minLevel: 5 },
+    { cacheType: 'level_up', rewardType: 'title',     rewardValue: 'title_fortune_favored', displayName: 'Fortune Favored',  weight: 5,   rarityTier: 'legendary', minLevel: 5 },
+
+    // ── Boss Kill Cache Pool ────────────────────────────
+    { cacheType: 'boss_kill', rewardType: 'xp_boost',  rewardValue: '100',  displayName: 'Veil Shard',              weight: 180, rarityTier: 'common',    minLevel: 1 },
+    { cacheType: 'boss_kill', rewardType: 'marker',    rewardValue: 'Claimed a trophy from a fallen guardian',      displayName: 'Guardian Trophy Marker',  weight: 80,  rarityTier: 'uncommon',  minLevel: 1 },
+    { cacheType: 'boss_kill', rewardType: 'xp_boost',  rewardValue: '250',  displayName: 'Veil Fragment',           weight: 60,  rarityTier: 'rare',      minLevel: 2 },
+    { cacheType: 'boss_kill', rewardType: 'marker',    rewardValue: 'Tore a rift in the boundary between realms',   displayName: 'Rift Marker',            weight: 25,  rarityTier: 'epic',      minLevel: 3 },
+    { cacheType: 'boss_kill', rewardType: 'title',     rewardValue: 'title_veil_touched',    displayName: 'Veil Touched',     weight: 10,  rarityTier: 'epic',      minLevel: 3 },
+    { cacheType: 'boss_kill', rewardType: 'title',     rewardValue: 'title_fate_weaver',     displayName: 'Fate Weaver',      weight: 3,   rarityTier: 'legendary', minLevel: 7 },
+
+    // ── Milestone Cache Pool ────────────────────────────
+    { cacheType: 'milestone', rewardType: 'xp_boost',  rewardValue: '200',  displayName: 'Mythic Ember',            weight: 120, rarityTier: 'uncommon',  minLevel: 1 },
+    { cacheType: 'milestone', rewardType: 'marker',    rewardValue: 'Crossed a threshold that echoes through time', displayName: 'Threshold Marker',        weight: 60,  rarityTier: 'rare',     minLevel: 1 },
+    { cacheType: 'milestone', rewardType: 'title',     rewardValue: 'title_mythic_aspirant', displayName: 'Mythic Aspirant',  weight: 15,  rarityTier: 'epic',     minLevel: 3 },
+    { cacheType: 'milestone', rewardType: 'title',     rewardValue: 'title_legend_forged',   displayName: 'Legend Forged',    weight: 3,   rarityTier: 'legendary', minLevel: 8 },
+  ];
+
+  for (const entry of lootEntries) {
+    await prisma.lootTable.upsert({
+      where: { id: `loot-${entry.cacheType}-${entry.rewardValue.replace(/\s+/g, '-').substring(0, 30)}` },
+      update: {},
+      create: {
+        id: `loot-${entry.cacheType}-${entry.rewardValue.replace(/\s+/g, '-').substring(0, 30)}`,
+        ...entry,
+      },
+    });
+  }
+  console.log(`  ✓ ${lootEntries.length} loot table entries`);
+
+  // ── Extra titles for loot rewards ─────────────────────
+  const lootTitles = [
+    { id: 'title_fortune_favored', displayName: 'Fortune Favored',   category: 'fate' },
+    { id: 'title_veil_touched',    displayName: 'Veil Touched',      category: 'boss' },
+    { id: 'title_fate_weaver',     displayName: 'Fate Weaver',       category: 'fate' },
+    { id: 'title_mythic_aspirant', displayName: 'Mythic Aspirant',   category: 'meta' },
+    { id: 'title_legend_forged',   displayName: 'Legend Forged',     category: 'meta' },
+  ];
+  for (const t of lootTitles) {
+    await prisma.title.upsert({
+      where: { id: t.id },
+      update: {},
+      create: t,
+    });
+  }
+  console.log(`  ✓ ${lootTitles.length} loot titles`);
+
+  console.log('');
   console.log('=== SEED COMPLETE ===');
   console.log('');
 }
