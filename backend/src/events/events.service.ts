@@ -4,9 +4,10 @@
 // Place at: src/events/events.service.ts
 // ============================================================
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { SseService } from '../sse/sse.service';
 
 export interface LogEventParams {
   rootId: string;
@@ -20,7 +21,10 @@ export interface LogEventParams {
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly sse?: SseService,
+  ) {}
 
   async log(params: LogEventParams) {
     const event = await this.prisma.identityEvent.create({
@@ -39,6 +43,19 @@ export class EventsService {
       `Event logged: ${params.eventType} for ${params.rootId}` +
         (params.sourceId ? ` from ${params.sourceId}` : ''),
     );
+
+    // Broadcast to all SSE clients
+    if (this.sse) {
+      this.sse.emit(params.eventType, {
+        event_id: event.id,
+        root_id: params.rootId,
+        event_type: params.eventType,
+        source_id: params.sourceId ?? null,
+        payload: params.payload ?? {},
+        changes: params.changes ?? null,
+        created_at: event.createdAt.toISOString(),
+      });
+    }
 
     return event;
   }

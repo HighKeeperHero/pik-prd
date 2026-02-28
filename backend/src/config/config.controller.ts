@@ -16,9 +16,11 @@ import {
   Post,
   Param,
   Body,
+  Res,
   BadRequestException,
 } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Response } from 'express';
 import { ConfigService } from './config.service';
 import { SourceAdminService } from './source-admin.service';
 
@@ -33,6 +35,16 @@ export class ConfigController {
   @SkipThrottle()
   async health() {
     return { healthy: true, timestamp: new Date().toISOString() };
+  }
+
+  /**
+   * GET /api/go/demo — redirect to /demo.html
+   * Provides a clean URL for investor presentations.
+   */
+  @Get('go/demo')
+  @SkipThrottle()
+  goDemo(@Res() res: Response) {
+    res.redirect('/demo.html');
   }
 
   @Get('config')

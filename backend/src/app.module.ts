@@ -19,6 +19,8 @@ import { IngestModule } from './ingest/ingest.module';
 import { ConfigModule } from './config/config.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
+import { SseModule } from './sse/sse.module';
+import { DemoModule } from './demo/demo.module';
 
 @Global()
 @Module({
@@ -50,6 +52,8 @@ import { AuthModule } from './auth/auth.module';
     ConfigModule,
     AnalyticsModule,
     AuthModule,
+    SseModule,
+    DemoModule,
   ],
   providers: [
     PrismaService,

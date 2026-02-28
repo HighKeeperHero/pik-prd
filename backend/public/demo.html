@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIK — Investor Demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Alegreya+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* ── Reset & Variables ──────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root {
+  --bg:       #08090d;
+  --bg2:      #0e1017;
+  --bg3:      #141620;
+  --surface:  #1a1d2a;
+  --border:   #252838;
+  --text:     #e0dde6;
+  --text2:    #8a8698;
+  --text3:    #5a5670;
+  --accent:   #7c6aff;
+  --accent-g: linear-gradient(135deg, #7c6aff, #a78bfa);
+  --teal:     #40e8c0;
+  --teal-g:   linear-gradient(135deg, #40e8c0, #34d399);
+  --gold:     #f0c050;
+  --ember:    #ff8844;
+  --red:      #ff4d6a;
+  --green:    #3ecf8e;
+}
+html,body { height:100%; background:var(--bg); color:var(--text); font-family:'Alegreya Sans',sans-serif; overflow:hidden; }
+
+/* ── Ambient Background ─────────────────────────── */
+body::before {
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse at 15% 20%, #7c6aff06 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 80%, #40e8c006 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, #ff884404 0%, transparent 40%);
+}
+
+/* ── Header ─────────────────────────────────────── */
+.header {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 28px;border-bottom:1px solid var(--border);
+  background:var(--bg2);position:relative;z-index:10;
+  height:56px;
+}
+.header-left { display:flex;align-items:center;gap:14px; }
+.header-logo {
+  font-family:'Cinzel',serif;font-size:18px;font-weight:700;
+  letter-spacing:4px;
+  background:var(--accent-g);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.header-pipe { width:1px;height:20px;background:var(--border); }
+.header-label { font-size:11px;letter-spacing:3px;color:var(--text3);text-transform:uppercase; }
+.header-right { display:flex;align-items:center;gap:14px; }
+.sse-status {
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;color:var(--text3);letter-spacing:1px;
+}
+.sse-dot {
+  width:7px;height:7px;border-radius:50%;background:var(--text3);
+  transition:background .3s;
+}
+.sse-dot.connected { background:var(--green);animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.nav-link {
+  font-size:11px;color:var(--accent);text-decoration:none;letter-spacing:1px;
+  padding:4px 12px;border:1px solid var(--accent)33;border-radius:6px;
+  transition:all .2s;
+}
+.nav-link:hover { background:var(--accent)11;border-color:var(--accent)66; }
+
+/* ── Main Layout ────────────────────────────────── */
+.main {
+  display:grid;grid-template-columns:1fr 1fr;
+  height:calc(100vh - 56px);position:relative;z-index:1;
+}
+
+/* ── Left Panel: Player Experience ──────────────── */
+.panel-player {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:40px 32px;
+  background:radial-gradient(ellipse at center, #0e101a 0%, var(--bg) 100%);
+  border-right:1px solid var(--border);
+}
+.panel-label {
+  font-size:10px;letter-spacing:4px;color:var(--text3);text-transform:uppercase;
+  margin-bottom:20px;
+}
+
+/* ── Phone Mockup ───────────────────────────────── */
+.phone {
+  width:310px;height:620px;
+  border:2px solid var(--border);border-radius:36px;
+  background:var(--bg);overflow:hidden;
+  box-shadow:0 0 60px #7c6aff0a, 0 20px 60px #00000040;
+  position:relative;
+}
+.phone-notch {
+  width:120px;height:24px;background:var(--bg);
+  border-radius:0 0 14px 14px;margin:0 auto;
+  position:relative;z-index:5;
+}
+.phone-screen {
+  height:calc(100% - 24px);overflow-y:auto;padding:0;
+  scrollbar-width:none;
+}
+.phone-screen::-webkit-scrollbar { display:none; }
+
+/* Phone screen states */
+.phone-idle, .phone-enrolling, .phone-enrolled {
+  display:none;flex-direction:column;align-items:center;
+  padding:32px 24px;text-align:center;min-height:100%;
+}
+.phone-idle.active, .phone-enrolling.active, .phone-enrolled.active {
+  display:flex;
+}
+
+/* Idle state */
+.phone-idle .pik-emblem {
+  width:80px;height:80px;border-radius:50%;
+  background:var(--accent-g);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cinzel',serif;font-size:28px;color:white;font-weight:700;
+  margin-bottom:20px;margin-top:40px;
+  box-shadow:0 0 40px #7c6aff33;
+  animation:glow 3s ease-in-out infinite;
+}
+@keyframes glow { 0%,100%{box-shadow:0 0 40px #7c6aff33} 50%{box-shadow:0 0 60px #7c6aff55} }
+.phone-idle h2 {
+  font-family:'Cinzel',serif;font-size:20px;letter-spacing:3px;
+  margin-bottom:8px;color:var(--text);
+}
+.phone-idle p { font-size:14px;color:var(--text2);margin-bottom:40px;line-height:1.6; }
+.phone-idle .start-cta {
+  font-size:12px;color:var(--text3);letter-spacing:2px;
+  animation:pulse 2s infinite;
+}
+
+/* Enrolling state — animated fields */
+.phone-enrolling {
+  justify-content:flex-start;padding-top:24px;
+}
+.enroll-step {
+  width:100%;text-align:left;margin-bottom:16px;
+  opacity:0;transform:translateY(12px);
+  transition:all .4s ease-out;
+}
+.enroll-step.visible { opacity:1;transform:translateY(0); }
+.enroll-label {
+  font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;
+  margin-bottom:6px;
+}
+.enroll-value {
+  padding:10px 14px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;font-size:15px;color:var(--text);
+  font-family:'JetBrains Mono',monospace;
+  position:relative;overflow:hidden;
+}
+.enroll-value.typing::after {
+  content:'▍';animation:blink .6s step-end infinite;color:var(--accent);
+}
+@keyframes blink { 50%{opacity:0} }
+.enroll-value .alignment-tag {
+  display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;
+  border:1px solid;
+}
+.tag-order  { border-color:#f0c06066;color:var(--gold);background:#f0c06011; }
+.tag-chaos  { border-color:#ff4d6a66;color:var(--red);background:#ff4d6a11; }
+.tag-wild   { border-color:#3ecf8e66;color:var(--green);background:#3ecf8e11; }
+.tag-veil   { border-color:#7c6aff66;color:var(--accent);background:#7c6aff11; }
+
+/* Enrolled state — identity card */
+.phone-enrolled { justify-content:flex-start;padding-top:20px; }
+.id-card {
+  width:100%;background:linear-gradient(145deg, var(--bg3), var(--surface));
+  border:1px solid var(--border);border-radius:16px;padding:20px;
+  text-align:left;position:relative;overflow:hidden;
+}
+.id-card::before {
+  content:'';position:absolute;top:-50%;right:-50%;width:200%;height:200%;
+  background:conic-gradient(from 180deg,transparent,#7c6aff08,transparent,#40e8c008,transparent);
+  animation:cardSpin 8s linear infinite;
+}
+@keyframes cardSpin { to{transform:rotate(360deg)} }
+.id-card-inner { position:relative;z-index:1; }
+.id-hero-name {
+  font-family:'Cinzel',serif;font-size:22px;font-weight:700;
+  margin-bottom:4px;letter-spacing:1px;
+}
+.id-origin { font-size:12px;color:var(--text2);margin-bottom:16px;font-style:italic; }
+.id-stats { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px; }
+.id-stat {
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:10px;text-align:center;
+}
+.id-stat .val { font-size:20px;font-weight:700;color:var(--teal);font-family:'JetBrains Mono',monospace; }
+.id-stat .lbl { font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-top:2px; }
+
+/* Fate bar on phone */
+.id-fate-bar { margin:16px 0 8px; }
+.id-fate-labels { display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px; }
+.id-fate-labels span { color:var(--teal); }
+.id-fate-track { height:6px;background:var(--border);border-radius:3px;overflow:hidden; }
+.id-fate-fill { height:100%;background:var(--teal-g);border-radius:3px;transition:width .6s ease-out;width:0; }
+
+/* Titles on phone */
+.id-titles { display:flex;flex-wrap:wrap;gap:6px;margin-top:14px; }
+.id-title-chip {
+  font-size:10px;padding:3px 10px;border-radius:12px;
+  border:1px solid var(--gold)44;color:var(--gold);background:var(--gold)11;
+  letter-spacing:1px;animation:fadeUp .3s ease-out both;
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+/* Fate markers on phone */
+.id-markers { margin-top:14px; }
+.id-marker {
+  font-size:11px;color:var(--text2);padding:6px 0;
+  border-bottom:1px solid var(--border);
+  animation:fadeUp .3s ease-out both;
+}
+.id-marker:last-child { border-bottom:none; }
+.id-marker::before { content:'◆ ';color:var(--accent);font-size:8px; }
+
+/* ── Right Panel: Operator Console ──────────────── */
+.panel-operator {
+  display:flex;flex-direction:column;
+  background:var(--bg2);
+  overflow:hidden;
+}
+
+/* Console header */
+.console-header {
+  padding:14px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg);flex-shrink:0;
+}
+.console-title {
+  font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;
+  color:var(--text2);text-transform:uppercase;
+}
+.console-stats {
+  display:flex;gap:10px;
+}
+.console-stat {
+  font-size:11px;color:var(--text3);
+}
+.console-stat span { color:var(--teal);font-weight:700;font-family:'JetBrains Mono',monospace; }
+
+/* Console body */
+.console-body {
+  flex:1;overflow-y:auto;padding:0;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+
+/* Event entries */
+.event-entry {
+  display:flex;gap:12px;padding:12px 20px;
+  border-bottom:1px solid var(--border);
+  animation:slideIn .3s ease-out both;
+  transition:background .15s;
+}
+.event-entry:hover { background:#ffffff04; }
+@keyframes slideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+
+.event-icon {
+  width:32px;height:32px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.event-body { flex:1;min-width:0; }
+.event-type {
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:1px;margin-bottom:3px;
+}
+.event-desc { font-size:13px;color:var(--text);line-height:1.4; }
+.event-meta { font-size:10px;color:var(--text3);margin-top:3px; }
+.event-changes {
+  margin-top:6px;padding:6px 10px;background:var(--bg);
+  border-radius:6px;font-family:'JetBrains Mono',monospace;
+  font-size:10px;color:var(--text2);
+}
+
+/* Event type colors */
+.evt-enrolled       .event-icon { background:#7c6aff22; }
+.evt-enrolled       .event-type { color:#a78bfa; }
+.evt-link_granted   .event-icon { background:#3ecf8e22; }
+.evt-link_granted   .event-type { color:#3ecf8e; }
+.evt-session        .event-icon { background:#40e8c022; }
+.evt-session        .event-type { color:#40e8c0; }
+.evt-level_up       .event-icon { background:#f0c05022; }
+.evt-level_up       .event-type { color:#f0c050; }
+.evt-title          .event-icon { background:#ff884422; }
+.evt-title          .event-type { color:#ff8844; }
+.evt-fate_marker    .event-icon { background:#7c6aff22; }
+.evt-fate_marker    .event-type { color:#a78bfa; }
+.evt-narration      .event-icon { background:#ffffff08; }
+.evt-narration      .event-type { color:var(--text3); }
+.evt-demo           .event-icon { background:#ff4d6a11; }
+.evt-demo           .event-type { color:#ff4d6a; }
+
+/* Console footer — launch button */
+.console-footer {
+  padding:16px 20px;border-top:1px solid var(--border);
+  background:var(--bg);flex-shrink:0;
+}
+.launch-btn {
+  width:100%;padding:14px;border:none;border-radius:10px;
+  background:var(--accent-g);color:white;
+  font-family:'Cinzel',serif;font-size:14px;letter-spacing:3px;
+  text-transform:uppercase;cursor:pointer;
+  transition:all .2s;position:relative;overflow:hidden;
+}
+.launch-btn:hover { transform:translateY(-1px);box-shadow:0 4px 20px #7c6aff44; }
+.launch-btn:active { transform:translateY(0); }
+.launch-btn:disabled {
+  opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;
+}
+.launch-btn.running {
+  background:linear-gradient(135deg, #1a1d2a, #252838);
+  border:1px solid var(--accent)44;
+}
+
+/* Empty state */
+.console-empty {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;color:var(--text3);
+}
+.console-empty .icon { font-size:48px;margin-bottom:16px;opacity:.3; }
+.console-empty p { font-size:13px;letter-spacing:2px; }
+
+/* ── Animations ─────────────────────────────────── */
+.level-up-flash {
+  animation:levelFlash .6s ease-out;
+}
+@keyframes levelFlash {
+  0%{background:#f0c05022} 100%{background:transparent}
+}
+
+/* ── Responsive ─────────────────────────────────── */
+@media(max-width:900px){
+  .main { grid-template-columns:1fr; }
+  .panel-player { display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ────────────────────────────────────── -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">PIK</div>
+    <div class="header-pipe"></div>
+    <div class="header-label">Investor Demo</div>
+  </div>
+  <div class="header-right">
+    <div class="sse-status">
+      <div class="sse-dot" id="sseDot"></div>
+      <span id="sseLabel">Connecting…</span>
+    </div>
+    <a href="/" class="nav-link">Dashboard →</a>
+  </div>
+</div>
+
+<!-- ── Main Split Screen ─────────────────────────── -->
+<div class="main">
+
+  <!-- Left: Player Experience -->
+  <div class="panel-player">
+    <div class="panel-label">Player Experience</div>
+    <div class="phone">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+
+        <!-- Idle State -->
+        <div class="phone-idle active" id="phoneIdle">
+          <div class="pik-emblem">P</div>
+          <h2>PIK</h2>
+          <p>Persistent Identity Kernel<br><span style="color:var(--text3);font-size:12px">Your mythic identity, across every game.</span></p>
+          <div class="start-cta">Launch Demo to begin ▸</div>
+        </div>
+
+        <!-- Enrolling State -->
+        <div class="phone-enrolling" id="phoneEnrolling">
+          <div style="font-family:'Cinzel',serif;font-size:14px;letter-spacing:3px;color:var(--accent);margin-bottom:20px;text-transform:uppercase">
+            Identity Enrollment
+          </div>
+          <div class="enroll-step" id="stepName">
+            <div class="enroll-label">Hero Name</div>
+            <div class="enroll-value" id="valName"></div>
+          </div>
+          <div class="enroll-step" id="stepAlignment">
+            <div class="enroll-label">Fate Alignment</div>
+            <div class="enroll-value" id="valAlignment"></div>
+          </div>
+          <div class="enroll-step" id="stepOrigin">
+            <div class="enroll-label">Origin</div>
+            <div class="enroll-value" id="valOrigin"></div>
+          </div>
+          <div class="enroll-step" id="stepSource">
+            <div class="enroll-label">Source Linked</div>
+            <div class="enroll-value" id="valSource"></div>
+          </div>
+          <div class="enroll-step" id="stepStatus">
+            <div style="text-align:center;padding:12px;background:var(--accent)11;border:1px solid var(--accent)33;border-radius:10px;">
+              <div style="font-size:11px;color:var(--accent);letter-spacing:2px" id="statusText">ENROLLING…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Enrolled State -->
+        <div class="phone-enrolled" id="phoneEnrolled">
+          <div class="id-card">
+            <div class="id-card-inner">
+              <div class="id-hero-name" id="cardHeroName"></div>
+              <div class="id-origin" id="cardOrigin"></div>
+              <div id="cardAlignmentTag"></div>
+              <div class="id-fate-bar">
+                <div class="id-fate-labels">
+                  <span>FATE LEVEL <span id="cardLevel">1</span></span>
+                  <span><span id="cardXp">0</span> XP</span>
+                </div>
+                <div class="id-fate-track">
+                  <div class="id-fate-fill" id="cardFateBar"></div>
+                </div>
+              </div>
+              <div class="id-stats">
+                <div class="id-stat">
+                  <div class="val" id="cardSessions">0</div>
+                  <div class="lbl">Sessions</div>
+                </div>
+                <div class="id-stat">
+                  <div class="val" id="cardTitleCount">0</div>
+                  <div class="lbl">Titles</div>
+                </div>
+              </div>
+              <div class="id-titles" id="cardTitles"></div>
+              <div class="id-markers" id="cardMarkers">
+                <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Fate Markers</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Operator Console -->
+  <div class="panel-operator">
+    <div class="console-header">
+      <div class="console-title">Operator Console</div>
+      <div class="console-stats">
+        <div class="console-stat">Events: <span id="eventCount">0</span></div>
+        <div class="console-stat">SSE: <span id="sseClients">0</span></div>
+      </div>
+    </div>
+    <div class="console-body" id="consoleBody">
+      <div class="console-empty" id="consoleEmpty">
+        <div class="icon">⟐</div>
+        <p>Awaiting identity events…</p>
+      </div>
+    </div>
+    <div class="console-footer">
+      <button class="launch-btn" id="launchBtn" onclick="launchDemo()">
+        ⟐ Launch Demo
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// PIK — Investor Demo Client
+// ============================================================
+
+let eventSource = null;
+let eventCount = 0;
+let demoState = {
+  rootId: null,
+  heroName: '',
+  alignment: '',
+  origin: '',
+  xp: 0,
+  level: 1,
+  sessions: 0,
+  titles: [],
+  markers: [],
+};
+
+// ── SSE Connection ──────────────────────────────────
+
+function connectSSE() {
+  if (eventSource) eventSource.close();
+
+  eventSource = new EventSource('/api/events/stream');
+
+  eventSource.addEventListener('connected', (e) => {
+    const data = JSON.parse(e.data);
+    document.getElementById('sseDot').classList.add('connected');
+    document.getElementById('sseLabel').textContent = 'Live';
+    document.getElementById('sseClients').textContent = data.clients;
+  });
+
+  // Listen for all event types
+  const eventTypes = [
+    'identity.enrolled',
+    'source.link_granted',
+    'progression.session_completed',
+    'progression.title_granted',
+    'progression.fate_marker',
+    'progression.xp_granted',
+    'key.registered',
+    'demo.started',
+    'demo.narration',
+    'demo.completed',
+    'demo.error',
+  ];
+
+  eventTypes.forEach(type => {
+    eventSource.addEventListener(type, (e) => {
+      const payload = JSON.parse(e.data);
+      handleEvent(type, payload);
+    });
+  });
+
+  eventSource.onerror = () => {
+    document.getElementById('sseDot').classList.remove('connected');
+    document.getElementById('sseLabel').textContent = 'Reconnecting…';
+    setTimeout(connectSSE, 3000);
+  };
+}
+
+// ── Event Handlers ──────────────────────────────────
+
+function handleEvent(type, payload) {
+  const data = payload.data || payload;
+
+  switch(type) {
+    case 'demo.started':
+      handleDemoStarted(data);
+      break;
+    case 'identity.enrolled':
+      handleEnrolled(data);
+      break;
+    case 'source.link_granted':
+      handleLinkGranted(data);
+      break;
+    case 'progression.session_completed':
+      handleSessionCompleted(data);
+      break;
+    case 'progression.title_granted':
+      handleTitleGranted(data);
+      break;
+    case 'progression.fate_marker':
+      handleFateMarker(data);
+      break;
+    case 'demo.narration':
+      addConsoleEvent('narration', '📖', data.narration || 'Narration',
+        `Session ${data.session}/${data.total}`, null);
+      return; // Don't increment event count
+    case 'demo.completed':
+      handleDemoCompleted(data);
+      break;
+    case 'demo.error':
+      addConsoleEvent('demo', '⚠', 'Demo Error', data.message || 'Unknown error', null);
+      document.getElementById('launchBtn').disabled = false;
+      document.getElementById('launchBtn').textContent = '⟐ Launch Demo';
+      document.getElementById('launchBtn').classList.remove('running');
+      return;
+  }
+
+  eventCount++;
+  document.getElementById('eventCount').textContent = eventCount;
+}
+
+function handleDemoStarted(data) {
+  demoState = {
+    rootId: null,
+    heroName: data.hero_name,
+    alignment: data.fate_alignment,
+    origin: data.origin,
+    xp: 0,
+    level: 1,
+    sessions: 0,
+    titles: [],
+    markers: [],
+  };
+
+  // Switch phone to enrolling state
+  setPhoneState('enrolling');
+
+  // Animate enrollment fields with typing effect
+  typeField('stepName', 'valName', data.hero_name, 300);
+  setTimeout(() => {
+    showStep('stepAlignment');
+    const tagClass = 'tag-' + (data.fate_alignment || '').toLowerCase();
+    document.getElementById('valAlignment').innerHTML =
+      `<span class="alignment-tag ${tagClass}">${esc(data.fate_alignment)}</span>`;
+  }, 1200);
+  setTimeout(() => {
+    showStep('stepOrigin');
+    typeField(null, 'valOrigin', data.origin, 200);
+  }, 1800);
+
+  addConsoleEvent('demo', '🚀', 'DEMO SEQUENCE STARTED',
+    `Enrolling hero: ${data.hero_name}`, null);
+}
+
+function handleEnrolled(data) {
+  demoState.rootId = data.root_id;
+
+  // Show status on phone
+  setTimeout(() => {
+    showStep('stepStatus');
+    document.getElementById('statusText').textContent = '✓ IDENTITY CREATED';
+    document.getElementById('statusText').style.color = 'var(--teal)';
+  }, 400);
+
+  addConsoleEvent('enrolled', '⟐', 'identity.enrolled',
+    `${esc(data.hero_name)} — ${esc(data.fate_alignment)}`,
+    { root_id: truncId(data.root_id), enrolled_by: data.enrolled_by });
+}
+
+function handleLinkGranted(data) {
+  showStep('stepSource');
+  document.getElementById('valSource').innerHTML =
+    `<span style="color:var(--green)">● </span>Heroes' Veritas <span style="color:var(--text3);font-size:11px">— active</span>`;
+
+  // Transition to enrolled card view
+  setTimeout(() => {
+    setPhoneState('enrolled');
+    updatePhoneCard();
+  }, 1000);
+
+  addConsoleEvent('link_granted', '🔗', 'source.link_granted',
+    `Consent granted → Heroes' Veritas`,
+    { link_id: truncId(data.link_id || data.payload?.link_id), scope: 'xp fate_markers titles' });
+}
+
+function handleSessionCompleted(data) {
+  demoState.sessions++;
+  const changes = data.changes || data.changes_applied || {};
+  demoState.xp = changes.new_xp_total || (demoState.xp + (changes.total_xp || 0));
+  demoState.level = changes.new_level || demoState.level;
+
+  updatePhoneCard();
+
+  // Flash level-up
+  if (changes.level_up) {
+    const card = document.querySelector('.id-card');
+    if (card) { card.classList.add('level-up-flash'); setTimeout(() => card.classList.remove('level-up-flash'), 700); }
+  }
+
+  const payload = data.payload || {};
+  const desc = `${payload.difficulty || '?'} session · ${payload.nodes_completed || '?'} nodes · ${payload.boss_damage_pct || '?'}% boss`;
+  const meta = { xp: `+${changes.total_xp || '?'}`, total: demoState.xp };
+  if (changes.level_up) meta.level_up = `${changes.level_up.from} → ${changes.level_up.to}`;
+
+  addConsoleEvent('session', '⚔', 'progression.session_completed', desc, meta);
+}
+
+function handleTitleGranted(data) {
+  const changes = data.changes || {};
+  const titleName = changes.title_name || data.payload?.title_id || 'Unknown';
+
+  if (!demoState.titles.includes(titleName)) {
+    demoState.titles.push(titleName);
+  }
+  updatePhoneCard();
+
+  addConsoleEvent('title', '🏆', 'progression.title_granted',
+    `Title earned: ${titleName}`, { title_id: changes.title_id || data.payload?.title_id });
+}
+
+function handleFateMarker(data) {
+  const marker = (data.changes || {}).marker || (data.payload || {}).marker || 'Unknown marker';
+
+  if (!demoState.markers.includes(marker)) {
+    demoState.markers.push(marker);
+  }
+  updatePhoneCard();
+
+  addConsoleEvent('fate_marker', '◆', 'progression.fate_marker',
+    marker, null);
+}
+
+function handleDemoCompleted(data) {
+  addConsoleEvent('demo', '✨', 'DEMO COMPLETE',
+    `${esc(data.hero_name)} — Level ${data.fate_level} · ${data.fate_xp} XP · ${(data.titles||[]).length} titles`,
+    null);
+
+  document.getElementById('launchBtn').disabled = false;
+  document.getElementById('launchBtn').textContent = '⟐ Launch Again';
+  document.getElementById('launchBtn').classList.remove('running');
+}
+
+// ── Phone State Management ──────────────────────────
+
+function setPhoneState(state) {
+  document.getElementById('phoneIdle').classList.remove('active');
+  document.getElementById('phoneEnrolling').classList.remove('active');
+  document.getElementById('phoneEnrolled').classList.remove('active');
+
+  // Reset enrollment steps
+  if (state === 'enrolling') {
+    document.querySelectorAll('.enroll-step').forEach(s => s.classList.remove('visible'));
+    document.getElementById('valName').textContent = '';
+    document.getElementById('valName').classList.remove('typing');
+    document.getElementById('valAlignment').innerHTML = '';
+    document.getElementById('valOrigin').textContent = '';
+    document.getElementById('valOrigin').classList.remove('typing');
+    document.getElementById('valSource').innerHTML = '';
+    document.getElementById('statusText').textContent = 'ENROLLING…';
+    document.getElementById('statusText').style.color = 'var(--accent)';
+  }
+
+  if (state === 'idle')      document.getElementById('phoneIdle').classList.add('active');
+  if (state === 'enrolling') document.getElementById('phoneEnrolling').classList.add('active');
+  if (state === 'enrolled')  document.getElementById('phoneEnrolled').classList.add('active');
+}
+
+function showStep(stepId) {
+  document.getElementById(stepId).classList.add('visible');
+}
+
+function typeField(stepId, valueId, text, charDelay) {
+  if (stepId) showStep(stepId);
+  const el = document.getElementById(valueId);
+  el.textContent = '';
+  el.classList.add('typing');
+  let i = 0;
+  const iv = setInterval(() => {
+    el.textContent = text.substring(0, i + 1);
+    i++;
+    if (i >= text.length) {
+      clearInterval(iv);
+      el.classList.remove('typing');
+    }
+  }, charDelay);
+}
+
+function updatePhoneCard() {
+  document.getElementById('cardHeroName').textContent = demoState.heroName;
+  document.getElementById('cardOrigin').textContent = demoState.origin;
+
+  const tagClass = 'tag-' + (demoState.alignment || '').toLowerCase();
+  document.getElementById('cardAlignmentTag').innerHTML =
+    `<span class="alignment-tag ${tagClass}" style="font-size:11px">${esc(demoState.alignment)}</span>`;
+
+  document.getElementById('cardLevel').textContent = demoState.level;
+  document.getElementById('cardXp').textContent = demoState.xp.toLocaleString();
+  document.getElementById('cardSessions').textContent = demoState.sessions;
+  document.getElementById('cardTitleCount').textContent = demoState.titles.length;
+
+  // Fate bar — estimate progress within level
+  const baseThreshold = 200;
+  const mult = 1.2;
+  const threshold = Math.floor(baseThreshold * Math.pow(mult, demoState.level - 1));
+  // Rough: show XP as percentage toward next level
+  let xpInLevel = demoState.xp;
+  for (let i = 1; i < demoState.level; i++) {
+    xpInLevel -= Math.floor(baseThreshold * Math.pow(mult, i - 1));
+  }
+  const pct = Math.min(100, Math.max(0, (xpInLevel / threshold) * 100));
+  document.getElementById('cardFateBar').style.width = pct + '%';
+
+  // Titles
+  const titlesEl = document.getElementById('cardTitles');
+  titlesEl.innerHTML = demoState.titles.map(t =>
+    `<div class="id-title-chip">${esc(t)}</div>`
+  ).join('');
+
+  // Markers
+  const markersEl = document.getElementById('cardMarkers');
+  const markerLabel = '<div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Fate Markers</div>';
+  if (demoState.markers.length > 0) {
+    markersEl.innerHTML = markerLabel + demoState.markers.map(m =>
+      `<div class="id-marker">${esc(m)}</div>`
+    ).join('');
+  } else {
+    markersEl.innerHTML = '';
+  }
+}
+
+// ── Console Event Renderer ──────────────────────────
+
+const EVENT_ICONS = {
+  enrolled: '⟐',
+  link_granted: '🔗',
+  session: '⚔',
+  level_up: '★',
+  title: '🏆',
+  fate_marker: '◆',
+  narration: '📖',
+  demo: '⬡',
+};
+
+function addConsoleEvent(type, icon, title, description, changesObj) {
+  const body = document.getElementById('consoleBody');
+  const empty = document.getElementById('consoleEmpty');
+  if (empty) empty.remove();
+
+  const entry = document.createElement('div');
+  entry.className = `event-entry evt-${type}`;
+
+  let changesHtml = '';
+  if (changesObj) {
+    const parts = Object.entries(changesObj).map(([k,v]) =>
+      `<span style="color:var(--text3)">${esc(k)}:</span> <span style="color:var(--teal)">${esc(String(v))}</span>`
+    ).join(' · ');
+    changesHtml = `<div class="event-changes">${parts}</div>`;
+  }
+
+  const now = new Date();
+  const ts = now.toLocaleTimeString('en-US', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  entry.innerHTML = `
+    <div class="event-icon">${icon}</div>
+    <div class="event-body">
+      <div class="event-type">${esc(title)}</div>
+      <div class="event-desc">${esc(description)}</div>
+      <div class="event-meta">${ts}</div>
+      ${changesHtml}
+    </div>
+  `;
+
+  // Insert at top
+  body.insertBefore(entry, body.firstChild);
+
+  // Keep max 50 entries
+  while (body.children.length > 50) {
+    body.removeChild(body.lastChild);
+  }
+}
+
+// ── Launch Demo ─────────────────────────────────────
+
+async function launchDemo() {
+  const btn = document.getElementById('launchBtn');
+  btn.disabled = true;
+  btn.textContent = '⟐ Running…';
+  btn.classList.add('running');
+
+  // Reset console
+  const body = document.getElementById('consoleBody');
+  body.innerHTML = '';
+  eventCount = 0;
+  document.getElementById('eventCount').textContent = '0';
+
+  // Reset phone
+  setPhoneState('idle');
+
+  try {
+    const resp = await fetch('/api/demo/seed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delay_ms: 2200 }),
+    });
+    const data = await resp.json();
+    const result = data.data || data;
+
+    if (result.status === 'already_running') {
+      addConsoleEvent('demo', '⏳', 'DEMO IN PROGRESS',
+        'A demo is already running. Please wait.', null);
+      btn.disabled = false;
+      btn.textContent = '⟐ Launch Demo';
+      btn.classList.remove('running');
+    } else if (result.status === 'error') {
+      addConsoleEvent('demo', '⚠', 'ERROR', result.message, null);
+      btn.disabled = false;
+      btn.textContent = '⟐ Launch Demo';
+      btn.classList.remove('running');
+    }
+  } catch(err) {
+    addConsoleEvent('demo', '⚠', 'CONNECTION ERROR', err.message, null);
+    btn.disabled = false;
+    btn.textContent = '⟐ Launch Demo';
+    btn.classList.remove('running');
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function truncId(id) {
+  if (!id) return '—';
+  return id.substring(0, 8) + '…';
+}
+
+// ── Boot ────────────────────────────────────────────
+connectSSE();
+</script>
+</body>
+</html>
