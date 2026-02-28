@@ -299,6 +299,8 @@ body::before {
 .evt-demo           .event-icon { background:#ff4d6a11; }
 .evt-cache          .event-icon { background:#f0c05022; }
 .evt-cache          .event-type { color:#f0c050; }
+.evt-gear           .event-icon { background:#40e8c022; }
+.evt-gear           .event-type { color:#40e8c0; }
 .evt-demo           .event-type { color:#ff4d6a; }
 
 /* Console footer — launch button */
@@ -516,6 +518,8 @@ function connectSSE() {
     'key.registered',
     'loot.cache_granted',
     'loot.cache_opened',
+    'gear.item_acquired',
+    'gear.item_equipped',
     'demo.started',
     'demo.narration',
     'demo.completed',
@@ -565,6 +569,12 @@ function handleEvent(type, payload) {
       break;
     case 'loot.cache_opened':
       handleCacheOpened(data);
+      break;
+    case 'gear.item_acquired':
+      handleGearAcquired(data);
+      break;
+    case 'gear.item_equipped':
+      handleGearEquipped(data);
       break;
     case 'demo.narration':
       addConsoleEvent('narration', '📖', data.narration || 'Narration',
@@ -717,9 +727,26 @@ function handleCacheOpened(data) {
     { type: changes.reward_type, rarity: changes.reward_rarity });
 }
 
+function handleGearAcquired(data) {
+  const pl = data.payload || {};
+  const rarityColors = {common:'#8a8698',uncommon:'#3ecf8e',rare:'#7c6aff',epic:'#ff8844',legendary:'#f0c050'};
+  addConsoleEvent('gear', pl.icon || '⚔', 'gear.item_acquired',
+    `${pl.item_name || 'Gear'} (${pl.rarity} ${pl.slot})`,
+    { item_id: pl.item_id, acquired_via: pl.acquired_via });
+}
+
+function handleGearEquipped(data) {
+  const pl = data.payload || {};
+  addConsoleEvent('gear', '🛡', 'gear.item_equipped',
+    `${pl.item_name || 'Item'} → ${pl.slot}`,
+    pl.replaced ? { replaced: pl.replaced.item_name } : null);
+}
+
 function handleDemoCompleted(data) {
+  const gearNote = data.gear_count ? ` · ${data.gear_count} gear` : '';
+  const cacheNote = data.caches_sealed ? ` · ${data.caches_sealed} sealed` : '';
   addConsoleEvent('demo', '✨', 'DEMO COMPLETE',
-    `${esc(data.hero_name)} — Level ${data.fate_level} · ${data.fate_xp} XP · ${(data.titles||[]).length} titles`,
+    `${esc(data.hero_name)} — Level ${data.fate_level} · ${data.fate_xp} XP · ${(data.titles||[]).length} titles${gearNote}${cacheNote}`,
     null);
 
   document.getElementById('launchBtn').disabled = false;

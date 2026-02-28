@@ -8,9 +8,10 @@ import { LootController } from './loot.controller';
 import { LootService } from './loot.service';
 import { EventsModule } from '../events/events.module';
 import { AuthModule } from '../auth/auth.module';
+import { GearModule } from '../gear/gear.module';
 
 @Module({
-  imports: [EventsModule, AuthModule],
+  imports: [EventsModule, AuthModule, GearModule],
   controllers: [LootController],
   providers: [LootService],
   exports: [LootService],

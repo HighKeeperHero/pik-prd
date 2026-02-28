@@ -40,6 +40,8 @@ model RootIdentity {
   titles        UserTitle[]
   fateMarkers   FateMarker[]
   fateCaches    FateCache[]
+  inventory     PlayerInventory[]
+  equipment     PlayerEquipment[]
   challenges    WebAuthnChallenge[]
 
   @@map("root_identities")
@@ -268,6 +270,61 @@ model FateCache {
   @@index([rootId])
   @@index([rootId, status])
   @@map("fate_caches")
+}
+
+// ============================================================
+// GEAR SYSTEM — Items, Inventory & Equipment
+// ============================================================
+
+/// Reference catalog of all gear items.
+/// Each item belongs to a slot and carries stat modifiers.
+model GearItem {
+  id          String  @id @map("item_id")            // e.g. "weapon_veilcleaver"
+  name        String  @map("display_name")
+  slot        String                                  // weapon | helm | chest | arms | legs | rune
+  rarityTier  String  @default("common") @map("rarity_tier")
+  description String?
+  loreText    String? @map("lore_text")
+  icon        String  @default("⚔")                  // emoji/token for frontend
+  minLevel    Int     @default(1) @map("min_level")
+  modifiers   Json    @default("{}")                  // { xp_bonus_pct, boss_damage_pct, luck_pct, defense, crit_pct, cooldown_pct, fate_affinity }
+
+  inventory   PlayerInventory[]
+
+  @@index([slot])
+  @@index([rarityTier])
+  @@map("gear_items")
+}
+
+/// Soulbound item instance owned by a player.
+model PlayerInventory {
+  id          String    @id @default(uuid()) @map("inventory_id")
+  rootId      String    @map("root_id")
+  itemId      String    @map("item_id")
+  acquiredVia String    @default("cache") @map("acquired_via")  // cache | grant | quest | milestone
+  acquiredAt  DateTime  @default(now()) @map("acquired_at")
+
+  root        RootIdentity   @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  item        GearItem       @relation(fields: [itemId], references: [id])
+  equipment   PlayerEquipment?
+
+  @@index([rootId])
+  @@map("player_inventory")
+}
+
+/// Currently equipped gear (max 6 slots per player).
+model PlayerEquipment {
+  id          String    @id @default(uuid()) @map("equipment_id")
+  rootId      String    @map("root_id")
+  slot        String                                  // weapon | helm | chest | arms | legs | rune
+  inventoryId String    @unique @map("inventory_id")
+  equippedAt  DateTime  @default(now()) @map("equipped_at")
+
+  root        RootIdentity    @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  inventory   PlayerInventory @relation(fields: [inventoryId], references: [id])
+
+  @@unique([rootId, slot])
+  @@map("player_equipment")
 }
 
 // ============================================================

@@ -894,6 +894,8 @@ function renderTimelineItem(ev){
   } else if(type==='identity.title_equipped'){ dot='title-eq'; title='Title Equipped'; detail=pl.title_id?formatTitle(pl.title_id):'Unequipped';
   } else if(type==='loot.cache_granted'){ dot='title-eq'; title='Fate Cache Dropped'; detail=`${ch.cache_label||'Cache'} (${ch.rarity||'?'})`;
   } else if(type==='loot.cache_opened'){ dot='title-eq'; title='Cache Opened'; detail=`<span class="title-earn">✦ ${esc(ch.reward_name||'Reward')}</span> (${ch.reward_rarity||'?'})`;
+  } else if(type==='gear.item_acquired'){ dot='session'; title='Gear Acquired'; detail=`${esc(pl.icon||'⚔')} ${esc(pl.item_name||'Item')} (${esc(pl.rarity||'')} ${esc(pl.slot||'')})`;
+  } else if(type==='gear.item_equipped'){ dot='profile'; title='Gear Equipped'; detail=`${esc(pl.item_name||'Item')} → ${esc(pl.slot||'')}`;
   }
 
   return `<div class="tl-item"><div class="tl-dot-col"><div class="tl-dot ${dot}"></div><div class="tl-line"></div></div>

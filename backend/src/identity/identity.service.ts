@@ -154,6 +154,13 @@ export class IdentityService {
         },
         fateMarkers: { orderBy: { createdAt: 'desc' } },
         fateCaches: { orderBy: { grantedAt: 'desc' } },
+        inventory: {
+          include: { item: true, equipment: true },
+          orderBy: { acquiredAt: 'desc' },
+        },
+        equipment: {
+          include: { inventory: { include: { item: true } } },
+        },
       },
     });
 
@@ -252,6 +259,45 @@ export class IdentityService {
           ? { type: c.rewardType, value: c.rewardValue, name: c.rewardName, rarity: c.rewardRarity }
           : null,
       })),
+      gear: {
+        inventory: user.inventory.map((inv) => ({
+          inventory_id: inv.id,
+          item_id: inv.item.id,
+          item_name: inv.item.name,
+          slot: inv.item.slot,
+          rarity: inv.item.rarityTier,
+          icon: inv.item.icon,
+          description: inv.item.description,
+          lore_text: inv.item.loreText,
+          modifiers: inv.item.modifiers,
+          acquired_via: inv.acquiredVia,
+          acquired_at: inv.acquiredAt.toISOString(),
+          is_equipped: !!inv.equipment,
+        })),
+        equipment: Object.fromEntries(
+          ['weapon', 'helm', 'chest', 'arms', 'legs', 'rune'].map((slot) => {
+            const eq = user.equipment.find((e) => e.slot === slot);
+            return [slot, eq ? {
+              inventory_id: eq.inventoryId,
+              item_id: eq.inventory.item.id,
+              item_name: eq.inventory.item.name,
+              rarity: eq.inventory.item.rarityTier,
+              icon: eq.inventory.item.icon,
+              modifiers: eq.inventory.item.modifiers,
+            } : null];
+          }),
+        ),
+        computed_modifiers: user.equipment.reduce(
+          (totals, eq) => {
+            const mods = (eq.inventory.item.modifiers || {}) as Record<string, number>;
+            for (const [k, v] of Object.entries(mods)) {
+              totals[k] = (totals[k] || 0) + v;
+            }
+            return totals;
+          },
+          { xp_bonus_pct: 0, boss_damage_pct: 0, luck_pct: 0, defense: 0, crit_pct: 0, cooldown_pct: 0, fate_affinity: 0 } as Record<string, number>,
+        ),
+      },
     };
   }
 

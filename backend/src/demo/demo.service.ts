@@ -478,6 +478,8 @@ export class DemoService {
       include: {
         titles: { include: { title: true } },
         fateMarkers: true,
+        inventory: { include: { item: true } },
+        fateCaches: true,
       },
     });
 
@@ -488,6 +490,8 @@ export class DemoService {
       fate_level: finalUser?.fateLevel ?? 1,
       titles: finalUser?.titles.map((t) => t.title.displayName) ?? [],
       fate_markers: finalUser?.fateMarkers.map((m) => m.marker) ?? [],
+      gear_count: finalUser?.inventory.length ?? 0,
+      caches_sealed: finalUser?.fateCaches.filter((c) => c.status === 'sealed').length ?? 0,
     });
 
     this.logger.log(`Demo completed: ${heroName} → Level ${finalUser?.fateLevel}, ${finalUser?.fateXp} XP`);

@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
+import { GearService } from '../gear/gear.service';
 
 /** Cache rarity determines the visual treatment and drop pool weighting */
 const CACHE_RARITIES: Record<string, { minLevel: number; label: string }> = {
@@ -51,6 +52,7 @@ export class LootService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly sse: SseService,
+    private readonly gear: GearService,
   ) {}
 
   // ── GRANT A CACHE ─────────────────────────────────────────
@@ -349,6 +351,16 @@ export class LootService {
       case 'marker': {
         await this.prisma.fateMarker.create({
           data: { rootId, marker: entry.rewardValue, sourceId },
+        });
+        break;
+      }
+
+      case 'gear': {
+        await this.gear.addToInventory({
+          rootId,
+          itemId: entry.rewardValue,
+          acquiredVia: 'cache',
+          sourceId: sourceId || undefined,
         });
         break;
       }

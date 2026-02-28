@@ -22,6 +22,7 @@ import { AuthModule } from './auth/auth.module';
 import { SseModule } from './sse/sse.module';
 import { DemoModule } from './demo/demo.module';
 import { LootModule } from './loot/loot.module';
+import { GearModule } from './gear/gear.module';
 
 @Global()
 @Module({
@@ -56,6 +57,7 @@ import { LootModule } from './loot/loot.module';
     SseModule,
     DemoModule,
     LootModule,
+    GearModule,
   ],
   providers: [
     PrismaService,
