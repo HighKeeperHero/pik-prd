@@ -524,6 +524,7 @@ function connectSSE() {
     'demo.narration',
     'demo.completed',
     'demo.error',
+    'demo.warning',
   ];
 
   eventTypes.forEach(type => {
@@ -588,6 +589,9 @@ function handleEvent(type, payload) {
       document.getElementById('launchBtn').disabled = false;
       document.getElementById('launchBtn').textContent = '⟐ Launch Demo';
       document.getElementById('launchBtn').classList.remove('running');
+      return;
+    case 'demo.warning':
+      addConsoleEvent('demo', '⚠', 'Warning', data.message || 'Unknown warning', null);
       return;
   }
 
@@ -744,7 +748,7 @@ function handleGearEquipped(data) {
 
 function handleDemoCompleted(data) {
   const gearNote = data.gear_count ? ` · ${data.gear_count} gear` : '';
-  const cacheNote = data.caches_sealed ? ` · ${data.caches_sealed} sealed` : '';
+  const cacheNote = data.caches_opened ? ` · ${data.caches_opened} caches` : '';
   addConsoleEvent('demo', '✨', 'DEMO COMPLETE',
     `${esc(data.hero_name)} — Level ${data.fate_level} · ${data.fate_xp} XP · ${(data.titles||[]).length} titles${gearNote}${cacheNote}`,
     null);

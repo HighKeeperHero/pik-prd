@@ -4,7 +4,7 @@
 // Place at: src/events/events.service.ts
 // ============================================================
 
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { SseService } from '../sse/sse.service';
@@ -23,7 +23,7 @@ export class EventsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Optional() private readonly sse?: SseService,
+    private readonly sse: SseService,
   ) {}
 
   async log(params: LogEventParams) {

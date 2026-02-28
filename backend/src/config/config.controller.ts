@@ -34,7 +34,28 @@ export class ConfigController {
   @Get('health')
   @SkipThrottle()
   async health() {
-    return { healthy: true, timestamp: new Date().toISOString() };
+    // Quick diagnostic: check if all tables exist
+    const tables: Record<string, boolean> = {};
+    const checks = [
+      { name: 'root_identities', query: () => this.configService.checkTable('root_identities') },
+      { name: 'sources', query: () => this.configService.checkTable('sources') },
+      { name: 'loot_table', query: () => this.configService.checkTable('loot_table') },
+      { name: 'fate_caches', query: () => this.configService.checkTable('fate_caches') },
+      { name: 'gear_items', query: () => this.configService.checkTable('gear_items') },
+      { name: 'player_inventory', query: () => this.configService.checkTable('player_inventory') },
+      { name: 'player_equipment', query: () => this.configService.checkTable('player_equipment') },
+    ];
+    for (const c of checks) {
+      try { await c.query(); tables[c.name] = true; }
+      catch { tables[c.name] = false; }
+    }
+    const allOk = Object.values(tables).every(v => v);
+    return {
+      healthy: allOk,
+      timestamp: new Date().toISOString(),
+      tables,
+      action: allOk ? null : 'Run: npx prisma migrate deploy && npx prisma db seed',
+    };
   }
 
   /**

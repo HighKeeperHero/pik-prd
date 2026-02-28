@@ -99,4 +99,12 @@ export class ConfigService {
       created_at: s.createdAt.toISOString(),
     }));
   }
+
+  /**
+   * Quick diagnostic: check if a database table exists by running a count query.
+   * Throws if the table doesn't exist.
+   */
+  async checkTable(tableName: string) {
+    await this.prisma.$queryRawUnsafe(`SELECT COUNT(*) FROM "${tableName}" LIMIT 1`);
+  }
 }

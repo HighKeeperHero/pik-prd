@@ -439,25 +439,35 @@ export class DemoService {
         });
       }
 
-      // Fate Cache drops
+      // Fate Cache drops — grant and auto-open for demo visibility
       if (newLevel > user.fateLevel) {
         await sleep(delayMs * 0.4);
         try {
-          await this.loot.grantCache({
+          const cache = await this.loot.grantCache({
             rootId,
             cacheType: 'level_up',
             sourceId,
             trigger: `level_up:${newLevel}`,
             level: newLevel,
           });
-        } catch { /* non-fatal */ }
+          // Auto-open in demo so gear/rewards are visible
+          await sleep(delayMs * 0.3);
+          try {
+            await this.loot.openCache(rootId, cache.cache_id);
+          } catch (openErr) {
+            this.logger.error(`Demo cache open failed: ${openErr.message}`);
+            this.sse.emit('demo.warning', { message: `Cache open failed: ${openErr.message}` });
+          }
+        } catch (grantErr) {
+          this.logger.error(`Demo cache grant failed: ${grantErr.message}`);
+        }
       }
 
       if (s.boss_pct >= 50) {
         await sleep(delayMs * 0.3);
         const isLastSession = i === scripts.length - 1;
         try {
-          await this.loot.grantCache({
+          const cache = await this.loot.grantCache({
             rootId,
             cacheType: 'boss_kill',
             sourceId,
@@ -466,7 +476,17 @@ export class DemoService {
             // Force legendary on the final perfect run for demo impact
             rarityOverride: isLastSession && s.boss_pct === 100 ? 'legendary' : undefined,
           });
-        } catch { /* non-fatal */ }
+          // Auto-open in demo so gear/rewards are visible
+          await sleep(delayMs * 0.3);
+          try {
+            await this.loot.openCache(rootId, cache.cache_id);
+          } catch (openErr) {
+            this.logger.error(`Demo boss cache open failed: ${openErr.message}`);
+            this.sse.emit('demo.warning', { message: `Cache open failed: ${openErr.message}` });
+          }
+        } catch (grantErr) {
+          this.logger.error(`Demo boss cache grant failed: ${grantErr.message}`);
+        }
       }
 
       await sleep(delayMs);
@@ -491,7 +511,7 @@ export class DemoService {
       titles: finalUser?.titles.map((t) => t.title.displayName) ?? [],
       fate_markers: finalUser?.fateMarkers.map((m) => m.marker) ?? [],
       gear_count: finalUser?.inventory.length ?? 0,
-      caches_sealed: finalUser?.fateCaches.filter((c) => c.status === 'sealed').length ?? 0,
+      caches_opened: finalUser?.fateCaches.filter((c) => c.status === 'opened').length ?? 0,
     });
 
     this.logger.log(`Demo completed: ${heroName} → Level ${finalUser?.fateLevel}, ${finalUser?.fateXp} XP`);

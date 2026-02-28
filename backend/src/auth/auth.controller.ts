@@ -106,4 +106,11 @@ export class AuthController {
   ) {
     return this.keyService.revokeKey(req.rootId, keyId);
   }
+
+  // ── Operator Impersonate (creates session for any user) ───
+
+  @Post('impersonate/:root_id')
+  async impersonate(@Param('root_id') rootId: string) {
+    return this.authService.issueSessionToken(rootId);
+  }
 }

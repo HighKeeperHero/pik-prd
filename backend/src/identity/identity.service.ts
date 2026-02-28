@@ -138,6 +138,7 @@ export class IdentityService {
   // ── GET USER (nested format for dashboard) ────────────────
 
   async getUser(rootId: string) {
+    // Core query — never fails even if gear tables are missing
     const user = await this.prisma.rootIdentity.findUnique({
       where: { id: rootId },
       include: {
@@ -154,18 +155,29 @@ export class IdentityService {
         },
         fateMarkers: { orderBy: { createdAt: 'desc' } },
         fateCaches: { orderBy: { grantedAt: 'desc' } },
-        inventory: {
-          include: { item: true, equipment: true },
-          orderBy: { acquiredAt: 'desc' },
-        },
-        equipment: {
-          include: { inventory: { include: { item: true } } },
-        },
       },
     });
 
     if (!user) {
       throw new NotFoundException(`Identity not found: ${rootId}`);
+    }
+
+    // Gear data — separate query so profile works even if gear tables aren't migrated yet
+    let inventoryData: any[] = [];
+    let equipmentData: any[] = [];
+    try {
+      inventoryData = await this.prisma.playerInventory.findMany({
+        where: { rootId },
+        include: { item: true, equipment: true },
+        orderBy: { acquiredAt: 'desc' },
+      });
+      equipmentData = await this.prisma.playerEquipment.findMany({
+        where: { rootId },
+        include: { inventory: { include: { item: true } } },
+      });
+    } catch (err) {
+      // Gear tables may not exist yet — that's OK
+      this.logger.warn(`Gear data unavailable for ${rootId}: ${err.message}`);
     }
 
     // Get progression config for XP calculations
@@ -176,7 +188,6 @@ export class IdentityService {
     );
 
     // Calculate XP within current level
-    // Sum all thresholds up to current level to find how much XP was "spent" on previous levels
     let xpSpentOnPreviousLevels = 0;
     for (let i = 1; i < user.fateLevel; i++) {
       xpSpentOnPreviousLevels += Math.floor(
@@ -197,8 +208,6 @@ export class IdentityService {
       take: 50,
     });
 
-    // Dashboard expects this nested structure:
-    // { identity, persona, progression, source_links, recent_events }
     return {
       identity: {
         root_id: user.id,
@@ -247,7 +256,7 @@ export class IdentityService {
         changes: e.changes,
         created_at: e.createdAt.toISOString(),
       })),
-      fate_caches: user.fateCaches.map((c) => ({
+      fate_caches: (user.fateCaches || []).map((c) => ({
         cache_id: c.id,
         cache_type: c.cacheType,
         rarity: c.rarity,
@@ -260,7 +269,7 @@ export class IdentityService {
           : null,
       })),
       gear: {
-        inventory: user.inventory.map((inv) => ({
+        inventory: inventoryData.map((inv: any) => ({
           inventory_id: inv.id,
           item_id: inv.item.id,
           item_name: inv.item.name,
@@ -276,7 +285,7 @@ export class IdentityService {
         })),
         equipment: Object.fromEntries(
           ['weapon', 'helm', 'chest', 'arms', 'legs', 'rune'].map((slot) => {
-            const eq = user.equipment.find((e) => e.slot === slot);
+            const eq = equipmentData.find((e: any) => e.slot === slot);
             return [slot, eq ? {
               inventory_id: eq.inventoryId,
               item_id: eq.inventory.item.id,
@@ -287,8 +296,8 @@ export class IdentityService {
             } : null];
           }),
         ),
-        computed_modifiers: user.equipment.reduce(
-          (totals, eq) => {
+        computed_modifiers: equipmentData.reduce(
+          (totals: Record<string, number>, eq: any) => {
             const mods = (eq.inventory.item.modifiers || {}) as Record<string, number>;
             for (const [k, v] of Object.entries(mods)) {
               totals[k] = (totals[k] || 0) + v;

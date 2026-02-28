@@ -10,8 +10,10 @@
 
 import { Module } from '@nestjs/common';
 import { EventsService } from './events.service';
+import { SseModule } from '../sse/sse.module';
 
 @Module({
+  imports: [SseModule],
   providers: [EventsService],
   exports: [EventsService],        // Identity, Consent, Ingest, Auth all need this
 })

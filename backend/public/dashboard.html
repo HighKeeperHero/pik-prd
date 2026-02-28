@@ -359,9 +359,8 @@
       </select>
     </div>
     <div class="form-group">
-      <label>Link Source (optional)</label>
+      <label>Link Source</label>
       <select id="enroll-source">
-        <option value="">— None —</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -485,14 +484,20 @@ async function loadSources() {
      </div>`
   ).join('');
 
-  // populate enroll source select
+  // populate enroll source select (default to first source, not "None")
   const sel = document.getElementById('enroll-source');
-  allSources.forEach(s => {
+  sel.innerHTML = '';
+  allSources.forEach((s, i) => {
     const opt = document.createElement('option');
     opt.value = s.source_id;
     opt.textContent = s.source_name;
+    if (i === 0) opt.selected = true;
     sel.appendChild(opt);
   });
+  const noneOpt = document.createElement('option');
+  noneOpt.value = '';
+  noneOpt.textContent = '— None —';
+  sel.appendChild(noneOpt);
 }
 
 async function loadUsers() {
@@ -532,9 +537,13 @@ async function selectUser(rootId) {
   document.getElementById('detail-content').style.display = 'block';
   loadUsers(); // refresh active state
 
-  const r = await apiFetch(`/api/users/${rootId}`);
-  if (r.status !== 'ok') return;
-  const { identity, persona, progression, source_links, recent_events, fate_caches, gear } = r.data;
+  try {
+    const r = await apiFetch(`/api/users/${rootId}`);
+    if (r.status !== 'ok') {
+      document.getElementById('detail-content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-size:12px">Error loading identity: ${r.message || 'Unknown error'}</div>`;
+      return;
+    }
+    const { identity, persona, progression, source_links, recent_events, fate_caches, gear } = r.data;
 
   const xp    = progression?.fate_xp || 0;
   const level = progression?.fate_level || 1;
@@ -591,6 +600,7 @@ async function selectUser(rootId) {
         </div>
       `).join('') || '<div style="color:var(--dim);font-size:11px">No source links</div>'}
       <button class="btn-secondary" style="margin-top:10px;padding:6px 14px;font-size:9px;letter-spacing:1px" onclick="openLinkModal('${rootId}')">+ Add Source Link</button>
+      <button class="btn-secondary" style="margin-top:10px;padding:6px 14px;font-size:9px;letter-spacing:1px;margin-left:6px;border-color:var(--accent);color:var(--accent)" onclick="viewAsPlayer('${rootId}')">👁 View Portal</button>
     </div>
 
     <!-- Titles -->
@@ -677,15 +687,18 @@ async function selectUser(rootId) {
             <div class="timeline-body">
               <div class="timeline-type">${evt.event_type}</div>
               <div class="timeline-desc">${evtDescription(evt)}</div>
-              <div class="timeline-meta">${fmtTime(evt.occurred_at)}
-                ${evt.source_name ? '· ' + evt.source_name : ''}
-                ${evt.session_ref ? '· session: ' + evt.session_ref.slice(0,8) + '…' : ''}
+              <div class="timeline-meta">${fmtTime(evt.created_at)}
+                ${evt.source_id ? '· src:' + evt.source_id.slice(0,12) : ''}
               </div>
             </div>
           </div>`;
       }).join('') || '<div style="color:var(--dim);font-size:11px">No events yet</div>'}
     </div>
   `;
+  } catch(err) {
+    console.error('selectUser error:', err);
+    document.getElementById('detail-content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-size:12px">Error rendering identity detail: ${err.message || err}</div>`;
+  }
 }
 
 
@@ -693,6 +706,38 @@ async function selectUser(rootId) {
 
 function openEnrollModal() { document.getElementById('enroll-modal').classList.add('open'); }
 function closeEnrollModal() { document.getElementById('enroll-modal').classList.remove('open'); }
+
+async function viewAsPlayer(rootId) {
+  try {
+    const r = await apiFetch('/api/auth/impersonate/' + rootId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const token = r.data?.token || r.token;
+    if (!token) { showToast('Failed to create session', 'var(--red)'); return; }
+    const portalUrl = window.location.origin + '/portal.html?token=' + encodeURIComponent(token) + '&root_id=' + encodeURIComponent(rootId);
+    window.open(portalUrl, '_blank');
+  } catch(err) {
+    showToast(err.message || 'Impersonate failed', 'var(--red)');
+  }
+}
+
+async function ensureSourceLink(rootId, sourceId) {
+  // Check if user already has an active link for this source
+  const r = await apiFetch(`/api/users/${rootId}`);
+  if (r.status !== 'ok') return false;
+  const links = r.data.source_links || [];
+  const hasLink = links.some(l => l.source_id === sourceId && l.status === 'active');
+  if (hasLink) return true;
+
+  // Create source link
+  const lr = await apiFetch(`/api/users/${rootId}/links`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_id: sourceId, granted_by: 'operator:dashboard' })
+  });
+  return lr.status === 'ok';
+}
 
 async function submitEnroll() {
   const heroName  = document.getElementById('enroll-name').value.trim();
@@ -765,6 +810,11 @@ function openLinkModal(rootId) {
 async function simulateIngest() {
   const rootId = document.getElementById('ingest-user').value;
   if (!rootId) { showToast('Select a user first', 'var(--red)'); return; }
+
+  // Auto-ensure source link exists for the HV demo source
+  try {
+    await ensureSourceLink(rootId, 'src-heroes-veritas-01');
+  } catch(e) { /* best effort */ }
 
   const evtVal = document.getElementById('ingest-event').value;
   const parts  = evtVal.split(':');
@@ -845,8 +895,9 @@ async function grantCache() {
       body: JSON.stringify({ root_id: rootId, cache_type: cacheType, rarity })
     }).then(r => r.json());
 
-    if (r.cache_id) {
-      showToast(`${r.label || 'Cache'} (${r.rarity}) granted!`);
+    const d = r.data || r;
+    if (d.cache_id) {
+      showToast(`${d.label || 'Cache'} (${d.rarity}) granted!`);
       if (selectedRootId === rootId) selectUser(rootId);
     } else {
       showToast(r.message || 'Grant failed', 'var(--red)');

@@ -1164,6 +1164,22 @@ function fmtTime(iso){
 
 // Auto-sign-in deep link
 if(window.location.hash==='#auto') window.addEventListener('load',()=>setTimeout(doSignIn,500));
+
+// Operator impersonate: portal.html?token=xxx&root_id=xxx
+(function checkImpersonate(){
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const rootId = params.get('root_id');
+  if(token && rootId){
+    session = {token, rootId, heroName:'(operator view)'};
+    // Clean URL
+    window.history.replaceState({},'',window.location.pathname);
+    window.addEventListener('load',()=>{
+      showScreen('screen-profile');
+      loadProfile();
+    });
+  }
+})();
 </script>
 </body>
 </html>
