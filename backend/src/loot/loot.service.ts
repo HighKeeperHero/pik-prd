@@ -189,7 +189,7 @@ export class LootService {
     await this.events.log({
       rootId,
       eventType: 'loot.cache_opened',
-      sourceId: cache.sourceId,
+      sourceId: cache.sourceId || undefined,
       payload: {
         cache_id: cacheId,
         cache_type: cache.cacheType,
