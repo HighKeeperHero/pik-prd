@@ -44,6 +44,7 @@ export class ConfigController {
       { name: 'gear_items', query: () => this.configService.checkTable('gear_items') },
       { name: 'player_inventory', query: () => this.configService.checkTable('player_inventory') },
       { name: 'player_equipment', query: () => this.configService.checkTable('player_equipment') },
+      { name: 'player_sessions', query: () => this.configService.checkTable('player_sessions') },
     ];
     for (const c of checks) {
       try { await c.query(); tables[c.name] = true; }

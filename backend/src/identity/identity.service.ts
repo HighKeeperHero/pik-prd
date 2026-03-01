@@ -180,6 +180,22 @@ export class IdentityService {
       this.logger.warn(`Gear data unavailable for ${rootId}: ${err.message}`);
     }
 
+    // Session data — separate query for resilience
+    let sessionData: any[] = [];
+    let activeSession: any = null;
+    try {
+      sessionData = await this.prisma.playerSession.findMany({
+        where: { rootId },
+        orderBy: { checkedInAt: 'desc' },
+        take: 10,
+      });
+      activeSession = await this.prisma.playerSession.findFirst({
+        where: { rootId, status: 'active' },
+      });
+    } catch (err) {
+      this.logger.warn(`Session data unavailable for ${rootId}: ${err.message}`);
+    }
+
     // Get progression config for XP calculations
     const config = await this.getProgressionConfig();
     const nextLevelThreshold = Math.floor(
@@ -389,6 +405,26 @@ export class IdentityService {
           },
           { xp_bonus_pct: 0, boss_damage_pct: 0, luck_pct: 0, defense: 0, crit_pct: 0, cooldown_pct: 0, fate_affinity: 0 } as Record<string, number>,
         ),
+      },
+      sessions: {
+        active: activeSession ? {
+          session_id: activeSession.id,
+          source_id: activeSession.sourceId,
+          zone: activeSession.zone,
+          checked_in_at: activeSession.checkedInAt.toISOString(),
+          duration_sec: Math.round((Date.now() - activeSession.checkedInAt.getTime()) / 1000),
+        } : null,
+        recent: sessionData.map((s: any) => ({
+          session_id: s.id,
+          source_id: s.sourceId,
+          zone: s.zone,
+          status: s.status,
+          checked_in_at: s.checkedInAt.toISOString(),
+          checked_out_at: s.checkedOutAt?.toISOString() ?? null,
+          duration_sec: s.durationSec ?? Math.round((Date.now() - s.checkedInAt.getTime()) / 1000),
+          summary: s.summary,
+        })),
+        total_completed: sessionData.filter((s: any) => s.status === 'completed').length,
       },
     };
   }

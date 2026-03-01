@@ -43,6 +43,7 @@ model RootIdentity {
   inventory     PlayerInventory[]
   equipment     PlayerEquipment[]
   challenges    WebAuthnChallenge[]
+  sessions      PlayerSession[]
 
   @@map("root_identities")
 }
@@ -330,6 +331,29 @@ model PlayerEquipment {
 // ============================================================
 // CONFIG — Live-tunable system configuration
 // ============================================================
+
+/// A live session tracks a player's real-time presence at a venue.
+/// Check-in → heartbeat → check-out lifecycle.
+model PlayerSession {
+  id           String    @id @default(uuid()) @map("session_id")
+  rootId       String    @map("root_id")
+  sourceId     String    @map("source_id")
+  zone         String?                           // Attraction / area within the venue
+  status       String    @default("active")      // active | completed | abandoned | expired
+  checkedInAt  DateTime  @default(now()) @map("checked_in_at")
+  lastHeartbeat DateTime @default(now()) @map("last_heartbeat")
+  checkedOutAt DateTime? @map("checked_out_at")
+  durationSec  Int?      @map("duration_sec")    // Computed on check-out
+  summary      Json?                             // Post-session stats: nodes, boss%, xp earned
+
+  root   RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId])
+  @@index([status])
+  @@index([sourceId, status])
+  @@index([checkedInAt])
+  @@map("player_sessions")
+}
 
 model Config {
   key         String    @id @map("config_key")          // e.g. "fate.xp_per_session_hard"

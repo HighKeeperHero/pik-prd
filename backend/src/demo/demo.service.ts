@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 import { LootService } from '../loot/loot.service';
+import { SessionService } from '../session/session.service';
 
 // ── Narrative Character Data ──────────────────────────────
 
@@ -104,6 +105,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+const VENUE_ZONES = [
+  'Obsidian Spire',
+  'Veil Gate Approach',
+  'The Crucible Arena',
+  'Shade Captain\'s Lair',
+  'The Binding Chamber',
+];
+
 @Injectable()
 export class DemoService {
   private readonly logger = new Logger(DemoService.name);
@@ -114,6 +123,7 @@ export class DemoService {
     private readonly events: EventsService,
     private readonly sse: SseService,
     private readonly loot: LootService,
+    private readonly sessions: SessionService,
   ) {}
 
   isRunning(): boolean {
@@ -294,6 +304,20 @@ export class DemoService {
 
     for (let i = 0; i < scripts.length; i++) {
       const s = scripts[i];
+      const zone = VENUE_ZONES[i % VENUE_ZONES.length];
+
+      // ── CHECK IN ──────────────────────────────────────
+      let liveSessionId: string | null = null;
+      try {
+        const checkIn = await this.sessions.checkIn({
+          rootId,
+          sourceId,
+          zone,
+        });
+        liveSessionId = checkIn.session_id;
+      } catch (err) {
+        this.logger.warn(`Demo check-in failed: ${err.message}`);
+      }
 
       // Broadcast narration
       this.sse.emit('demo.narration', {
@@ -301,6 +325,7 @@ export class DemoService {
         total: scripts.length,
         narration: s.narration,
         hero_name: heroName,
+        zone,
       });
 
       await sleep(delayMs * 0.6);
@@ -486,6 +511,21 @@ export class DemoService {
           }
         } catch (grantErr) {
           this.logger.error(`Demo boss cache grant failed: ${grantErr.message}`);
+        }
+      }
+
+      // ── CHECK OUT ─────────────────────────────────────
+      if (liveSessionId) {
+        try {
+          await this.sessions.checkOut(liveSessionId, {
+            difficulty: s.difficulty,
+            nodes_completed: s.nodes,
+            boss_damage_pct: s.boss_pct,
+            xp_earned: totalXp,
+            level_after: newLevel,
+          });
+        } catch (err) {
+          this.logger.warn(`Demo check-out failed: ${err.message}`);
         }
       }
 

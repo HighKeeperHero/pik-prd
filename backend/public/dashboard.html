@@ -254,6 +254,16 @@
   .sp-fate-stat { text-align: center; }
   .sp-fate-stat .sp-val { font-size: 18px; font-weight: 700; color: var(--gold); }
   .sp-fate-stat .sp-lbl { font-size: 7px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+
+  /* ── Live Sessions ── */
+  .live-session { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #1a1f28; font-size: 10px; position: relative; }
+  .live-session:last-child { border-bottom: none; }
+  .live-session .ls-pulse { width: 6px; height: 6px; border-radius: 50%; background: #3ecf8e; flex-shrink: 0; animation: pulse 2s infinite; }
+  .live-session .ls-info { flex: 1; min-width: 0; }
+  .live-session .ls-name { color: var(--text); font-weight: 600; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live-session .ls-meta { font-size: 8px; color: var(--dim); }
+  .live-session .ls-time { font-size: 9px; color: var(--accent2); font-variant-numeric: tabular-nums; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 </style>
 </head>
 <body>
@@ -268,6 +278,7 @@
     <div class="stat-pill">Enrolled: <span id="hdr-enrolled">—</span></div>
     <div class="stat-pill">Events: <span id="hdr-events">—</span></div>
     <div class="stat-pill">Sources: <span id="hdr-sources">—</span></div>
+    <div class="stat-pill" style="border-color:#3ecf8e;color:#3ecf8e">⚡ Live: <span id="hdr-live">0</span></div>
     <a href="/demo.html" class="stat-pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent);text-decoration:none;font-family:inherit;font-size:11px">⟐ Demo</a>
     <div class="status-dot" title="PIK API Live"></div>
   </div>
@@ -300,6 +311,14 @@
       <div class="metric-row"><span class="metric-label">Active links</span><span class="metric-val" id="m-links">—</span></div>
       <div class="metric-row"><span class="metric-label">Avg Fate XP</span><span class="metric-val" id="m-xp">—</span></div>
       <div class="metric-row"><span class="metric-label">Avg Fate Level</span><span class="metric-val" id="m-level">—</span></div>
+    </div>
+
+    <!-- Live Sessions -->
+    <div class="right-section">
+      <h4>⚡ Live Sessions <span id="live-count-badge" style="background:#3ecf8e22;color:#3ecf8e;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:6px">0</span></h4>
+      <div id="live-sessions-list" style="max-height:180px;overflow-y:auto">
+        <div style="font-size:9px;color:var(--dim)">No active sessions</div>
+      </div>
     </div>
 
     <div class="right-section">
@@ -433,6 +452,9 @@ function evtIcon(eventType) {
   if (eventType.includes('item_acquired'))  return { icon:'⚔', cls:'evt-xp' };
   if (eventType.includes('item_equipped'))  return { icon:'🛡', cls:'evt-xp' };
   if (eventType.includes('item_unequipped'))return { icon:'↩', cls:'evt-default' };
+  if (eventType === 'session.check_in')    return { icon:'📍', cls:'evt-enrolled' };
+  if (eventType === 'session.check_out')   return { icon:'🏁', cls:'evt-xp' };
+  if (eventType === 'session.expired')     return { icon:'⏰', cls:'evt-link_revoked' };
   if (eventType.includes('xp'))             return { icon:'✦', cls:'evt-xp' };
   if (eventType.includes('session'))        return { icon:'⚔', cls:'evt-xp' };
   if (eventType.includes('level'))          return { icon:'★', cls:'evt-level' };
@@ -470,6 +492,9 @@ function evtDescription(evt) {
   if (t === 'gear.item_unequipped')     return `Unequipped: ${p.item_name || ''} from ${p.slot || ''}`;
   if (t === 'identity.profile_updated') return `Profile updated`;
   if (t === 'identity.title_equipped')  return `Title equipped: ${p.title_id || ''}`;
+  if (t === 'session.check_in')        return `Checked in${p.zone ? ' at ' + p.zone : ''} (session: ${(p.session_id || '').slice(0,8)}…)`;
+  if (t === 'session.check_out')       { const dur = p.duration_sec || 0; return `Checked out after ${Math.floor(dur/60)}m ${dur%60}s`; }
+  if (t === 'session.expired')         return `Session expired — no heartbeat (${Math.floor((p.duration_sec||0)/60)}m)`;
   return JSON.stringify(p);
 }
 
@@ -570,7 +595,7 @@ async function selectUser(rootId) {
       document.getElementById('detail-content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-size:12px">Error loading identity: ${r.message || 'Unknown error'}</div>`;
       return;
     }
-    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression } = r.data;
+    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression, sessions } = r.data;
 
   const xp    = progression?.fate_xp || 0;
   const level = progression?.fate_level || 1;
@@ -761,6 +786,39 @@ async function selectUser(rootId) {
             <div class="cr-meta">${c.trigger||''} · ${fmtTime(c.granted_at)}</div>
             ${c.reward ? `<div class="cr-meta" style="color:var(--gold)">→ ${c.reward.name} (${c.reward.rarity})</div>` : ''}
           </div>
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+
+    <!-- Session Presence -->
+    ${sessions?.active ? `
+    <div class="section">
+      <h4>⚡ Currently Active</h4>
+      <div style="background:#3ecf8e11;border:1px solid #3ecf8e33;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px">
+        <div class="ls-pulse" style="width:8px;height:8px;border-radius:50%;background:#3ecf8e;animation:pulse 2s infinite"></div>
+        <div>
+          <div style="font-size:11px;color:var(--text);font-weight:600">Checked in${sessions.active.zone ? ` at ${sessions.active.zone}` : ''}</div>
+          <div style="font-size:9px;color:var(--dim)">${Math.floor(sessions.active.duration_sec / 60)}m ${sessions.active.duration_sec % 60}s elapsed</div>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <!-- Recent Sessions -->
+    ${sessions?.recent?.length ? `
+    <div class="section">
+      <h4>Venue Sessions (${sessions.total_completed} completed)</h4>
+      ${sessions.recent.slice(0, 8).map(s => {
+        const dur = s.duration_sec || 0;
+        const mins = Math.floor(dur / 60);
+        const statusIcon = { active: '⚡', completed: '✓', abandoned: '✗', expired: '⏰' }[s.status] || '?';
+        const statusColor = { active: '#3ecf8e', completed: 'var(--dim)', abandoned: 'var(--red)', expired: '#f5a623' }[s.status] || 'var(--dim)';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1a1f2844;font-size:10px">
+          <span style="color:${statusColor}">${statusIcon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="color:var(--text)">${s.zone || 'Venue session'}</div>
+            <div style="font-size:8px;color:var(--dim)">${fmtTime(s.checked_in_at)} · ${mins}m${s.summary ? ` · ${s.summary.nodes_completed || '?'} nodes` : ''}</div>
+          </div>
+          <span style="font-size:8px;color:${statusColor};text-transform:uppercase;letter-spacing:0.5px">${s.status}</span>
         </div>`;
       }).join('')}
     </div>` : ''}
@@ -999,16 +1057,124 @@ async function grantCache() {
 
 // ── Init + polling ────────────────────────────────────────────
 
+// ── Live Sessions ──────────────────────────────────────────
+let liveSessionsData = [];
+
+async function loadLiveSessions() {
+  try {
+    const r = await apiFetch('/api/sessions/live');
+    liveSessionsData = Array.isArray(r) ? r : (r?.data || []);
+    renderLiveSessions();
+  } catch { /* silent — non-critical */ }
+}
+
+function renderLiveSessions() {
+  const list = document.getElementById('live-sessions-list');
+  const badge = document.getElementById('live-count-badge');
+  const hdrLive = document.getElementById('hdr-live');
+  const count = liveSessionsData.length;
+
+  badge.textContent = count;
+  hdrLive.textContent = count;
+
+  if (count === 0) {
+    list.innerHTML = '<div style="font-size:9px;color:var(--dim);padding:4px 0">No active sessions</div>';
+    return;
+  }
+
+  list.innerHTML = liveSessionsData.map(s => {
+    const mins = Math.floor(s.duration_sec / 60);
+    const secs = s.duration_sec % 60;
+    return `
+      <div class="live-session" onclick="selectUser('${s.root_id}')" style="cursor:pointer">
+        <div class="ls-pulse"></div>
+        <div class="ls-info">
+          <div class="ls-name">${s.hero_name}</div>
+          <div class="ls-meta">Lv${s.fate_level} · ${s.zone || 'In venue'}</div>
+        </div>
+        <div class="ls-time">${mins}:${String(secs).padStart(2, '0')}</div>
+      </div>`;
+  }).join('');
+}
+
+// Update live session timers every second
+setInterval(() => {
+  liveSessionsData.forEach(s => s.duration_sec++);
+  if (liveSessionsData.length > 0) renderLiveSessions();
+}, 1000);
+
+// ── SSE Connection ────────────────────────────────────────
+function connectSSE() {
+  const es = new EventSource(`${API}/api/events/stream`);
+
+  const sessionEvents = [
+    'session.check_in', 'session.check_out', 'session.expired', 'session.zone_changed',
+  ];
+  const refreshEvents = [
+    'identity.enrolled', 'progression.session_completed', 'progression.title_granted',
+    'progression.fate_marker', 'loot.cache_granted', 'loot.cache_opened', 'gear.item_acquired',
+  ];
+
+  sessionEvents.forEach(type => {
+    es.addEventListener(type, (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        const data = payload.data || payload;
+
+        switch (type) {
+          case 'session.check_in':
+            liveSessionsData.unshift({
+              session_id: data.session_id,
+              root_id: data.root_id,
+              hero_name: data.hero_name,
+              fate_level: data.fate_level,
+              source_id: data.source_id,
+              zone: data.zone,
+              duration_sec: 0,
+            });
+            renderLiveSessions();
+            break;
+          case 'session.check_out':
+          case 'session.expired':
+            liveSessionsData = liveSessionsData.filter(s => s.session_id !== data.session_id);
+            renderLiveSessions();
+            break;
+          case 'session.zone_changed':
+            const zs = liveSessionsData.find(s => s.session_id === data.session_id);
+            if (zs) { zs.zone = data.new_zone; renderLiveSessions(); }
+            break;
+        }
+      } catch { /* parse error */ }
+    });
+  });
+
+  refreshEvents.forEach(type => {
+    es.addEventListener(type, () => {
+      loadUsers();
+      loadAnalytics();
+      if (selectedRootId) selectUser(selectedRootId);
+    });
+  });
+
+  es.onerror = () => {
+    es.close();
+    setTimeout(connectSSE, 3000);
+  };
+}
+
 async function init() {
   await loadSources();
   await loadUsers();
   await loadAnalytics();
   await loadLootTable();
+  await loadLiveSessions();
+  connectSSE();
 }
 
 setInterval(async () => {
   await loadUsers();
   await loadAnalytics();
+  await loadLiveSessions();
   if (selectedRootId) selectUser(selectedRootId);
 }, 5000);
 

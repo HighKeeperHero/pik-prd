@@ -23,6 +23,7 @@ import { SseModule } from './sse/sse.module';
 import { DemoModule } from './demo/demo.module';
 import { LootModule } from './loot/loot.module';
 import { GearModule } from './gear/gear.module';
+import { SessionModule } from './session/session.module';
 
 @Global()
 @Module({
@@ -68,6 +69,7 @@ import { GearModule } from './gear/gear.module';
     DemoModule,
     LootModule,
     GearModule,
+    SessionModule,
   ],
   providers: [
     PrismaService,
