@@ -334,7 +334,7 @@ export class DemoService {
             zone,
             autoCheckin: true,
           });
-          liveSessionId = tapResult.session?.session_id || null;
+          liveSessionId = (tapResult.session as any)?.session_id || null;
         } catch (err) {
           this.logger.warn(`Demo wristband tap failed: ${err.message}`);
         }

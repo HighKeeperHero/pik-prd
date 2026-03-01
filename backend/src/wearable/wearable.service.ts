@@ -20,6 +20,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 import { SessionService } from '../session/session.service';
@@ -81,7 +82,7 @@ export class WearableService {
         tokenUid,
         friendlyName: params.friendlyName || this.generateFriendlyName(params.tokenType, tokenUid),
         expiresAt: params.expiresAt ? new Date(params.expiresAt) : null,
-        metadata: params.metadata || null,
+        metadata: params.metadata ? (params.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     });
 
@@ -171,7 +172,7 @@ export class WearableService {
     await this.events.log({
       rootId: token.rootId,
       eventType: 'wearable.tap',
-      sourceId: params.sourceId || null,
+      sourceId: params.sourceId || undefined,
       payload: {
         token_id: token.id,
         token_uid: params.tokenUid,
@@ -203,7 +204,7 @@ export class WearableService {
     };
 
     // Auto check-in if requested
-    let session = null;
+    let session: any = null;
     if (params.autoCheckin && params.sourceId) {
       try {
         session = await this.sessions.checkIn({
