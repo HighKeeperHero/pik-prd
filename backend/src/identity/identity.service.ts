@@ -208,6 +208,88 @@ export class IdentityService {
       take: 50,
     });
 
+    // ── Per-Source Progression Breakdown ──────────────────────
+    // Compute stats per source from ALL events (not just recent 50)
+    const allEvents = await this.prisma.identityEvent.findMany({
+      where: { rootId, sourceId: { not: null } },
+      select: { eventType: true, sourceId: true, payload: true, changes: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Build source name lookup from links
+    const sourceNameMap: Record<string, string> = {};
+    for (const l of user.sourceLinks) {
+      sourceNameMap[l.sourceId] = l.source.name;
+    }
+
+    const sourceStatsMap: Record<string, {
+      source_id: string;
+      source_name: string;
+      sessions: number;
+      xp_contributed: number;
+      boss_kills: number;
+      best_boss_pct: number;
+      titles_earned: string[];
+      markers: string[];
+      caches_granted: number;
+      gear_acquired: number;
+      first_activity: string | null;
+      last_activity: string | null;
+    }> = {};
+
+    for (const evt of allEvents) {
+      const sid = evt.sourceId!;
+      if (!sourceStatsMap[sid]) {
+        sourceStatsMap[sid] = {
+          source_id: sid,
+          source_name: sourceNameMap[sid] || sid.slice(0, 20),
+          sessions: 0,
+          xp_contributed: 0,
+          boss_kills: 0,
+          best_boss_pct: 0,
+          titles_earned: [],
+          markers: [],
+          caches_granted: 0,
+          gear_acquired: 0,
+          first_activity: evt.createdAt.toISOString(),
+          last_activity: evt.createdAt.toISOString(),
+        };
+      }
+      const s = sourceStatsMap[sid];
+      s.last_activity = evt.createdAt.toISOString();
+
+      const p = (evt.payload || {}) as Record<string, any>;
+      const c = (evt.changes || {}) as Record<string, any>;
+
+      switch (evt.eventType) {
+        case 'progression.session_completed':
+          s.sessions++;
+          s.xp_contributed += (c.total_xp || 0);
+          if ((p.boss_damage_pct || 0) > 0) {
+            s.boss_kills++;
+            s.best_boss_pct = Math.max(s.best_boss_pct, p.boss_damage_pct || 0);
+          }
+          break;
+        case 'progression.title_granted':
+          if (p.title_id) s.titles_earned.push(p.title_id);
+          break;
+        case 'progression.fate_marker':
+          if (p.marker) s.markers.push(p.marker);
+          break;
+        case 'loot.cache_granted':
+          s.caches_granted++;
+          break;
+        case 'gear.item_acquired':
+          s.gear_acquired++;
+          break;
+        case 'progression.xp_granted':
+          s.xp_contributed += (c.xp_granted || p.xp || 0);
+          break;
+      }
+    }
+
+    const source_progression = Object.values(sourceStatsMap);
+
     return {
       identity: {
         root_id: user.id,
@@ -256,6 +338,7 @@ export class IdentityService {
         changes: e.changes,
         created_at: e.createdAt.toISOString(),
       })),
+      source_progression,
       fate_caches: (user.fateCaches || []).map((c) => ({
         cache_id: c.id,
         cache_type: c.cacheType,

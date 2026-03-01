@@ -227,6 +227,33 @@
   .grant-select { width:100%; padding:5px 8px; background:#0a0c10; border:1px solid var(--border); border-radius:4px; color:var(--text); font-family:inherit; font-size:10px; margin-bottom:6px; }
   .btn-grant { width:100%; padding:6px; background:#f0c05022; border:1px solid #f0c05066; border-radius:4px; color:var(--gold); font-size:9px; letter-spacing:1.5px; text-transform:uppercase; cursor:pointer; font-family:inherit; }
   .btn-grant:hover { background:#f0c05033; }
+
+  /* ── Source Progression Breakdown ── */
+  .source-prog { margin-bottom: 12px; }
+  .sp-card { background: #0b0e14; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; position: relative; }
+  .sp-card:last-child { margin-bottom: 0; }
+  .sp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .sp-name { font-size: 11px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+  .sp-dates { font-size: 8px; color: var(--dim); }
+  .sp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+  .sp-stat { text-align: center; padding: 6px 4px; background: #0d1117; border-radius: 4px; border: 1px solid #1a1f28; }
+  .sp-stat .sp-val { font-size: 14px; font-weight: 700; color: var(--accent2); }
+  .sp-stat .sp-lbl { font-size: 7px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
+  .sp-detail { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sp-tag { font-size: 8px; padding: 2px 6px; background: #1a1f2844; border: 1px solid #1a1f2888; border-radius: 8px; color: var(--dim); }
+  .sp-tag.sp-title { border-color: #f0c05044; color: var(--gold); }
+  .sp-tag.sp-marker { border-color: #7c6aff44; color: var(--accent); }
+  .sp-tag.sp-gear { border-color: #3ecf8e44; color: var(--accent2); }
+  .sp-bar-wrap { margin-top: 8px; }
+  .sp-bar-label { display: flex; justify-content: space-between; font-size: 8px; color: var(--dim); margin-bottom: 3px; }
+  .sp-bar { height: 3px; background: #1a1f28; border-radius: 2px; overflow: hidden; }
+  .sp-bar-fill { height: 100%; border-radius: 2px; }
+  .sp-fate-summary { background: linear-gradient(135deg, #0b0e14 0%, #111827 100%); border: 1px solid var(--accent)33; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .sp-fate-title { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+  .sp-fate-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sp-fate-stat { text-align: center; }
+  .sp-fate-stat .sp-val { font-size: 18px; font-weight: 700; color: var(--gold); }
+  .sp-fate-stat .sp-lbl { font-size: 7px; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -543,7 +570,7 @@ async function selectUser(rootId) {
       document.getElementById('detail-content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-size:12px">Error loading identity: ${r.message || 'Unknown error'}</div>`;
       return;
     }
-    const { identity, persona, progression, source_links, recent_events, fate_caches, gear } = r.data;
+    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression } = r.data;
 
   const xp    = progression?.fate_xp || 0;
   const level = progression?.fate_level || 1;
@@ -558,6 +585,7 @@ async function selectUser(rootId) {
   const equipment = gearData.equipment || {};
   const inventory = gearData.inventory || [];
   const mods = gearData.computed_modifiers || {};
+  const srcProg = source_progression || [];
 
   const dc = document.getElementById('detail-content');
   dc.innerHTML = `
@@ -602,6 +630,67 @@ async function selectUser(rootId) {
       <button class="btn-secondary" style="margin-top:10px;padding:6px 14px;font-size:9px;letter-spacing:1px" onclick="openLinkModal('${rootId}')">+ Add Source Link</button>
       <button class="btn-secondary" style="margin-top:10px;padding:6px 14px;font-size:9px;letter-spacing:1px;margin-left:6px;border-color:var(--accent);color:var(--accent)" onclick="viewAsPlayer('${rootId}')">👁 View Portal</button>
     </div>
+
+    <!-- Source Progression Breakdown -->
+    ${srcProg.length ? `
+    <div class="section">
+      <h4>Progression by Source</h4>
+
+      <!-- Fate Identity Summary (cross-venue) -->
+      <div class="sp-fate-summary">
+        <div class="sp-fate-title">⟐ Fate Identity · Cross-Venue</div>
+        <div class="sp-fate-stats">
+          <div class="sp-fate-stat"><div class="sp-val">${level}</div><div class="sp-lbl">Fate Level</div></div>
+          <div class="sp-fate-stat"><div class="sp-val">${xp.toLocaleString()}</div><div class="sp-lbl">Total XP</div></div>
+          <div class="sp-fate-stat"><div class="sp-val">${titles.length}</div><div class="sp-lbl">Titles</div></div>
+        </div>
+        <div style="margin-top:10px;font-size:9px;color:var(--dim);line-height:1.5">
+          Fate identity persists across all venues. Titles, markers, and reputation carry forward — but local hero rank starts fresh at each new venue.
+        </div>
+      </div>
+
+      <!-- Per-Source Cards -->
+      <div class="source-prog">
+        ${srcProg.map(sp => {
+          const xpPct = xp > 0 ? Math.round((sp.xp_contributed / xp) * 100) : 0;
+          const colors = ['#3ecf8e','#7c6aff','#f5a623','#f0c050','#ef4444','#6366f1','#14b8a6'];
+          const colorIdx = srcProg.indexOf(sp) % colors.length;
+          const barColor = colors[colorIdx];
+          return `
+          <div class="sp-card">
+            <div class="sp-header">
+              <div class="sp-name">🏛 ${sp.source_name}</div>
+              <div class="sp-dates">${sp.first_activity ? new Date(sp.first_activity).toLocaleDateString() : '—'} → ${sp.last_activity ? new Date(sp.last_activity).toLocaleDateString() : '—'}</div>
+            </div>
+            <div class="sp-stats">
+              <div class="sp-stat"><div class="sp-val">${sp.sessions}</div><div class="sp-lbl">Sessions</div></div>
+              <div class="sp-stat"><div class="sp-val">${sp.xp_contributed.toLocaleString()}</div><div class="sp-lbl">XP From</div></div>
+              <div class="sp-stat"><div class="sp-val">${sp.boss_kills}</div><div class="sp-lbl">Boss Kills</div></div>
+              <div class="sp-stat"><div class="sp-val">${sp.best_boss_pct}%</div><div class="sp-lbl">Best Boss</div></div>
+            </div>
+            <div class="sp-bar-wrap">
+              <div class="sp-bar-label"><span>XP Contribution</span><span>${xpPct}% of total</span></div>
+              <div class="sp-bar"><div class="sp-bar-fill" style="width:${xpPct}%;background:${barColor}"></div></div>
+            </div>
+            ${(sp.titles_earned.length || sp.markers.length || sp.gear_acquired || sp.caches_granted) ? `
+            <div class="sp-detail" style="margin-top:8px">
+              ${sp.titles_earned.map(t => `<span class="sp-tag sp-title">🏆 ${t.replace('title_','').replace(/_/g,' ')}</span>`).join('')}
+              ${sp.markers.map(m => `<span class="sp-tag sp-marker">◆ ${m.length > 30 ? m.slice(0,30) + '…' : m}</span>`).join('')}
+              ${sp.gear_acquired ? `<span class="sp-tag sp-gear">⚔ ${sp.gear_acquired} gear</span>` : ''}
+              ${sp.caches_granted ? `<span class="sp-tag">🎁 ${sp.caches_granted} caches</span>` : ''}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- Unvisited Sources -->
+      ${(source_links || []).filter(l => l.status === 'active' && !srcProg.find(sp => sp.source_id === l.source_id)).length ? `
+      <div style="margin-top:6px;font-size:9px;color:var(--dim)">
+        ${(source_links || []).filter(l => l.status === 'active' && !srcProg.find(sp => sp.source_id === l.source_id)).map(l =>
+          `<div style="padding:4px 0">🔗 <span style="color:var(--text)">${l.source_name}</span> — linked but not yet visited</div>`
+        ).join('')}
+      </div>` : ''}
+    </div>` : ''}
 
     <!-- Titles -->
     ${titles.length ? `
