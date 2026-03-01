@@ -44,6 +44,16 @@ import { GearModule } from './gear/gear.module';
       rootPath: join(__dirname, '..', 'public'),
       serveRoot: '/',
       exclude: ['/api/(.*)'],
+      serveStaticOptions: {
+        setHeaders: (res, path) => {
+          // Never cache HTML files — always serve fresh
+          if (path.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          }
+        },
+      },
     }),
 
     // Feature modules
