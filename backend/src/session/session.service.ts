@@ -18,6 +18,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 
@@ -164,7 +165,7 @@ export class SessionService {
         status: 'completed',
         checkedOutAt: now,
         durationSec,
-        summary: summary || null,
+        summary: summary ? (summary as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     });
 
