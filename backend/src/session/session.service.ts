@@ -76,25 +76,17 @@ export class SessionService {
       },
     });
 
-    // Log event
+    // Log event (auto-broadcasts via SSE)
     await this.events.log({
       rootId: params.rootId,
       eventType: 'session.check_in',
       sourceId: params.sourceId,
       payload: {
         session_id: session.id,
+        hero_name: user.heroName,
+        fate_level: user.fateLevel,
         zone: params.zone || null,
       },
-    });
-
-    // Broadcast live presence
-    this.sse.emit('session.check_in', {
-      session_id: session.id,
-      root_id: params.rootId,
-      hero_name: user.heroName,
-      fate_level: user.fateLevel,
-      source_id: params.sourceId,
-      zone: params.zone || null,
     });
 
     this.logger.log(`Check-in: ${user.heroName} → ${params.sourceId}${params.zone ? ` (${params.zone})` : ''}`);
@@ -169,29 +161,19 @@ export class SessionService {
       },
     });
 
-    // Log event
+    // Log event (auto-broadcasts via SSE)
     await this.events.log({
       rootId: session.rootId,
       eventType: 'session.check_out',
       sourceId: session.sourceId,
       payload: {
         session_id: sessionId,
+        hero_name: session.root.heroName,
+        fate_level: session.root.fateLevel,
         zone: session.zone,
         duration_sec: durationSec,
         summary: summary || null,
       },
-    });
-
-    // Broadcast departure
-    this.sse.emit('session.check_out', {
-      session_id: sessionId,
-      root_id: session.rootId,
-      hero_name: session.root.heroName,
-      fate_level: session.root.fateLevel,
-      source_id: session.sourceId,
-      zone: session.zone,
-      duration_sec: durationSec,
-      summary: summary || null,
     });
 
     this.logger.log(
@@ -357,17 +339,10 @@ export class SessionService {
         sourceId: session.sourceId,
         payload: {
           session_id: session.id,
+          hero_name: session.root.heroName,
           reason: 'heartbeat_timeout',
           duration_sec: durationSec,
         },
-      });
-
-      this.sse.emit('session.expired', {
-        session_id: session.id,
-        root_id: session.rootId,
-        hero_name: session.root.heroName,
-        source_id: session.sourceId,
-        duration_sec: durationSec,
       });
 
       this.logger.warn(`Session expired (no heartbeat): ${session.root.heroName} at ${session.sourceId}`);

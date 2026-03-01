@@ -1120,28 +1120,31 @@ function connectSSE() {
       try {
         const payload = JSON.parse(e.data);
         const data = payload.data || payload;
+        // events.log SSE nests session fields inside data.payload
+        const p = data.payload || data;
 
         switch (type) {
           case 'session.check_in':
             liveSessionsData.unshift({
-              session_id: data.session_id,
+              session_id: p.session_id,
               root_id: data.root_id,
-              hero_name: data.hero_name,
-              fate_level: data.fate_level,
+              hero_name: p.hero_name,
+              fate_level: p.fate_level,
               source_id: data.source_id,
-              zone: data.zone,
+              zone: p.zone,
               duration_sec: 0,
             });
             renderLiveSessions();
             break;
           case 'session.check_out':
           case 'session.expired':
-            liveSessionsData = liveSessionsData.filter(s => s.session_id !== data.session_id);
+            liveSessionsData = liveSessionsData.filter(s => s.session_id !== p.session_id);
             renderLiveSessions();
             break;
           case 'session.zone_changed':
-            const zs = liveSessionsData.find(s => s.session_id === data.session_id);
-            if (zs) { zs.zone = data.new_zone; renderLiveSessions(); }
+            // zone_changed comes from direct SSE emit (flat structure)
+            const zs = liveSessionsData.find(s => s.session_id === (data.session_id || p.session_id));
+            if (zs) { zs.zone = data.new_zone || p.new_zone; renderLiveSessions(); }
             break;
         }
       } catch { /* parse error */ }

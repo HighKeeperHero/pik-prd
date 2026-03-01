@@ -598,25 +598,30 @@ function handleEvent(type, payload) {
       addConsoleEvent('demo', '⚠', 'Warning', data.message || 'Unknown warning', null);
       return;
 
-    case 'session.check_in':
+    case 'session.check_in': {
+      const p = data.payload || data;
       addConsoleEvent('session', '📍', 'session.check_in',
-        `${data.hero_name || 'Player'} checked in${data.zone ? ` at ${data.zone}` : ''}`,
-        `source: <span class="hl">${(data.source_id || '').slice(0,20)}</span>`);
-      return;
-
-    case 'session.check_out': {
-      const mins = data.duration_sec ? Math.floor(data.duration_sec / 60) : 0;
-      const secs = data.duration_sec ? data.duration_sec % 60 : 0;
-      addConsoleEvent('session', '🏁', 'session.check_out',
-        `${data.hero_name || 'Player'} checked out (${mins}m ${secs}s)`,
-        data.summary ? `nodes: <span class="hl">${data.summary.nodes_completed || '?'}</span> · boss: <span class="hl">${data.summary.boss_damage_pct || '?'}%</span>` : null);
+        `${p.hero_name || 'Player'} checked in${p.zone ? ' at ' + p.zone : ''}`,
+        { source: (data.source_id || '').slice(0,20), zone: p.zone || '—' });
       return;
     }
 
-    case 'session.expired':
-      addConsoleEvent('session', '⏰', 'session.expired',
-        `${data.hero_name || 'Player'} session expired (no heartbeat)`, null);
+    case 'session.check_out': {
+      const p = data.payload || data;
+      const mins = p.duration_sec ? Math.floor(p.duration_sec / 60) : 0;
+      const secs = p.duration_sec ? p.duration_sec % 60 : 0;
+      addConsoleEvent('session', '🏁', 'session.check_out',
+        `${p.hero_name || 'Player'} checked out (${mins}m ${secs}s)`,
+        p.summary ? { nodes: p.summary.nodes_completed || '?', boss: (p.summary.boss_damage_pct || '?') + '%', xp: p.summary.xp_earned || '?' } : null);
       return;
+    }
+
+    case 'session.expired': {
+      const p = data.payload || data;
+      addConsoleEvent('session', '⏰', 'session.expired',
+        `${p.hero_name || 'Player'} session expired (no heartbeat)`, null);
+      return;
+    }
 
     case 'session.zone_changed':
       addConsoleEvent('session', '🗺', 'session.zone_changed',
