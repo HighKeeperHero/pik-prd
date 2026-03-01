@@ -44,6 +44,7 @@ model RootIdentity {
   equipment     PlayerEquipment[]
   challenges    WebAuthnChallenge[]
   sessions      PlayerSession[]
+  wearables     IdentityToken[]
 
   @@map("root_identities")
 }
@@ -113,6 +114,32 @@ model SessionToken {
   @@index([tokenHash])
   @@index([expiresAt])
   @@map("session_tokens")
+}
+
+// ============================================================
+// WEARABLE BRIDGE — Physical token identity resolution
+// Maps wristbands, RFID cards, NFC tags to root identities.
+// Tap flow: token_uid → resolve → root_id → authorize session.
+// ============================================================
+
+model IdentityToken {
+  id          String    @id @default(uuid()) @map("token_id")
+  rootId      String    @map("root_id")
+  tokenType   String    @map("token_type")            // wristband | rfid_card | nfc_tag | qr_badge
+  tokenUid    String    @unique @map("token_uid")     // Physical token UID (serial, RFID UID, etc.)
+  friendlyName String? @map("friendly_name")           // "PIK Wristband #A7F3"
+  status      String    @default("active")             // active | suspended | expired | revoked
+  issuedAt    DateTime  @default(now()) @map("issued_at")
+  expiresAt   DateTime? @map("expires_at")
+  lastTapAt   DateTime? @map("last_tap_at")
+  tapCount    Int       @default(0) @map("tap_count")
+  metadata    Json?                                    // Extra data: zone_restrictions, access_level, etc.
+
+  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId])
+  @@index([status])
+  @@map("identity_tokens")
 }
 
 // ============================================================

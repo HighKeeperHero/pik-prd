@@ -15,6 +15,7 @@ import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 import { LootService } from '../loot/loot.service';
 import { SessionService } from '../session/session.service';
+import { WearableService } from '../wearable/wearable.service';
 
 // ── Narrative Character Data ──────────────────────────────
 
@@ -124,6 +125,7 @@ export class DemoService {
     private readonly sse: SseService,
     private readonly loot: LootService,
     private readonly sessions: SessionService,
+    private readonly wearables: WearableService,
   ) {}
 
   isRunning(): boolean {
@@ -288,6 +290,22 @@ export class DemoService {
         },
       },
     });
+
+    // ── Issue Wristband ─────────────────────────────────
+    let wristbandUid: string | null = null;
+    try {
+      const band = await this.wearables.issueToken({
+        rootId,
+        tokenType: 'wristband',
+        friendlyName: `${heroName}'s Fate Band`,
+      });
+      wristbandUid = band.token_uid;
+      this.logger.log(`Wristband issued: ${band.friendly_name} (${band.token_uid})`);
+    } catch (err) {
+      this.logger.warn(`Demo wristband issue failed: ${err.message}`);
+    }
+
+    await sleep(delayMs * 0.6);
     const map = new Map(configs.map((c) => [c.key, c.value]));
     const cfg = {
       xpBaseThreshold: parseFloat(map.get('fate.xp_base_threshold') ?? '200'),
@@ -306,17 +324,32 @@ export class DemoService {
       const s = scripts[i];
       const zone = VENUE_ZONES[i % VENUE_ZONES.length];
 
-      // ── CHECK IN ──────────────────────────────────────
+      // ── WRISTBAND TAP → AUTO CHECK-IN ────────────────
       let liveSessionId: string | null = null;
-      try {
-        const checkIn = await this.sessions.checkIn({
-          rootId,
-          sourceId,
-          zone,
-        });
-        liveSessionId = checkIn.session_id;
-      } catch (err) {
-        this.logger.warn(`Demo check-in failed: ${err.message}`);
+      if (wristbandUid) {
+        try {
+          const tapResult = await this.wearables.resolve({
+            tokenUid: wristbandUid,
+            sourceId,
+            zone,
+            autoCheckin: true,
+          });
+          liveSessionId = tapResult.session?.session_id || null;
+        } catch (err) {
+          this.logger.warn(`Demo wristband tap failed: ${err.message}`);
+        }
+      } else {
+        // Fallback to direct check-in if no wristband
+        try {
+          const checkIn = await this.sessions.checkIn({
+            rootId,
+            sourceId,
+            zone,
+          });
+          liveSessionId = checkIn.session_id;
+        } catch (err) {
+          this.logger.warn(`Demo check-in failed: ${err.message}`);
+        }
       }
 
       // Broadcast narration

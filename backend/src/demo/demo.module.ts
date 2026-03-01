@@ -9,9 +9,10 @@ import { DemoService } from './demo.service';
 import { EventsModule } from '../events/events.module';
 import { LootModule } from '../loot/loot.module';
 import { SessionModule } from '../session/session.module';
+import { WearableModule } from '../wearable/wearable.module';
 
 @Module({
-  imports: [EventsModule, LootModule, SessionModule],
+  imports: [EventsModule, LootModule, SessionModule, WearableModule],
   controllers: [DemoController],
   providers: [DemoService],
 })

@@ -439,6 +439,11 @@ body::before {
                 </div>
               </div>
               <div class="id-titles" id="cardTitles"></div>
+              <div id="cardWristband" style="display:none;text-align:center;padding:6px 0;margin:4px 0;background:rgba(0,255,180,0.06);border:1px solid rgba(0,255,180,0.2);border-radius:8px;font-size:9px">
+                <span style="font-size:14px">⌚</span><br>
+                <span style="color:#3ecf8e;font-weight:600" id="cardBandName">—</span><br>
+                <span style="color:var(--text3);font-size:8px;font-family:monospace" id="cardBandUid">—</span>
+              </div>
               <div class="id-markers" id="cardMarkers">
                 <div style="font-size:10px;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin-bottom:8px">Fate Markers</div>
               </div>
@@ -529,6 +534,9 @@ function connectSSE() {
     'session.check_out',
     'session.expired',
     'session.zone_changed',
+    'wearable.issued',
+    'wearable.tap',
+    'wearable.revoked',
   ];
 
   eventTypes.forEach(type => {
@@ -627,6 +635,36 @@ function handleEvent(type, payload) {
       addConsoleEvent('session', '🗺', 'session.zone_changed',
         `Player moved: ${data.previous_zone || '?'} → ${data.new_zone || '?'}`, null);
       return;
+
+    case 'wearable.issued': {
+      const p = data.payload || data;
+      addConsoleEvent('wearable', '⌚', 'wearable.issued',
+        `${p.friendly_name || 'Wristband'} bound to ${p.hero_name || 'player'}`,
+        { token: p.token_uid || '?', type: p.token_type || 'wristband' });
+      // Update phone card
+      const bandEl = document.getElementById('cardWristband');
+      if (bandEl) {
+        bandEl.style.display = 'block';
+        document.getElementById('cardBandName').textContent = p.friendly_name || 'Fate Band';
+        document.getElementById('cardBandUid').textContent = p.token_uid || '';
+      }
+      return;
+    }
+
+    case 'wearable.tap': {
+      const p = data.payload || data;
+      addConsoleEvent('wearable', '📡', 'wearable.tap',
+        `Tap → ${p.hero_name || 'identity'} resolved (Lv${p.fate_level || '?'})${p.zone ? ' at ' + p.zone : ''}`,
+        { token: p.token_uid || '?', source: (p.source_id || '').slice(0,20) });
+      return;
+    }
+
+    case 'wearable.revoked': {
+      const p = data.payload || data;
+      addConsoleEvent('wearable', '✂', 'wearable.revoked',
+        `${p.friendly_name || 'Token'} revoked`, null);
+      return;
+    }
   }
 
   eventCount++;

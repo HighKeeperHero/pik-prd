@@ -455,6 +455,9 @@ function evtIcon(eventType) {
   if (eventType === 'session.check_in')    return { icon:'📍', cls:'evt-enrolled' };
   if (eventType === 'session.check_out')   return { icon:'🏁', cls:'evt-xp' };
   if (eventType === 'session.expired')     return { icon:'⏰', cls:'evt-link_revoked' };
+  if (eventType === 'wearable.issued')     return { icon:'⌚', cls:'evt-enrolled' };
+  if (eventType === 'wearable.tap')        return { icon:'📡', cls:'evt-xp' };
+  if (eventType === 'wearable.revoked')    return { icon:'✂', cls:'evt-link_revoked' };
   if (eventType.includes('xp'))             return { icon:'✦', cls:'evt-xp' };
   if (eventType.includes('session'))        return { icon:'⚔', cls:'evt-xp' };
   if (eventType.includes('level'))          return { icon:'★', cls:'evt-level' };
@@ -495,6 +498,9 @@ function evtDescription(evt) {
   if (t === 'session.check_in')        return `Checked in${p.zone ? ' at ' + p.zone : ''} (session: ${(p.session_id || '').slice(0,8)}…)`;
   if (t === 'session.check_out')       { const dur = p.duration_sec || 0; return `Checked out after ${Math.floor(dur/60)}m ${dur%60}s`; }
   if (t === 'session.expired')         return `Session expired — no heartbeat (${Math.floor((p.duration_sec||0)/60)}m)`;
+  if (t === 'wearable.issued')         return `Wearable issued: ${p.friendly_name || p.token_uid || '?'} (${p.token_type || 'wristband'})`;
+  if (t === 'wearable.tap')            return `Wristband tap → ${p.hero_name || 'identity'} resolved${p.zone ? ' at ' + p.zone : ''}`;
+  if (t === 'wearable.revoked')        return `Wearable revoked: ${p.friendly_name || p.token_uid || '?'}`;
   return JSON.stringify(p);
 }
 
@@ -595,7 +601,7 @@ async function selectUser(rootId) {
       document.getElementById('detail-content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-size:12px">Error loading identity: ${r.message || 'Unknown error'}</div>`;
       return;
     }
-    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression, sessions } = r.data;
+    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression, sessions, wearables } = r.data;
 
   const xp    = progression?.fate_xp || 0;
   const level = progression?.fate_level || 1;
@@ -789,6 +795,30 @@ async function selectUser(rootId) {
         </div>`;
       }).join('')}
     </div>` : ''}
+
+    <!-- Wearable Tokens -->
+    ${(wearables && wearables.length) ? `
+    <div class="section">
+      <h4>⌚ Wearable Tokens</h4>
+      ${wearables.map(w => {
+        const statusColor = { active: '#3ecf8e', suspended: '#f5a623', expired: 'var(--dim)', revoked: 'var(--red)' }[w.status] || 'var(--dim)';
+        const typeIcon = { wristband: '⌚', rfid_card: '💳', nfc_tag: '📡', qr_badge: '🏷' }[w.token_type] || '🔑';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #1a1f2844;font-size:10px">
+          <span style="font-size:16px">${typeIcon}</span>
+          <div style="flex:1;min-width:0">
+            <div style="color:var(--text);font-weight:600">${w.friendly_name || w.token_uid}</div>
+            <div style="font-size:8px;color:var(--dim);font-family:monospace">${w.token_uid}</div>
+            <div style="font-size:8px;color:var(--dim)">${w.tap_count} taps${w.last_tap_at ? ' · last: ' + fmtTime(w.last_tap_at) : ''}</div>
+          </div>
+          <span style="font-size:8px;color:${statusColor};text-transform:uppercase;letter-spacing:0.5px;border:1px solid ${statusColor}44;padding:2px 6px;border-radius:4px">${w.status}</span>
+        </div>`;
+      }).join('')}
+    </div>` : `
+    <div class="section">
+      <h4>⌚ Wearable Tokens</h4>
+      <div style="font-size:9px;color:var(--dim);padding:4px 0">No wearable bound</div>
+      <button onclick="issueWristband('${identity.root_id}')" style="margin-top:6px;background:transparent;border:1px solid var(--accent2);color:var(--accent2);padding:5px 12px;border-radius:6px;font-size:9px;cursor:pointer;font-family:inherit">+ Issue Wristband</button>
+    </div>`}
 
     <!-- Session Presence -->
     ${sessions?.active ? `
@@ -1057,6 +1087,25 @@ async function grantCache() {
 
 // ── Init + polling ────────────────────────────────────────────
 
+// ── Wearable Bridge ───────────────────────────────────────
+async function issueWristband(rootId) {
+  try {
+    const r = await apiFetch('/api/wearable/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ root_id: rootId, token_type: 'wristband' }),
+    });
+    if (r.status === 'ok' || r.data?.token_uid || r.token_uid) {
+      showToast('Wristband issued: ' + (r.data?.token_uid || r.token_uid || ''));
+      selectUser(rootId);
+    } else {
+      showToast('Issue failed: ' + (r.message || JSON.stringify(r)));
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message);
+  }
+}
+
 // ── Live Sessions ──────────────────────────────────────────
 let liveSessionsData = [];
 
@@ -1113,6 +1162,7 @@ function connectSSE() {
   const refreshEvents = [
     'identity.enrolled', 'progression.session_completed', 'progression.title_granted',
     'progression.fate_marker', 'loot.cache_granted', 'loot.cache_opened', 'gear.item_acquired',
+    'wearable.issued', 'wearable.tap', 'wearable.revoked',
   ];
 
   sessionEvents.forEach(type => {

@@ -607,6 +607,10 @@ function renderProfile(d){
   const eqDetail = (prog.titles_detail||[]).find(t=>t.title_id===p.equipped_title);
   const eqName = eqDetail ? eqDetail.display_name : null;
 
+  // Wearable
+  const wearables = d.wearables || [];
+  const activeBand = wearables.find(w => w.status === 'active');
+
   document.getElementById('portal-content').innerHTML = `
     <!-- Hero -->
     <div class="hero-section fade-up">
@@ -617,6 +621,9 @@ function renderProfile(d){
       <div class="hero-origin">${esc(p.origin||'Origin unknown')}</div>
       <span class="hero-alignment ${p.fate_alignment}">${esc(p.fate_alignment)}</span>
       ${eqName ? `<div class="equipped-badge">✦ ${esc(eqName)}</div>` : ''}
+      ${activeBand ? `<div style="margin-top:6px;display:inline-flex;align-items:center;gap:6px;background:rgba(0,255,180,0.08);border:1px solid rgba(0,255,180,0.2);border-radius:20px;padding:4px 12px;font-size:10px;color:#3ecf8e">
+        <span>⌚</span> ${esc(activeBand.friendly_name)} <span style="font-size:8px;color:var(--text3);font-family:monospace">${esc(activeBand.token_uid)}</span>
+      </div>` : ''}
     </div>
 
     <!-- XP -->

@@ -196,6 +196,17 @@ export class IdentityService {
       this.logger.warn(`Session data unavailable for ${rootId}: ${err.message}`);
     }
 
+    // Wearable tokens — separate query for resilience
+    let wearableData: any[] = [];
+    try {
+      wearableData = await this.prisma.identityToken.findMany({
+        where: { rootId },
+        orderBy: { issuedAt: 'desc' },
+      });
+    } catch (err) {
+      this.logger.warn(`Wearable data unavailable for ${rootId}: ${err.message}`);
+    }
+
     // Get progression config for XP calculations
     const config = await this.getProgressionConfig();
     const nextLevelThreshold = Math.floor(
@@ -426,6 +437,16 @@ export class IdentityService {
         })),
         total_completed: sessionData.filter((s: any) => s.status === 'completed').length,
       },
+      wearables: wearableData.map((t: any) => ({
+        token_id: t.id,
+        token_type: t.tokenType,
+        token_uid: t.tokenUid,
+        friendly_name: t.friendlyName,
+        status: t.status,
+        issued_at: t.issuedAt.toISOString(),
+        last_tap_at: t.lastTapAt?.toISOString() ?? null,
+        tap_count: t.tapCount,
+      })),
     };
   }
 
