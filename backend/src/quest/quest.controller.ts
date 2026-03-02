@@ -53,13 +53,13 @@ export class QuestController {
 
   @Get('board/:rootId')
   @SkipThrottle()
-  getQuestBoard(@Param('rootId') rootId: string) {
+  getQuestBoard(@Param('rootId') rootId: string): Promise<any> {
     return this.questService.getQuestBoard(rootId);
   }
 
   @Get('player/:rootId')
   @SkipThrottle()
-  getPlayerQuests(@Param('rootId') rootId: string) {
+  getPlayerQuests(@Param('rootId') rootId: string): Promise<any> {
     return this.questService.getPlayerQuests(rootId);
   }
 
