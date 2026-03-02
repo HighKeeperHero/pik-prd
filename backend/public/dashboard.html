@@ -174,6 +174,22 @@
   /* ── Right panel ── */
   .right-section { padding: 14px 14px; border-bottom: 1px solid var(--border); }
   .right-section h4 { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); margin-bottom: 10px; }
+
+  /* Leaderboard */
+  .lb-tabs { display: flex; gap: 2px; margin-bottom: 10px; flex-wrap: wrap; }
+  .lb-tab { background: var(--panel); border: 1px solid var(--border); color: var(--dim); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; padding: 4px 8px; cursor: pointer; border-radius: 3px; font-family: inherit; }
+  .lb-tab:hover { border-color: var(--accent); color: var(--text); }
+  .lb-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .lb-entry { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; }
+  .lb-entry:hover { background: rgba(255,255,255,0.02); }
+  .lb-rank { width: 20px; text-align: center; font-size: 10px; font-weight: 700; }
+  .lb-rank.gold { color: #f5a623; }
+  .lb-rank.silver { color: #a0aec0; }
+  .lb-rank.bronze { color: #c77b30; }
+  .lb-info { flex: 1; min-width: 0; }
+  .lb-name { font-size: 10px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lb-meta { font-size: 8px; color: var(--dim); }
+  .lb-value { font-size: 10px; color: var(--accent); font-weight: 600; text-align: right; white-space: nowrap; }
   .metric-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #1a1f28; }
   .metric-row:last-child { border-bottom: none; }
   .metric-label { font-size: 10px; color: var(--dim); }
@@ -325,8 +341,15 @@
     </div>
 
     <div class="right-section">
-      <h4>Top Heroes</h4>
-      <div id="top-heroes"></div>
+      <h4>Leaderboards</h4>
+      <div class="lb-tabs">
+        <button class="lb-tab active" onclick="switchBoard('xp')">XP</button>
+        <button class="lb-tab" onclick="switchBoard('level')">Level</button>
+        <button class="lb-tab" onclick="switchBoard('sessions')">Sessions</button>
+        <button class="lb-tab" onclick="switchBoard('quests')">Quests</button>
+        <button class="lb-tab" onclick="switchBoard('boss_kills')">Boss Kills</button>
+      </div>
+      <div id="leaderboard-list"><div style="font-size:9px;color:var(--dim)">Loading...</div></div>
     </div>
 
     <!-- Ingest simulation for demo -->
@@ -1143,6 +1166,41 @@ async function issueWristband(rootId) {
 // ── Live Sessions ──────────────────────────────────────────
 let liveSessionsData = [];
 
+// ── Leaderboards ──────────────────────────────────────────────
+let currentBoard = 'xp';
+
+async function loadLeaderboard(board) {
+  currentBoard = board || currentBoard;
+  try {
+    const r = await apiFetch(`/api/leaderboard?board=${currentBoard}&limit=10`);
+    const entries = r?.entries || [];
+    const list = document.getElementById('leaderboard-list');
+    if (entries.length === 0) {
+      list.innerHTML = '<div style="font-size:9px;color:var(--dim)">No data yet</div>';
+      return;
+    }
+    list.innerHTML = entries.map(e => {
+      const rankCls = e.rank === 1 ? 'gold' : e.rank === 2 ? 'silver' : e.rank === 3 ? 'bronze' : '';
+      const titleStr = e.equipped_title ? e.equipped_title.replace('title_','').replace(/_/g,' ') : '';
+      return `
+        <div class="lb-entry" onclick="selectUser('${e.root_id}')">
+          <div class="lb-rank ${rankCls}">${e.rank <= 3 ? ['🥇','🥈','🥉'][e.rank-1] : '#' + e.rank}</div>
+          <div class="lb-info">
+            <div class="lb-name">${e.hero_name}</div>
+            <div class="lb-meta">Lv${e.fate_level}${titleStr ? ' · ' + titleStr : ''}</div>
+          </div>
+          <div class="lb-value">${e.label}</div>
+        </div>`;
+    }).join('');
+  } catch { /* silent */ }
+}
+
+function switchBoard(board) {
+  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  loadLeaderboard(board);
+}
+
 async function loadLiveSessions() {
   try {
     const r = await apiFetch('/api/sessions/live');
@@ -1255,6 +1313,7 @@ async function init() {
   await loadUsers();
   await loadAnalytics();
   await loadLootTable();
+  await loadLeaderboard();
   await loadLiveSessions();
   connectSSE();
 }
@@ -1262,6 +1321,7 @@ async function init() {
 setInterval(async () => {
   await loadUsers();
   await loadAnalytics();
+  await loadLeaderboard();
   await loadLiveSessions();
   if (selectedRootId) selectUser(selectedRootId);
 }, 5000);

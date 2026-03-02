@@ -129,6 +129,20 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .marker-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:13px}
 .marker-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0}
 
+/* Leaderboard */
+.plb-card{background:var(--bg3);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px}
+.plb-rank{width:28px;text-align:center;font-size:16px;font-weight:700;font-family:'Cinzel',serif}
+.plb-rank.r1{color:#f5a623}.plb-rank.r2{color:#a0aec0}.plb-rank.r3{color:#c77b30}
+.plb-info{flex:1;min-width:0}
+.plb-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plb-name.me{color:var(--accent)}
+.plb-meta{font-size:11px;color:var(--text3)}
+.plb-val{font-size:14px;font-weight:700;color:var(--accent);font-family:'Cinzel',serif}
+.plb-tabs{display:flex;gap:4px;padding:0 16px 12px;flex-wrap:wrap}
+.plb-tab{background:var(--bg3);border:1px solid var(--bg3);color:var(--text3);font-size:11px;padding:5px 10px;border-radius:16px;cursor:pointer;font-family:inherit}
+.plb-tab.active{background:var(--accent);color:var(--bg1);border-color:var(--accent);font-weight:600}
+.plb-list{display:flex;flex-direction:column;gap:6px;padding:0 16px 16px}
+
 /* ── Fate Caches ─────────────────────────────────── */
 .caches-grid{display:flex;flex-wrap:wrap;gap:10px;padding:0 16px 16px}
 .cache-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 16px;background:var(--bg3);border-radius:12px;border:1px solid var(--border);min-width:120px;flex:1;max-width:180px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
@@ -595,6 +609,7 @@ async function loadProfile(){
     const resp = await apiFetch(`/users/${session.rootId}`);
     profileData = resp.data;
     renderProfile(profileData);
+    loadPortalLeaderboard();
   } catch(err){
     console.error('Load error:',err);
     document.getElementById('portal-content').innerHTML =
@@ -668,6 +683,9 @@ function renderProfile(d){
 
     <!-- Quests -->
     ${renderQuestsSection(d.quests || [])}
+
+    <!-- Leaderboard -->
+    <div class="section fade-up delay-3" id="portal-leaderboard-section"></div>
 
     <!-- Fate Markers -->
     <div class="section fade-up delay-3">
@@ -784,6 +802,55 @@ function renderQuestsSection(quests) {
         </div>
       </div>
     </div>`;
+}
+
+// LEADERBOARDS
+let portalBoard = 'xp';
+
+async function loadPortalLeaderboard(board) {
+  portalBoard = board || portalBoard;
+  const section = document.getElementById('portal-leaderboard-section');
+  if (!section) return;
+
+  try {
+    const r = await apiFetch(`/api/leaderboard?board=${portalBoard}&limit=10`);
+    const entries = r?.entries || [];
+    const myId = sessionStorage.getItem('root_id') || '';
+
+    section.innerHTML = `
+      <div class="section-card">
+        <div class="section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15l-2 5l9-14h-7l2-5l-9 14h7z"/></svg>
+          LEADERBOARDS
+        </div>
+        <div class="plb-tabs">
+          <button class="plb-tab ${portalBoard==='xp'?'active':''}" onclick="loadPortalLeaderboard('xp')">XP</button>
+          <button class="plb-tab ${portalBoard==='level'?'active':''}" onclick="loadPortalLeaderboard('level')">Level</button>
+          <button class="plb-tab ${portalBoard==='sessions'?'active':''}" onclick="loadPortalLeaderboard('sessions')">Sessions</button>
+          <button class="plb-tab ${portalBoard==='quests'?'active':''}" onclick="loadPortalLeaderboard('quests')">Quests</button>
+        </div>
+        <div class="plb-list">
+          ${entries.length === 0
+            ? '<div class="empty-state">No standings yet — play sessions to climb!</div>'
+            : entries.map(e => {
+                const isMe = e.root_id === myId;
+                const rankCls = e.rank === 1 ? 'r1' : e.rank === 2 ? 'r2' : e.rank === 3 ? 'r3' : '';
+                const medal = e.rank <= 3 ? ['🥇','🥈','🥉'][e.rank-1] : '#' + e.rank;
+                return `<div class="plb-card" style="${isMe ? 'border:1px solid var(--accent)' : ''}">
+                  <div class="plb-rank ${rankCls}">${medal}</div>
+                  <div class="plb-info">
+                    <div class="plb-name ${isMe ? 'me' : ''}">${esc(e.hero_name)}${isMe ? ' (you)' : ''}</div>
+                    <div class="plb-meta">Lv${e.fate_level}</div>
+                  </div>
+                  <div class="plb-val">${e.label}</div>
+                </div>`;
+              }).join('')
+          }
+        </div>
+      </div>`;
+  } catch {
+    section.innerHTML = '';
+  }
 }
 
 function renderCachesSection(caches){

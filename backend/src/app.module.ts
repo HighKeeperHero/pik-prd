@@ -26,6 +26,7 @@ import { GearModule } from './gear/gear.module';
 import { SessionModule } from './session/session.module';
 import { WearableModule } from './wearable/wearable.module';
 import { QuestModule } from './quest/quest.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
 @Global()
 @Module({
@@ -74,6 +75,7 @@ import { QuestModule } from './quest/quest.module';
     SessionModule,
     WearableModule,
     QuestModule,
+    LeaderboardModule,
   ],
   providers: [
     PrismaService,
