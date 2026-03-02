@@ -461,6 +461,9 @@ function evtIcon(eventType) {
   if (eventType === 'wearable.issued')     return { icon:'⌚', cls:'evt-enrolled' };
   if (eventType === 'wearable.tap')        return { icon:'📡', cls:'evt-xp' };
   if (eventType === 'wearable.revoked')    return { icon:'✂', cls:'evt-link_revoked' };
+  if (eventType === 'quest.accepted')      return { icon:'📜', cls:'evt-enrolled' };
+  if (eventType === 'quest.completed')     return { icon:'🏆', cls:'evt-level' };
+  if (eventType === 'quest.progress')      return { icon:'📊', cls:'evt-xp' };
   if (eventType.includes('xp'))             return { icon:'✦', cls:'evt-xp' };
   if (eventType.includes('session'))        return { icon:'⚔', cls:'evt-xp' };
   if (eventType.includes('level'))          return { icon:'★', cls:'evt-level' };
@@ -504,6 +507,8 @@ function evtDescription(evt) {
   if (t === 'wearable.issued')         return `Wearable issued: ${p.friendly_name || p.token_uid || '?'} (${p.token_type || 'wristband'})`;
   if (t === 'wearable.tap')            return `Wristband tap → ${p.hero_name || 'identity'} resolved${p.zone ? ' at ' + p.zone : ''}`;
   if (t === 'wearable.revoked')        return `Wearable revoked: ${p.friendly_name || p.token_uid || '?'}`;
+  if (t === 'quest.accepted')          return `Quest accepted: ${p.quest_name || '?'}`;
+  if (t === 'quest.completed')         return `Quest completed: ${p.quest_name || '?'} 🏆`;
   return JSON.stringify(p);
 }
 
@@ -604,7 +609,7 @@ async function selectUser(rootId) {
       document.getElementById('detail-content').innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-size:12px">Error loading identity: ${r.message || 'Unknown error'}</div>`;
       return;
     }
-    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression, sessions, wearables } = r.data;
+    const { identity, persona, progression, source_links, recent_events, fate_caches, gear, source_progression, sessions, wearables, quests } = r.data;
 
   const xp    = progression?.fate_xp || 0;
   const level = progression?.fate_level || 1;
@@ -824,6 +829,32 @@ async function selectUser(rootId) {
     </div>`}
 
     <!-- Session Presence -->
+
+    <!-- Quests -->
+    ${(quests && quests.length) ? `
+    <div class="section">
+      <h4>📜 Quests</h4>
+      ${quests.map(q => {
+        const statusColor = { active: '#3ecf8e', completed: '#f0c060', abandoned: 'var(--dim)', expired: 'var(--red)' }[q.status] || 'var(--dim)';
+        const statusIcon = { active: '⚡', completed: '🏆', abandoned: '✗', expired: '⏰' }[q.status] || '?';
+        return `<div style="padding:8px 0;border-bottom:1px solid #1a1f2844">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-size:12px">${statusIcon}</span>
+            <span style="color:var(--text);font-weight:600;font-size:11px;flex:1">${q.name}</span>
+            <span style="font-size:8px;color:${statusColor};text-transform:uppercase;letter-spacing:0.5px;border:1px solid ${statusColor}44;padding:2px 6px;border-radius:4px">${q.status}</span>
+          </div>
+          <div style="font-size:9px;color:var(--dim);margin-bottom:4px">${q.progress} objectives</div>
+          ${q.objectives.map(obj => {
+            const pct = obj.target > 0 ? Math.min(100, Math.round((obj.current / obj.target) * 100)) : 0;
+            return `<div style="display:flex;align-items:center;gap:6px;margin-left:20px;font-size:9px;padding:2px 0">
+              <span style="color:${obj.completed ? '#3ecf8e' : 'var(--dim)'}">${obj.completed ? '✓' : '○'}</span>
+              <span style="color:var(--text);flex:1">${obj.label}</span>
+              <span style="color:var(--accent2);font-family:monospace">${obj.current}/${obj.target}</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('')}
+    </div>` : ''}
     ${sessions?.active ? `
     <div class="section">
       <h4>⚡ Currently Active</h4>
@@ -1166,6 +1197,7 @@ function connectSSE() {
     'identity.enrolled', 'progression.session_completed', 'progression.title_granted',
     'progression.fate_marker', 'loot.cache_granted', 'loot.cache_opened', 'gear.item_acquired',
     'wearable.issued', 'wearable.tap', 'wearable.revoked',
+    'quest.accepted', 'quest.completed', 'quest.progress',
   ];
 
   sessionEvents.forEach(type => {

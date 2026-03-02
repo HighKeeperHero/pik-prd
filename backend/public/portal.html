@@ -666,6 +666,9 @@ function renderProfile(d){
     <!-- Fate Caches -->
     ${renderCachesSection(d.fate_caches || [])}
 
+    <!-- Quests -->
+    ${renderQuestsSection(d.quests || [])}
+
     <!-- Fate Markers -->
     <div class="section fade-up delay-3">
       <div class="section-card">
@@ -731,6 +734,57 @@ const CACHE_LABELS = {
   epic:'Mythic Fate Cache', legendary:'Legendary Fate Cache'
 };
 const CACHE_ICONS = { common:'📦', uncommon:'📦', rare:'💎', epic:'🔮', legendary:'👑' };
+
+function renderQuestsSection(quests) {
+  if (!quests || !quests.length) return '';
+
+  return `
+    <div class="section fade-up delay-2">
+      <div class="section-card">
+        <div class="section-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          QUESTS
+          <span class="section-header-hint">${quests.filter(q=>q.status==='completed').length}/${quests.length} completed</span>
+        </div>
+        <div style="padding:0 16px 12px">
+          ${quests.map(q => {
+            const statusColor = { active:'var(--accent2)', completed:'var(--gold)', abandoned:'var(--text3)' }[q.status] || 'var(--text3)';
+            const statusIcon = { active:'⚡', completed:'🏆', abandoned:'✗' }[q.status] || '?';
+            const objectives = q.objectives || [];
+            return `
+              <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span style="font-size:14px">${statusIcon}</span>
+                  <div style="flex:1">
+                    <div style="font-family:'Cinzel',serif;font-size:13px;color:${statusColor};font-weight:700">${esc(q.name)}</div>
+                    ${q.description ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(q.description)}</div>` : ''}
+                  </div>
+                  <span style="font-size:9px;color:${statusColor};letter-spacing:1px">${q.progress}</span>
+                </div>
+                ${objectives.map(obj => {
+                  const pct = obj.target > 0 ? Math.min(100, Math.round((obj.current / obj.target) * 100)) : 0;
+                  return `
+                    <div style="display:flex;align-items:center;gap:8px;margin-left:22px;margin-bottom:4px">
+                      <span style="font-size:11px;color:${obj.completed ? 'var(--accent2)' : 'var(--text3)'}">${obj.completed ? '✓' : '○'}</span>
+                      <div style="flex:1">
+                        <div style="font-size:10px;color:var(--text2)">${esc(obj.label)}</div>
+                        <div style="height:3px;background:var(--border);border-radius:2px;margin-top:3px;overflow:hidden">
+                          <div style="height:100%;width:${pct}%;background:${obj.completed ? 'var(--accent2)' : 'var(--accent)'};border-radius:2px;transition:width .3s"></div>
+                        </div>
+                      </div>
+                      <span style="font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace">${obj.current}/${obj.target}</span>
+                    </div>`;
+                }).join('')}
+                ${q.status === 'completed' && q.rewards ? `
+                  <div style="margin-left:22px;margin-top:6px;font-size:9px;color:var(--gold)">
+                    Rewards: ${q.rewards.xp ? '+' + q.rewards.xp + ' XP' : ''}${q.rewards.title_id ? ' · 🏅 ' + q.rewards.title_id.replace('title_','').replace(/_/g,' ') : ''}
+                  </div>` : ''}
+              </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+}
 
 function renderCachesSection(caches){
   if(!caches || !caches.length) return '';

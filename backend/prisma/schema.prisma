@@ -45,6 +45,7 @@ model RootIdentity {
   challenges    WebAuthnChallenge[]
   sessions      PlayerSession[]
   wearables     IdentityToken[]
+  quests        PlayerQuest[]
 
   @@map("root_identities")
 }
@@ -380,6 +381,53 @@ model PlayerSession {
   @@index([sourceId, status])
   @@index([checkedInAt])
   @@map("player_sessions")
+}
+
+// ============================================================
+// QUESTS — Cross-venue quest chains with auto-completion
+// Templates define objectives; PlayerQuest tracks progress.
+// Events auto-trigger objective evaluation.
+// ============================================================
+
+/// Operator-defined quest template.
+model QuestTemplate {
+  id          String    @id @default(uuid()) @map("quest_id")
+  name        String                                  // "Veil Walker's Trial"
+  description String?                                 // Flavor text
+  questType   String    @map("quest_type")            // cross_venue | single_venue | daily | achievement
+  objectives  Json                                    // Array of objective definitions
+  rewards     Json                                    // { xp, title_id, cache_tier, gear_template_id }
+  minLevel    Int       @default(1) @map("min_level") // Minimum fate level to accept
+  maxLevel    Int?      @map("max_level")             // Maximum fate level (null = no cap)
+  sourceId    String?   @map("source_id")             // null = cross-venue, specific = venue-locked
+  sortOrder   Int       @default(0) @map("sort_order")
+  status      String    @default("active")            // active | archived
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  playerQuests PlayerQuest[]
+
+  @@index([status])
+  @@index([questType])
+  @@map("quest_templates")
+}
+
+/// A player's active or completed quest instance.
+model PlayerQuest {
+  id          String    @id @default(uuid()) @map("player_quest_id")
+  rootId      String    @map("root_id")
+  questId     String    @map("quest_id")
+  status      String    @default("active")            // active | completed | abandoned | expired
+  progress    Json      @default("[]")                // Array of { objective_id, completed, completed_at }
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  root     RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  quest    QuestTemplate @relation(fields: [questId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, questId])
+  @@index([rootId, status])
+  @@index([questId])
+  @@map("player_quests")
 }
 
 model Config {

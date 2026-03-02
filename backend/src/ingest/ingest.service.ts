@@ -29,6 +29,7 @@ import { IdentityService } from '../identity/identity.service';
 import { IngestEventDto } from './dto/ingest-event.dto';
 import { ResolvedSource } from '../auth/guards/api-key.guard';
 import { LootService } from '../loot/loot.service';
+import { QuestService } from '../quest/quest.service';
 
 /** Titles automatically granted at specific Fate Levels */
 const LEVEL_TITLES: Record<number, string> = {
@@ -54,6 +55,7 @@ export class IngestService {
     private readonly consent: ConsentService,
     private readonly identity: IdentityService,
     private readonly loot: LootService,
+    private readonly quests: QuestService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -81,27 +83,40 @@ export class IngestService {
     }
 
     // 3. Dispatch to the appropriate handler
+    let result: any;
     switch (dto.event_type) {
       case 'progression.session_completed':
-        return this.handleSessionCompleted(dto, source, user);
-
+        result = await this.handleSessionCompleted(dto, source, user);
+        break;
       case 'progression.xp_granted':
-        return this.handleXpGranted(dto, source, user);
-
+        result = await this.handleXpGranted(dto, source, user);
+        break;
       case 'progression.node_completed':
-        return this.handleNodeCompleted(dto, source, user);
-
+        result = await this.handleNodeCompleted(dto, source, user);
+        break;
       case 'progression.title_granted':
-        return this.handleTitleGranted(dto, source, user);
-
+        result = await this.handleTitleGranted(dto, source, user);
+        break;
       case 'progression.fate_marker':
-        return this.handleFateMarker(dto, source, user);
-
+        result = await this.handleFateMarker(dto, source, user);
+        break;
       default:
         throw new BadRequestException(
           `Unknown event type: ${dto.event_type}`,
         );
     }
+
+    // 4. Auto-evaluate quest objectives
+    try {
+      const completedQuests = await this.quests.evaluateForPlayer(dto.root_id);
+      if (completedQuests.length > 0) {
+        result.quests_completed = completedQuests;
+      }
+    } catch (err) {
+      this.logger.warn(`Quest evaluation failed for ${dto.root_id}: ${err.message}`);
+    }
+
+    return result;
   }
 
   // ────────────────────────────────────────────────────────────

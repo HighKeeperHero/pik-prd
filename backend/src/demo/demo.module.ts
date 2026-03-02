@@ -10,9 +10,10 @@ import { EventsModule } from '../events/events.module';
 import { LootModule } from '../loot/loot.module';
 import { SessionModule } from '../session/session.module';
 import { WearableModule } from '../wearable/wearable.module';
+import { QuestModule } from '../quest/quest.module';
 
 @Module({
-  imports: [EventsModule, LootModule, SessionModule, WearableModule],
+  imports: [EventsModule, LootModule, SessionModule, WearableModule, QuestModule],
   controllers: [DemoController],
   providers: [DemoService],
 })

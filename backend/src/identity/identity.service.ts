@@ -207,6 +207,18 @@ export class IdentityService {
       this.logger.warn(`Wearable data unavailable for ${rootId}: ${err.message}`);
     }
 
+    // Quest data — separate query for resilience
+    let questData: any[] = [];
+    try {
+      questData = await this.prisma.playerQuest.findMany({
+        where: { rootId },
+        include: { quest: true },
+        orderBy: { startedAt: 'desc' },
+      });
+    } catch (err) {
+      this.logger.warn(`Quest data unavailable for ${rootId}: ${err.message}`);
+    }
+
     // Get progression config for XP calculations
     const config = await this.getProgressionConfig();
     const nextLevelThreshold = Math.floor(
@@ -447,6 +459,33 @@ export class IdentityService {
         last_tap_at: t.lastTapAt?.toISOString() ?? null,
         tap_count: t.tapCount,
       })),
+      quests: questData.map((pq: any) => {
+        const objectives = (pq.quest.objectives as any[]) || [];
+        const progress = (pq.progress as any[]) || [];
+        const completedCount = progress.filter((p: any) => p.completed).length;
+        return {
+          player_quest_id: pq.id,
+          quest_id: pq.questId,
+          name: pq.quest.name,
+          description: pq.quest.description,
+          quest_type: pq.quest.questType,
+          status: pq.status,
+          progress: `${completedCount}/${objectives.length}`,
+          objectives: objectives.map((obj: any) => {
+            const prog = progress.find((p: any) => p.objective_id === obj.id);
+            return {
+              id: obj.id,
+              label: obj.label,
+              completed: prog?.completed || false,
+              current: prog?.current ?? 0,
+              target: obj.target,
+            };
+          }),
+          rewards: pq.quest.rewards,
+          started_at: pq.startedAt.toISOString(),
+          completed_at: pq.completedAt?.toISOString() ?? null,
+        };
+      }),
     };
   }
 

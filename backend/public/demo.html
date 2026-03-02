@@ -540,6 +540,9 @@ function connectSSE() {
     'wearable.issued',
     'wearable.tap',
     'wearable.revoked',
+    'quest.accepted',
+    'quest.completed',
+    'quest.progress',
   ];
 
   eventTypes.forEach(type => {
@@ -666,6 +669,29 @@ function handleEvent(type, payload) {
       const p = data.payload || data;
       addConsoleEvent('wearable', '✂', 'wearable.revoked',
         `${p.friendly_name || 'Token'} revoked`, null);
+      return;
+    }
+
+    case 'quest.accepted': {
+      const p = data.payload || data;
+      addConsoleEvent('quest', '📜', 'quest.accepted',
+        `${p.hero_name || 'Player'} accepted: ${p.quest_name || '?'}`,
+        { objectives: p.objectives || '?' });
+      return;
+    }
+
+    case 'quest.completed': {
+      const p = data.payload || data;
+      const rewards = p.rewards || {};
+      addConsoleEvent('quest', '🏆', 'quest.completed',
+        `QUEST COMPLETE: ${p.quest_name || '?'} 🎉`,
+        rewards.xp ? { xp: '+' + rewards.xp, title: rewards.title_id || '—' } : null);
+      return;
+    }
+
+    case 'quest.progress': {
+      addConsoleEvent('quest', '📊', 'quest.progress',
+        `${data.hero_name || 'Player'}: ${data.quest_name || '?'} (${data.progress || '?'})`, null);
       return;
     }
   }

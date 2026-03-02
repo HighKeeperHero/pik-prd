@@ -16,6 +16,7 @@ import { SseService } from '../sse/sse.service';
 import { LootService } from '../loot/loot.service';
 import { SessionService } from '../session/session.service';
 import { WearableService } from '../wearable/wearable.service';
+import { QuestService } from '../quest/quest.service';
 
 // ── Narrative Character Data ──────────────────────────────
 
@@ -126,6 +127,7 @@ export class DemoService {
     private readonly loot: LootService,
     private readonly sessions: SessionService,
     private readonly wearables: WearableService,
+    private readonly quests: QuestService,
   ) {}
 
   isRunning(): boolean {
@@ -306,6 +308,22 @@ export class DemoService {
     }
 
     await sleep(delayMs * 0.6);
+
+    // ── Seed & Accept Quests ────────────────────────────
+    try {
+      await this.quests.seedDefaultQuests();
+      const templates = await this.quests.getTemplates();
+      for (const t of templates) {
+        try {
+          await this.quests.acceptQuest(rootId, t.id);
+        } catch { /* already accepted or ineligible */ }
+      }
+      this.logger.log(`Quests: ${templates.length} templates, accepted eligible`);
+    } catch (err) {
+      this.logger.warn(`Demo quest setup failed: ${err.message}`);
+    }
+
+    await sleep(delayMs * 0.4);
     const map = new Map(configs.map((c) => [c.key, c.value]));
     const cfg = {
       xpBaseThreshold: parseFloat(map.get('fate.xp_base_threshold') ?? '200'),
@@ -560,6 +578,16 @@ export class DemoService {
         } catch (err) {
           this.logger.warn(`Demo check-out failed: ${err.message}`);
         }
+      }
+
+      // ── QUEST EVALUATION ──────────────────────────────
+      try {
+        const completed = await this.quests.evaluateForPlayer(rootId);
+        if (completed.length > 0) {
+          this.logger.log(`Quests completed: ${completed.join(', ')}`);
+        }
+      } catch (err) {
+        this.logger.warn(`Demo quest eval failed: ${err.message}`);
       }
 
       await sleep(delayMs);
