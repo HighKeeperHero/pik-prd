@@ -30,7 +30,7 @@ import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 
-interface Objective {
+export interface Objective {
   id: string;
   type: string;
   label: string;
@@ -41,14 +41,14 @@ interface Objective {
   quest_id?: string;
 }
 
-interface ProgressEntry {
+export interface ProgressEntry {
   objective_id: string;
   completed: boolean;
   completed_at: string | null;
   current?: number;
 }
 
-interface QuestRewards {
+export interface QuestRewards {
   xp?: number;
   title_id?: string;
   cache_tier?: string;
