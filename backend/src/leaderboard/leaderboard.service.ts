@@ -332,7 +332,7 @@ export class LeaderboardService {
     const scoreMap = new Map<string, { score: number; user: any }>();
     for (const eq of equipped) {
       const mods = (eq.inventory.item.modifiers as any) || {};
-      const score: number = Object.values(mods).reduce((sum: number, v: any) => sum + (typeof v === 'number' ? Math.abs(v) : 0), 0) as number;
+      const score: number = Object.values(mods).reduce<number>((sum, v: any) => sum + (typeof v === 'number' ? Math.abs(v) : 0), 0);
       const existing = scoreMap.get(eq.rootId);
       if (existing) {
         existing.score += score;
