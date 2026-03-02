@@ -814,7 +814,7 @@ async function loadPortalLeaderboard(board) {
 
   try {
     const r = await apiFetch(`/api/leaderboard?board=${portalBoard}&limit=10`);
-    const entries = r?.entries || [];
+    const entries = r?.data?.entries || r?.entries || [];
     const myId = sessionStorage.getItem('root_id') || '';
 
     section.innerHTML = `

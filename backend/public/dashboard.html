@@ -550,14 +550,6 @@ async function loadAnalytics() {
   document.getElementById('m-links').textContent    = d.active_links;
   document.getElementById('m-xp').textContent       = Math.round(d.avg_fate_xp);
   document.getElementById('m-level').textContent    = d.avg_fate_level.toFixed(1);
-
-  const th = document.getElementById('top-heroes');
-  th.innerHTML = (d.top_heroes || []).map(h =>
-    `<div class="metric-row">
-       <span class="metric-label">${h.hero_name}</span>
-       <span class="metric-val">Lv${h.fate_level} · ${h.fate_xp}xp</span>
-     </div>`
-  ).join('') || '<div style="color:var(--dim);font-size:10px">No data yet</div>';
 }
 
 async function loadSources() {
@@ -1173,7 +1165,7 @@ async function loadLeaderboard(board) {
   currentBoard = board || currentBoard;
   try {
     const r = await apiFetch(`/api/leaderboard?board=${currentBoard}&limit=10`);
-    const entries = r?.entries || [];
+    const entries = r?.data?.entries || r?.entries || [];
     const list = document.getElementById('leaderboard-list');
     if (entries.length === 0) {
       list.innerHTML = '<div style="font-size:9px;color:var(--dim)">No data yet</div>';
