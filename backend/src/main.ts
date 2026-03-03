@@ -32,7 +32,7 @@ async function bootstrap() {
   const allowedOrigins = [
   'https://pik-prd-production.up.railway.app',
   'https://pik-33859yzba-highkeeperheros-projects.vercel.app',
-  'http://localhost:5173 // 
+  'http://localhost:5173, 
 ];
     ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
     : [];
