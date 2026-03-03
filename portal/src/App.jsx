@@ -42,15 +42,16 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
     if (heroName.length < 2) { setSuggestions([]); setMatchedUser(null); return; }
     const q = heroName.toLowerCase();
     const matches = allUsers.filter(u =>
-      (u.hero_name || '').toLowerCase().includes(q)
+      (u.hero_name || '').toLowerCase().includes(q) ||
+      (u.display_name || '').toLowerCase().includes(q)
     ).slice(0, 5);
     setSuggestions(matches);
-    const exact = allUsers.find(u => (u.hero_name || '').toLowerCase() === q);
+    const exact = allUsers.find(u => (u.hero_name || '').toLowerCase() === q || (u.display_name || '').toLowerCase() === q);
     setMatchedUser(exact || null);
   }, [heroName, allUsers]);
 
   const selectUser = (user) => {
-    setHeroName(user.hero_name);
+    setHeroName(user.display_name || user.hero_name);
     setMatchedUser(user);
     setSuggestions([]);
     setFocused(false);
@@ -59,7 +60,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
   // Sign in via impersonate (demo) — production would trigger passkey per-user
   const handleSignIn = async () => {
     if (!matchedUser) {
-      setError('Hero not found. Check the spelling or create a new hero.');
+      setError('Account not found. Check the spelling or create a new account.');
       return;
     }
     setLoading(true);
@@ -150,7 +151,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
 
       {/* Hero Name Input */}
       <div style={{ width: "100%", maxWidth: 340, position: "relative" }}>
-        <label style={labelStyle}>Hero Name</label>
+        <label style={labelStyle}>Fate Name</label>
         <div style={{ position: "relative" }}>
           <input
             type="text"
@@ -159,7 +160,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 200)}
             onKeyDown={e => e.key === 'Enter' && handleSignIn()}
-            placeholder="Enter your hero name..."
+            placeholder="Enter your fate name..."
             autoComplete="off"
             style={{
               width: "100%", padding: "14px 16px", paddingRight: matchedUser ? 80 : 16,
@@ -200,7 +201,8 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
                 }}
               >
                 <span style={{ fontSize: 14 }}>{"\u2694\uFE0F"}</span>
-                <span style={{ fontWeight: 600, flex: 1 }}>{u.hero_name}</span>
+                <span style={{ fontWeight: 600, flex: 1 }}>{u.display_name || u.hero_name}</span>
+                {u.hero_name && u.display_name && <span style={{ fontSize: 11, color: MUTED, fontStyle: "italic" }}>{u.hero_name}</span>}
                 <span style={{ color: alignColor(u.fate_alignment), fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{u.fate_alignment}</span>
                 <span style={{ fontSize: 11, color: MUTED }}>Lv {u.fate_level || 1}</span>
               </button>
@@ -225,7 +227,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
           opacity: loading ? 0.7 : 1,
         }}
       >
-        {loading ? "Entering the Realms..." : matchedUser ? `Enter as ${matchedUser.hero_name}` : "Sign In"}
+        {loading ? "Entering the Realms..." : matchedUser ? `Enter as ${matchedUser.display_name || matchedUser.hero_name}` : "Sign In"}
       </button>
 
       {/* Divider */}
@@ -254,7 +256,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
       {/* Create New Hero */}
       <button onClick={onNewUser} style={{ marginTop: 28, width: "100%", maxWidth: 340, padding: "12px 20px", borderRadius: 12, background: SURFACE2, border: `1px solid ${BORDER}`, color: DIM, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         <span style={{ fontSize: 15 }}>{"\u2728"}</span>
-        Create New Hero
+        Create New Account
       </button>
 
       {/* Operator link */}
@@ -469,7 +471,11 @@ export default function App() {
     return <PIKPortal rootId={rootId} onLogout={() => { api.clearSession(); setRootId(null); setScreen('login'); }} />;
   }
   if (screen === 'onboarding') {
-    return <PIKOnboarding onComplete={() => setScreen('login')} onBack={() => setScreen('login')} />;
+    return <PIKOnboarding onComplete={({ auth, acct }) => {
+      // TODO: Once FateDashboard is built, route there instead
+      // For now, send back to login so they can sign in with their new Fate ID
+      setScreen('login');
+    }} onBack={() => setScreen('login')} />;
   }
   if (screen === 'admin') {
     return <AdminPanel onImpersonate={(rid) => { setRootId(rid); setScreen('portal'); }} onBack={() => setScreen('login')} />;
