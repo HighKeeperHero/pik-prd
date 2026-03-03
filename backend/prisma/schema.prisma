@@ -22,7 +22,7 @@ datasource db {
 
 model RootIdentity {
   id            String    @id @default(uuid()) @map("root_id")
-  heroName      String    @map("hero_name")
+  heroName      String    @unique @map("hero_name")
   fateAlignment String    @map("fate_alignment")
   origin        String?
   fateXp        Int       @default(0) @map("fate_xp")

@@ -7,6 +7,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { Prisma, SourceLink } from '@prisma/client';
@@ -37,78 +38,109 @@ export class IdentityService {
       }
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const root = await tx.rootIdentity.create({
-        data: {
-          heroName: dto.hero_name,
-          fateAlignment: dto.fate_alignment,
-          origin: dto.origin ?? null,
-          enrolledBy: dto.enrolled_by,
-        },
+    // ── Hero name uniqueness check (case-insensitive) ──
+    const existingName = await this.prisma.rootIdentity.findFirst({
+      where: {
+        heroName: { equals: dto.hero_name, mode: 'insensitive' },
+        status: 'active',
+      },
+      select: { id: true, heroName: true },
+    });
+    if (existingName) {
+      // Generate suggestions
+      const suggestions = await this.suggestHeroNames(dto.hero_name);
+      throw new ConflictException({
+        message: `Hero name "${dto.hero_name}" is already taken`,
+        taken_name: dto.hero_name,
+        suggestions,
       });
+    }
 
-      const persona = await tx.persona.create({
-        data: {
-          rootId: root.id,
-          displayName: dto.hero_name,
-        },
-      });
-
-      let link: SourceLink | null = null;
-      if (dto.source_id) {
-        link = await tx.sourceLink.create({
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        const root = await tx.rootIdentity.create({
           data: {
-            rootId: root.id,
-            sourceId: dto.source_id,
-            grantedBy: dto.enrolled_by,
+            heroName: dto.hero_name,
+            fateAlignment: dto.fate_alignment,
+            origin: dto.origin ?? null,
+            enrolledBy: dto.enrolled_by,
           },
         });
-      }
 
-      await tx.identityEvent.create({
-        data: {
-          rootId: root.id,
-          eventType: 'identity.enrolled',
-          payload: {
-            enrolled_by: dto.enrolled_by,
-            hero_name: dto.hero_name,
-            fate_alignment: dto.fate_alignment,
-            origin: dto.origin ?? null,
-          } as Prisma.InputJsonValue,
-        },
-      });
+        const persona = await tx.persona.create({
+          data: {
+            rootId: root.id,
+            displayName: dto.hero_name,
+          },
+        });
 
-      if (link) {
+        let link: SourceLink | null = null;
+        if (dto.source_id) {
+          link = await tx.sourceLink.create({
+            data: {
+              rootId: root.id,
+              sourceId: dto.source_id,
+              grantedBy: dto.enrolled_by,
+            },
+          });
+        }
+
         await tx.identityEvent.create({
           data: {
             rootId: root.id,
-            eventType: 'source.link_granted',
-            sourceId: dto.source_id!,
+            eventType: 'identity.enrolled',
             payload: {
-              link_id: link.id,
-              source_id: dto.source_id!,
-              granted_by: dto.enrolled_by,
-              scope: link.scope,
+              enrolled_by: dto.enrolled_by,
+              hero_name: dto.hero_name,
+              fate_alignment: dto.fate_alignment,
+              origin: dto.origin ?? null,
             } as Prisma.InputJsonValue,
           },
         });
+
+        if (link) {
+          await tx.identityEvent.create({
+            data: {
+              rootId: root.id,
+              eventType: 'source.link_granted',
+              sourceId: dto.source_id!,
+              payload: {
+                link_id: link.id,
+                source_id: dto.source_id!,
+                granted_by: dto.enrolled_by,
+                scope: link.scope,
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
+
+        return { root, persona, link };
+      });
+
+      this.logger.log(
+        `Enrolled: ${dto.hero_name} (${result.root.id}) by ${dto.enrolled_by}`,
+      );
+
+      return {
+        root_id: result.root.id,
+        persona_id: result.persona.id,
+        hero_name: result.root.heroName,
+        fate_alignment: result.root.fateAlignment,
+        ...(result.link ? { link_id: result.link.id } : {}),
+        enrolled_at: result.root.enrolledAt.toISOString(),
+      };
+    } catch (err) {
+      // Catch race condition: unique constraint violation at DB level
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const suggestions = await this.suggestHeroNames(dto.hero_name);
+        throw new ConflictException({
+          message: `Hero name "${dto.hero_name}" is already taken`,
+          taken_name: dto.hero_name,
+          suggestions,
+        });
       }
-
-      return { root, persona, link };
-    });
-
-    this.logger.log(
-      `Enrolled: ${dto.hero_name} (${result.root.id}) by ${dto.enrolled_by}`,
-    );
-
-    return {
-      root_id: result.root.id,
-      persona_id: result.persona.id,
-      hero_name: result.root.heroName,
-      fate_alignment: result.root.fateAlignment,
-      ...(result.link ? { link_id: result.link.id } : {}),
-      enrolled_at: result.root.enrolledAt.toISOString(),
-    };
+      throw err;
+    }
   }
 
   // ── LIST ──────────────────────────────────────────────────
@@ -522,6 +554,24 @@ export class IdentityService {
     const changes: Record<string, { from: unknown; to: unknown }> = {};
 
     if (dto.hero_name && dto.hero_name !== user.heroName) {
+      // ── Hero name uniqueness check (case-insensitive) ──
+      const existingName = await this.prisma.rootIdentity.findFirst({
+        where: {
+          heroName: { equals: dto.hero_name, mode: 'insensitive' },
+          status: 'active',
+          id: { not: rootId },  // exclude self
+        },
+        select: { id: true, heroName: true },
+      });
+      if (existingName) {
+        const suggestions = await this.suggestHeroNames(dto.hero_name);
+        throw new ConflictException({
+          message: `Hero name "${dto.hero_name}" is already taken`,
+          taken_name: dto.hero_name,
+          suggestions,
+        });
+      }
+
       updateData.heroName = dto.hero_name;
       changes.hero_name = { from: user.heroName, to: dto.hero_name };
 
@@ -552,10 +602,23 @@ export class IdentityService {
       return { message: 'No changes', root_id: rootId };
     }
 
-    await this.prisma.rootIdentity.update({
-      where: { id: rootId },
-      data: updateData,
-    });
+    try {
+      await this.prisma.rootIdentity.update({
+        where: { id: rootId },
+        data: updateData,
+      });
+    } catch (err) {
+      // Race condition: unique constraint violation at DB level
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const suggestions = await this.suggestHeroNames(dto.hero_name!);
+        throw new ConflictException({
+          message: `Hero name "${dto.hero_name}" is already taken`,
+          taken_name: dto.hero_name,
+          suggestions,
+        });
+      }
+      throw err;
+    }
 
     await this.events.log({
       rootId,
@@ -619,6 +682,31 @@ export class IdentityService {
   }
 
   // ── HELPERS ───────────────────────────────────────────────
+
+  /**
+   * Generate available hero name suggestions by appending sequential numbers.
+   * Returns up to 3 available names.
+   */
+  private async suggestHeroNames(baseName: string): Promise<string[]> {
+    // Fetch all names that start with this base (case-insensitive)
+    const similar = await this.prisma.rootIdentity.findMany({
+      where: {
+        heroName: { startsWith: baseName, mode: 'insensitive' },
+        status: 'active',
+      },
+      select: { heroName: true },
+    });
+    const takenSet = new Set(similar.map((u) => u.heroName.toLowerCase()));
+
+    const suggestions: string[] = [];
+    for (let i = 1; suggestions.length < 3 && i <= 99; i++) {
+      const candidate = `${baseName}${i}`;
+      if (!takenSet.has(candidate.toLowerCase())) {
+        suggestions.push(candidate);
+      }
+    }
+    return suggestions;
+  }
 
   async getProgressionConfig() {
     const configs = await this.prisma.config.findMany({
