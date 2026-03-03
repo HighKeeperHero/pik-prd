@@ -31,6 +31,7 @@ async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
 const allowedOrigins = [
   'https://pik-prd-production.up.railway.app',
+  'https://pik-prd.vercel.app',
   'http://localhost:5173',
 ];
 
