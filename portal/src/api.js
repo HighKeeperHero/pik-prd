@@ -211,6 +211,7 @@ export async function getLeaderboardSummary(limit = 5) {
 
 const api = {
   setBaseUrl, setSession, getSession, clearSession,
+  get, post, put,
   impersonate,
   getProfile, listUsers, updateProfile, equipTitle, getTimeline,
   getEquipment, getInventory, getModifiers, equipItem, unequipSlot,
