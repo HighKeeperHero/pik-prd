@@ -29,7 +29,11 @@ async function bootstrap() {
   // Production: lock to Railway domain only
   // Development: allow all origins for local testing
   const isProd = process.env.NODE_ENV === 'production';
-  const allowedOrigins = process.env.CORS_ORIGINS
+  const allowedOrigins = [
+  'https://pik-prd-production.up.railway.app',
+  'https://pik-33859yzba-highkeeperheros-projects.vercel.app',
+  'http://localhost:5173 // 
+];
     ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
     : [];
 
