@@ -34,8 +34,6 @@ async function bootstrap() {
   'https://pik-33859yzba-highkeeperheros-projects.vercel.app',
   'http://localhost:5173', 
 ];
-    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
-    : [];
 
   app.enableCors({
     origin: isProd
@@ -98,4 +96,7 @@ async function bootstrap() {
   logger.log('Press Ctrl+C to stop.');
 }
 bootstrap();
+
+
+
 
