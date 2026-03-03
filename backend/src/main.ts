@@ -29,17 +29,20 @@ async function bootstrap() {
   // Production: lock to Railway domain only
   // Development: allow all origins for local testing
   const isProd = process.env.NODE_ENV === 'production';
-  const allowedOrigins = [
+const allowedOrigins = [
   'https://pik-prd-production.up.railway.app',
-  'https://pik-33859yzba-highkeeperheros-projects.vercel.app',
-  'http://localhost:5173', 
+  'http://localhost:5173',
 ];
+
+const isAllowed = (origin: string) =>
+  allowedOrigins.includes(origin) ||
+  origin.endsWith('-highkeeperheros-projects.vercel.app');
 
   app.enableCors({
     origin: isProd
       ? (origin, callback) => {
           // Allow same-origin (no origin header) + configured origins
-          if (!origin || allowedOrigins.includes(origin)) {
+          if (!origin || isAllowed(origin)) {
             callback(null, true);
           } else {
             logger.warn(`CORS blocked: ${origin}`);
