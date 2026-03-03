@@ -195,12 +195,29 @@ function Account({ authData, onNext, onBack }) {
 }
 
 /* ═══════ STEP 3: HERO (Adventurer System) ═══════ */
-function HeroStep({ accountData, onNext, onSkip }) {
+function HeroStep({ accountData, onNext, onSkip, takenNames = [] }) {
   const [e, setE] = useState(false);
   const [heroName, setHeroName] = useState("");
   const [title, setTitle] = useState(null);
   const [showClasses, setShowClasses] = useState(false);
   useEffect(() => { setTimeout(() => setE(true), 100); }, []);
+
+  // Name uniqueness check
+  const nameLower = heroName.trim().toLowerCase();
+  const isTaken = nameLower.length >= 2 && takenNames.some(n => n.toLowerCase() === nameLower);
+  const isValid = heroName.trim().length >= 2 && !isTaken;
+
+  // Generate suggestions if name is taken
+  const suggestions = [];
+  if (isTaken) {
+    for (let i = 1; suggestions.length < 3; i++) {
+      const candidate = `${heroName.trim()}${i}`;
+      if (!takenNames.some(n => n.toLowerCase() === candidate.toLowerCase())) {
+        suggestions.push(candidate);
+      }
+      if (i > 99) break;
+    }
+  }
 
   return (
     <div style={{ minHeight: "calc(100vh - 80px)", display: "flex", flexDirection: "column", padding: "0 24px 40px" }}>
@@ -249,6 +266,27 @@ function HeroStep({ accountData, onNext, onSkip }) {
 
         <Fade show={e} delay={400}>
           <Input label="Hero Name" value={heroName} onChange={setHeroName} placeholder="Name your adventurer" maxLength={20} />
+          {heroName.trim().length >= 2 && (
+            <div style={{ marginTop: -12, marginBottom: 16, padding: "8px 12px", borderRadius: 8, background: isTaken ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)", border: `1px solid ${isTaken ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"}` }}>
+              {isTaken ? (
+                <div>
+                  <div style={{ fontSize: 12, color: "#ef4444", fontWeight: 600, marginBottom: 6 }}>
+                    {"\u2718"} "{heroName.trim()}" is already taken
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>Try one of these:</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {suggestions.map(s => (
+                      <button key={s} onClick={() => setHeroName(s)} style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", color: "#a78bfa", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>
+                  {"\u2714"} "{heroName.trim()}" is available
+                </div>
+              )}
+            </div>
+          )}
         </Fade>
 
         {heroName.length > 0 && (
@@ -328,7 +366,7 @@ function HeroStep({ accountData, onNext, onSkip }) {
         </Fade>
 
         <Fade show={e} delay={600}>
-          <Btn onClick={() => onNext({ heroName, title, heroClass: "adventurer", tier: "bronze" })} disabled={!heroName}>Begin Your Adventure</Btn>
+          <Btn onClick={() => onNext({ heroName: heroName.trim(), title, heroClass: "adventurer", tier: "bronze" })} disabled={!isValid}>Begin Your Adventure</Btn>
         </Fade>
       </div>
     </div>
@@ -434,7 +472,20 @@ export default function PIKOnboarding({ onComplete, onBack }) {
   const [acct, setAcct] = useState(null);
   const [hero, setHero] = useState(null);
   const [fade, setFade] = useState(false);
+  const [takenNames, setTakenNames] = useState([]);
   const go = useCallback((n) => { setFade(true); setTimeout(() => { setStep(n); setFade(false); }, 300); }, []);
+
+  // Fetch existing hero names for uniqueness validation
+  useEffect(() => {
+    import('./api.js').then(mod => {
+      const api = mod.default;
+      api.listUsers().then(resp => {
+        if (resp.ok && Array.isArray(resp.data)) {
+          setTakenNames(resp.data.map(u => u.hero_name).filter(Boolean));
+        }
+      }).catch(() => {});
+    }).catch(() => {});
+  }, []);
 
   return (
     <div style={S.page}>
@@ -444,7 +495,7 @@ export default function PIKOnboarding({ onComplete, onBack }) {
         {step === 0 && <Welcome onNext={() => go(1)} onBack={onBack} />}
         {step === 1 && <Auth onNext={d => { setAuth(d); go(2); }} onBack={() => go(0)} />}
         {step === 2 && <Account authData={auth} onNext={d => { setAcct(d); go(3); }} onBack={() => go(1)} />}
-        {step === 3 && <HeroStep accountData={acct} onNext={d => { setHero(d); go(4); }} onSkip={() => go(4)} />}
+        {step === 3 && <HeroStep accountData={acct} onNext={d => { setHero(d); go(4); }} onSkip={() => go(4)} takenNames={takenNames} />}
         {step === 4 && <Done accountData={acct} heroData={hero} onFinish={() => onComplete && onComplete({ auth, acct, hero })} />}
       </div>
     </div>
