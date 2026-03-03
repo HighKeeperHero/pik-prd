@@ -90,11 +90,12 @@ function Fade({ show, delay = 0, children, style: extra = {} }) {
 }
 
 /* ═══════ STEP 0: WELCOME ═══════ */
-function Welcome({ onNext }) {
+function Welcome({ onNext, onBack }) {
   const [e, setE] = useState(false);
   useEffect(() => { setTimeout(() => setE(true), 100); }, []);
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center", position: "relative" }}>
+      {onBack && <button onClick={onBack} style={{ position: "absolute", top: 24, left: 24, background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 13, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", zIndex: 10 }}>{"\u2190"} Back to Login</button>}
       <Fade show={e} delay={0} style={{ marginBottom: 24 }}>
         <div style={{ width: 80, height: 80, margin: "0 auto", borderRadius: 20, background: "linear-gradient(135deg,#6366f1,#8b5cf6,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, boxShadow: "0 8px 32px rgba(99,102,241,0.4)" }}>{"\u25C8"}</div>
       </Fade>
@@ -427,7 +428,7 @@ function Done({ accountData, heroData, onFinish }) {
 }
 
 /* ═══════ MAIN ═══════ */
-export default function PIKOnboarding({ onComplete }) {
+export default function PIKOnboarding({ onComplete, onBack }) {
   const [step, setStep] = useState(0);
   const [auth, setAuth] = useState(null);
   const [acct, setAcct] = useState(null);
@@ -435,20 +436,16 @@ export default function PIKOnboarding({ onComplete }) {
   const [fade, setFade] = useState(false);
   const go = useCallback((n) => { setFade(true); setTimeout(() => { setStep(n); setFade(false); }, 300); }, []);
 
-  const handleFinish = () => {
-    if (onComplete) onComplete({ auth, account: acct, hero });
-  };
-
   return (
     <div style={S.page}>
       <div style={S.orb1} /><div style={S.orb2} />
       {step > 0 && <div style={{ padding: "24px 24px 0", position: "relative", zIndex: 2 }}><Steps current={step - 1} labels={["Sign In","Identity","Hero"]} /></div>}
       <div style={{ opacity: fade ? 0 : 1, transform: fade ? "translateY(8px)" : "none", transition: "all 0.3s ease", position: "relative", zIndex: 1 }}>
-        {step === 0 && <Welcome onNext={() => go(1)} />}
+        {step === 0 && <Welcome onNext={() => go(1)} onBack={onBack} />}
         {step === 1 && <Auth onNext={d => { setAuth(d); go(2); }} onBack={() => go(0)} />}
         {step === 2 && <Account authData={auth} onNext={d => { setAcct(d); go(3); }} onBack={() => go(1)} />}
         {step === 3 && <HeroStep accountData={acct} onNext={d => { setHero(d); go(4); }} onSkip={() => go(4)} />}
-        {step === 4 && <Done accountData={acct} heroData={hero} onFinish={handleFinish} />}
+        {step === 4 && <Done accountData={acct} heroData={hero} onFinish={() => onComplete && onComplete({ auth, acct, hero })} />}
       </div>
     </div>
   );
