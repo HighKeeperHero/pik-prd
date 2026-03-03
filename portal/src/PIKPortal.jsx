@@ -1,31 +1,47 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import api from './api.js';
 
 /* ═══════════════════════════════════════════
    PIK PORTAL — HEROES' VERITAS USER PORTAL
-   v1.1 — All state lifted to root, cross-tab persistence
+   v2.0 — Live API integration with mock fallback
    ═══════════════════════════════════════════ */
 
-// ── INITIAL DATA ──
-const INIT_PLAYER = {
+// ── TIER CONFIG ──
+const TIERS = [
+  { name: "Bronze", color: "#cd7f32", min: 1, max: 6 },
+  { name: "Copper", color: "#b87333", min: 7, max: 13 },
+  { name: "Silver", color: "#c0c0c0", min: 14, max: 21 },
+  { name: "Gold", color: "#ffd700", min: 22, max: 29 },
+  { name: "Platinum", color: "#e5e4e2", min: 30, max: 39 },
+  { name: "Adamantium", color: "#4ff0d0", min: 40, max: 99 },
+];
+
+function getTier(level) {
+  const t = TIERS.find(t => level >= t.min && level <= t.max) || TIERS[0];
+  return { name: t.name, color: t.color };
+}
+
+// XP thresholds per level (simplified curve)
+function xpForLevel(lv) { return Math.floor(100 * Math.pow(lv, 1.5)); }
+function tierXpRange(tier) {
+  const t = TIERS.find(t2 => t2.name === tier.name);
+  if (!t) return { min: 0, max: 10000 };
+  let total = 0; for (let i = 1; i < t.min; i++) total += xpForLevel(i);
+  const minXp = total;
+  for (let i = t.min; i <= t.max; i++) total += xpForLevel(i);
+  return { min: minXp, max: total };
+}
+
+// ── MOCK / FALLBACK DATA ──
+const MOCK_PLAYER = {
   displayName: "Valcrest", title: "the Wanderer", heroName: "Kael",
   tier: "Silver", tierColor: "#c0c0c0", level: 17,
   xp: 3420, xpNext: 5000, xpTier: 8500, xpTierNext: 15000,
   sessions: 24, questsComplete: 11, bossKills: 3, gearScore: 142,
-  pikId: "PIK#7X2M9K",
+  pikId: "PIK#7X2M9K", equippedTitle: null, titles: [],
 };
 
-const INIT_RESOURCES = { emberstone: 34, wyldroot: 12, seaglass: 8, dustiron: 21 };
-
-const TIERS = [
-  { name: "Bronze", color: "#cd7f32", range: "1-6" },
-  { name: "Copper", color: "#b87333", range: "7-13" },
-  { name: "Silver", color: "#c0c0c0", range: "14-21" },
-  { name: "Gold", color: "#ffd700", range: "22-29" },
-  { name: "Platinum", color: "#e5e4e2", range: "30-39" },
-  { name: "Adamantium", color: "#4ff0d0", range: "40+" },
-];
-
-const GEAR_SLOTS = [
+const MOCK_GEAR = [
   { slot: "Head", item: "Wyldguard Helm", rarity: "uncommon", icon: "\uD83D\uDC51" },
   { slot: "Chest", item: "Kingvale Brigandine", rarity: "rare", icon: "\uD83D\uDEE1" },
   { slot: "Hands", item: "Traveler's Wraps", rarity: "common", icon: "\uD83E\uDDE4" },
@@ -34,36 +50,19 @@ const GEAR_SLOTS = [
   { slot: "Trinket", item: "Ember Sigil", rarity: "rare", icon: "\uD83D\uDC8E" },
 ];
 
-const INIT_ACTIVE_QUESTS = [
-  { id: 1, name: "The Wyrm Below", realm: "Kingvale", type: "story", tier: "Silver", progress: 2, total: 5, xp: 800, venue: true, desc: "Investigate tremors beneath Kingvale Keep." },
-  { id: 2, name: "Gather Wyldroot", realm: "The Wylds", type: "gathering", tier: "Bronze", progress: 8, total: 12, xp: 200, venue: false, desc: "Collect wyldroot samples from the forest edge." },
-  { id: 3, name: "The Corsair's Debt", realm: "Lochmaw", type: "story", tier: "Silver", progress: 0, total: 3, xp: 600, venue: true, desc: "A captain in Lochmaw needs help settling old scores." },
-];
+const SLOT_ICONS = { head: "\uD83D\uDC51", chest: "\uD83D\uDEE1", hands: "\uD83E\uDDE4", weapon: "\u2694\uFE0F", "off-hand": "\uD83D\uDEE1", offhand: "\uD83D\uDEE1", trinket: "\uD83D\uDC8E", legs: "\uD83D\uDC62", feet: "\uD83D\uDC62", ring: "\uD83D\uDC8D", neck: "\uD83D\uDCFF" };
 
-const INIT_AVAILABLE_QUESTS = [
-  { id: 10, name: "Scorched Earth Survey", realm: "Origin Sands", type: "exploration", tier: "Silver", xp: 450, venue: true, desc: "Map the An'Haretti conduit lines in the southern wastes.", locked: false },
-  { id: 11, name: "Desolation Watch", realm: "Desolate Peaks", type: "story", tier: "Gold", xp: 1200, venue: true, desc: "Join the watch post for signs of dragon movement.", locked: true, lockReason: "Requires Gold tier" },
-  { id: 12, name: "Timber Count", realm: "The Wylds", type: "daily", tier: "Bronze", xp: 75, venue: false, desc: "Tally marked trees along the Druid patrol route.", locked: false },
-  { id: 13, name: "Hull Inspection", realm: "Lochmaw", type: "daily", tier: "Bronze", xp: 75, venue: false, desc: "Check reclaimed hull integrity at the Eastern docks.", locked: false },
-  { id: 14, name: "Burning Keep: Reconnaissance", realm: "Kingvale", type: "dungeon_prep", tier: "Silver", xp: 350, venue: false, desc: "Study the Keep's layout to prepare for the dragon assault.", locked: false },
-];
-
-const INIT_CODEX = [
+const MOCK_CODEX = [
   { id: 1, title: "The Great Tree", realm: "The Wylds", category: "Lore", unlocked: true, read: false, content: "The source of all life and magic on the continent. Overseen by the Dryad Druids, the Great Tree's roots stretch beneath every realm of Elysendar, binding them together in ways that few understand." },
   { id: 2, title: "Kingvale Keep", realm: "Kingvale", category: "Locations", unlocked: true, read: false, content: "The castle and its high walls protect the royal family and the market square. Sturdy, old-world architecture \u2014 deep golds, white stone, and vibrant banners. The heart of military and diplomatic power." },
   { id: 3, title: "The Necro Rot", realm: "The Wylds", category: "Threats", unlocked: true, read: false, content: "A creeping corruption spreading through the forest. Necrotic wildlife, poisonous terrain, and a hidden temple lie at its source. The Druids struggle to contain it." },
-  { id: 4, title: "Lochmaw Harbor", realm: "Lochmaw", category: "Locations", unlocked: true, read: false, content: "Built from the reclaimed wood of wrecked ships and overturned hulls. Loud, colorful, crude \u2014 home to Corsairs, pirates, traders, and thespians. The Serpent Slayers guild keeps the sea lanes safe." },
+  { id: 4, title: "Lochmaw Harbor", realm: "Lochmaw", category: "Locations", unlocked: true, read: false, content: "Built from the reclaimed wood of wrecked ships and overturned hulls. Loud, colorful, crude \u2014 home to Corsairs, pirates, traders, and thespians." },
   { id: 5, title: "An'Haretti Ruins", realm: "Origin Sands", category: "Lore", unlocked: false, read: false },
   { id: 6, title: "The Dragon Pact", realm: "Desolate Peaks", category: "Lore", unlocked: false, read: false },
   { id: 7, title: "Order of the Drowned", realm: "Lochmaw", category: "Factions", unlocked: false, read: false },
   { id: 8, title: "The Rotten Bishop", realm: "Kingvale", category: "Characters", unlocked: false, read: false },
-  { id: 9, title: "Bole of the Dryad", realm: "The Wylds", category: "Characters", unlocked: true, read: false, content: "The living spirit of the Great Tree made manifest. The Bole speaks in riddles, sees in seasons, and remembers every root and branch that has ever grown in Elysendar." },
+  { id: 9, title: "Bole of the Dryad", realm: "The Wylds", category: "Characters", unlocked: true, read: false, content: "The living spirit of the Great Tree made manifest. The Bole speaks in riddles, sees in seasons, and remembers every root and branch." },
   { id: 10, title: "Guardian Glaives", realm: "The Wylds", category: "Factions", unlocked: true, read: false, content: "Elite protectors of the Great Tree. They patrol the deep woods and answer only to the Tribunal. Few outsiders earn their trust." },
-];
-
-const INIT_SEALED_LOOT = [
-  { id: 1, from: "Kingvale Keep \u2014 Session #22", date: "2 days ago", rarity: "rare" },
-  { id: 2, from: "Wylds Patrol \u2014 Session #24", date: "Yesterday", rarity: "uncommon" },
 ];
 
 const CRAFT_RECIPES = [
@@ -73,11 +72,7 @@ const CRAFT_RECIPES = [
   { id: 4, name: "Sealed Crate Key", desc: "Opens sealed loot from LBE sessions", time: 10, cost: { dustiron: 3 }, result: "key", icon: "\uD83D\uDD11" },
 ];
 
-const LOOT_REWARDS = {
-  rare: [{ name: "Emberforged Gauntlets", rarity: "rare", type: "gear" }, { name: "Dragon Scale Fragment", rarity: "rare", type: "material" }],
-  uncommon: [{ name: "Wyld-Touched Ring", rarity: "uncommon", type: "gear" }, { name: "Polished Seaglass", rarity: "uncommon", type: "material" }],
-  common: [{ name: "Traveler's Rations", rarity: "common", type: "consumable" }],
-};
+const INIT_RESOURCES = { emberstone: 34, wyldroot: 12, seaglass: 8, dustiron: 21 };
 
 // ── STYLE CONSTANTS ──
 const FONT = "'Crimson Pro', 'Georgia', serif";
@@ -91,11 +86,163 @@ const DIM = "rgba(255,255,255,0.5)";
 const rarCol = { common: "#9ca3af", uncommon: "#22c55e", rare: "#3b82f6", epic: "#a855f7", legendary: "#f59e0b" };
 const rlmCol = { Kingvale: "#ffd700", "The Wylds": "#22c55e", Lochmaw: "#3b82f6", "Origin Sands": "#f97316", "Desolate Peaks": "#94a3b8" };
 const rlmIcn = { Kingvale: "\uD83C\uDFF0", "The Wylds": "\uD83C\uDF3F", Lochmaw: "\u2693", "Origin Sands": "\u2600\uFE0F", "Desolate Peaks": "\uD83C\uDFD4\uFE0F" };
-const typIcn = { story: "\uD83D\uDCDC", gathering: "\uD83C\uDF3F", daily: "\u2B50", exploration: "\uD83E\uDDED", dungeon_prep: "\uD83D\uDDE1\uFE0F" };
+const typIcn = { story: "\uD83D\uDCDC", gathering: "\uD83C\uDF3F", daily: "\u2B50", exploration: "\uD83E\uDDED", dungeon_prep: "\uD83D\uDDE1\uFE0F", kill: "\uD83D\uDDE1\uFE0F", visit: "\uD83E\uDDED", collect: "\uD83C\uDF3F" };
 const resIcn = { emberstone: "\uD83D\uDD25", wyldroot: "\uD83C\uDF3F", seaglass: "\uD83C\uDF0A", dustiron: "\u2699\uFE0F" };
 const resCol = { emberstone: "#f97316", wyldroot: "#22c55e", seaglass: "#3b82f6", dustiron: "#94a3b8" };
 
-// ── SHARED COMPONENTS ──
+
+// ══════════════════════════════════════════════════════════
+// DATA NORMALIZATION — Maps API responses to portal shapes
+// ══════════════════════════════════════════════════════════
+
+function normalizeProfile(apiData, sessionCount = 0) {
+  const level = apiData.fate_level || 1;
+  const xp = apiData.fate_xp || 0;
+  const tier = getTier(level);
+  const xpNext = xpForLevel(level);
+  const xpCurrent = xp % xpNext;
+  const tRange = tierXpRange(tier);
+  
+  // Count boss kills from fate_markers
+  const markers = apiData.fate_markers || [];
+  const bossKills = markers.filter(m => 
+    m.marker?.includes('boss') || m.marker?.includes('veil')
+  ).length;
+
+  // Titles
+  const titles = (apiData.titles || []).map(t => ({
+    id: t.title_id,
+    name: (t.title_id || '').replace(/^title_/, '').replace(/_/g, ' ').toUpperCase(),
+    equipped: apiData.equipped_title === t.title_id,
+  }));
+
+  return {
+    displayName: apiData.hero_name || 'Unknown',
+    title: apiData.equipped_title 
+      ? titles.find(t => t.id === apiData.equipped_title)?.name || '' 
+      : apiData.fate_alignment || '',
+    heroName: apiData.hero_name || 'Unknown',
+    tier: tier.name,
+    tierColor: tier.color,
+    level,
+    xp: xpCurrent,
+    xpNext,
+    xpTotal: xp,
+    xpTier: xp - tRange.min,
+    xpTierNext: tRange.max - tRange.min,
+    sessions: sessionCount,
+    questsComplete: 0, // updated from quests
+    bossKills,
+    gearScore: 0, // updated from gear
+    pikId: apiData.root_id || '',
+    equippedTitle: apiData.equipped_title || null,
+    titles,
+    fateAlignment: apiData.fate_alignment || 'NONE',
+  };
+}
+
+function normalizeEquipment(apiEquipment) {
+  if (!apiEquipment || !Array.isArray(apiEquipment)) return MOCK_GEAR;
+  
+  const slots = ['Head', 'Chest', 'Hands', 'Weapon', 'Off-Hand', 'Trinket'];
+  return slots.map(slotName => {
+    const equipped = apiEquipment.find(e => 
+      (e.slot || '').toLowerCase() === slotName.toLowerCase() ||
+      (e.slot || '').toLowerCase() === slotName.replace('-', '').toLowerCase()
+    );
+    return {
+      slot: slotName,
+      item: equipped?.item_name || equipped?.name || null,
+      rarity: equipped?.rarity?.toLowerCase() || null,
+      icon: SLOT_ICONS[slotName.toLowerCase()] || "\uD83D\uDEE1",
+      inventoryId: equipped?.inventory_id || null,
+    };
+  });
+}
+
+function normalizeCaches(apiCaches) {
+  if (!apiCaches || !Array.isArray(apiCaches)) return [];
+  return apiCaches
+    .filter(c => c.status === 'sealed' || c.status === 'SEALED')
+    .map(c => ({
+      id: c.id || c.cache_id,
+      from: c.source_name || c.cache_type || 'Venue Session',
+      date: c.granted_at ? timeAgo(c.granted_at) : 'Recently',
+      rarity: (c.rarity || 'common').toLowerCase(),
+      cacheType: c.cache_type,
+    }));
+}
+
+function normalizeActiveQuests(apiQuests) {
+  if (!apiQuests || !Array.isArray(apiQuests)) return [];
+  return apiQuests
+    .filter(q => q.status === 'active' || q.status === 'ACTIVE' || q.status === 'in_progress')
+    .map(q => ({
+      id: q.id || q.quest_id || q.player_quest_id,
+      name: q.name || q.quest_name || q.template?.name || 'Unknown Quest',
+      realm: q.realm || guessRealm(q),
+      type: (q.quest_type || q.type || 'story').toLowerCase(),
+      tier: q.tier || 'Bronze',
+      progress: computeProgress(q).done,
+      total: computeProgress(q).total,
+      xp: q.rewards?.xp || q.xp_reward || 0,
+      venue: q.requires_venue ?? true,
+      desc: q.description || '',
+    }));
+}
+
+function normalizeAvailableQuests(apiBoard) {
+  if (!apiBoard || !Array.isArray(apiBoard)) return [];
+  return apiBoard.map(q => ({
+    id: q.id || q.quest_id || q.template_id,
+    name: q.name || q.quest_name || 'Unknown Quest',
+    realm: q.realm || guessRealm(q),
+    type: (q.quest_type || q.type || 'story').toLowerCase(),
+    tier: q.tier || q.min_level ? getTier(q.min_level || 1).name : 'Bronze',
+    xp: q.rewards?.xp || q.xp_reward || 0,
+    venue: q.requires_venue ?? true,
+    desc: q.description || '',
+    locked: false,
+  }));
+}
+
+// Helpers
+function timeAgo(dateStr) {
+  const d = new Date(dateStr);
+  const now = Date.now();
+  const diffH = Math.floor((now - d.getTime()) / 3600000);
+  if (diffH < 1) return 'Just now';
+  if (diffH < 24) return `${diffH}h ago`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return 'Yesterday';
+  return `${diffD} days ago`;
+}
+
+function guessRealm(q) {
+  const name = (q.name || q.quest_name || '').toLowerCase();
+  if (name.includes('king') || name.includes('keep')) return 'Kingvale';
+  if (name.includes('wyld') || name.includes('druid') || name.includes('tree')) return 'The Wylds';
+  if (name.includes('loch') || name.includes('harbor') || name.includes('corsair')) return 'Lochmaw';
+  if (name.includes('sand') || name.includes('haretti')) return 'Origin Sands';
+  if (name.includes('peak') || name.includes('dragon') || name.includes('desolat')) return 'Desolate Peaks';
+  return 'Kingvale';
+}
+
+function computeProgress(q) {
+  if (q.objectives && Array.isArray(q.objectives)) {
+    const total = q.objectives.length;
+    const done = q.objectives.filter(o => o.completed || o.current >= (o.target || o.required || 1)).length;
+    return { done, total };
+  }
+  if (q.progress !== undefined && q.total !== undefined) return { done: q.progress, total: q.total };
+  return { done: 0, total: 1 };
+}
+
+
+// ══════════════════════════════════════════════════════════
+// SHARED UI COMPONENTS (unchanged from v1.1)
+// ══════════════════════════════════════════════════════════
+
 function PBar({ value, max, color = "#6366f1", height = 6 }) {
   return (
     <div style={{ height, background: "rgba(255,255,255,0.06)", borderRadius: height / 2, overflow: "hidden", width: "100%" }}>
@@ -121,7 +268,6 @@ function SecTitle({ children, right }) {
   );
 }
 
-/* Toast notification */
 function Toast({ message, color, onDone }) {
   const [vis, setVis] = useState(true);
   useEffect(() => { const t = setTimeout(() => { setVis(false); setTimeout(onDone, 300); }, 2500); return () => clearTimeout(t); }, []);
@@ -157,8 +303,12 @@ function TabBar({ active, onChange }) {
   );
 }
 
-/* ═══════ HERO HUB ═══════ */
-function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoot, onClaimDaily }) {
+
+// ══════════════════════════════════════════════════════════
+// HERO HUB
+// ══════════════════════════════════════════════════════════
+
+function HeroHub({ player, gear, resources, daily, sealedLoot, activeQuests, onOpenLoot, onClaimDaily, onEquipTitle }) {
   const [showGear, setShowGear] = useState(false);
   const tierIdx = TIERS.findIndex(t => t.name === player.tier);
   const nextTier = TIERS[tierIdx + 1];
@@ -198,14 +348,20 @@ function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoo
           <div style={{ position: "absolute", bottom: -4, left: "50%", transform: "translateX(-50%)", background: player.tierColor, color: "#000", fontSize: 10, fontWeight: 800, padding: "2px 10px", borderRadius: 8, fontFamily: FONT_B, letterSpacing: "0.06em" }}>LV {player.level}</div>
         </div>
         <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", fontFamily: FONT, lineHeight: 1.2 }}>
-          {player.heroName}<span style={{ color: player.tierColor, fontWeight: 400, fontSize: 16, fontStyle: "italic" }}> {player.title}</span>
+          {player.heroName}
         </div>
-        <div style={{ fontSize: 13, color: player.tierColor, fontWeight: 600, marginTop: 6, fontFamily: FONT_B }}>{player.tier} Adventurer</div>
-        <div style={{ fontSize: 11, color: MUTED, marginTop: 4, fontFamily: FONT_B }}>{player.displayName} {"\u2022"} {player.pikId}</div>
+        {player.title && <div style={{ fontSize: 14, color: DIM, fontStyle: "italic", fontFamily: FONT, marginTop: 4 }}>{player.title}</div>}
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
+          <Bdg color={player.fateAlignment === 'ORDER' ? '#3b82f6' : player.fateAlignment === 'CHAOS' ? '#ef4444' : '#a78bfa'}>{player.fateAlignment || 'NEUTRAL'}</Bdg>
+          <Bdg color={player.tierColor}>{player.tier} Adventurer</Bdg>
+        </div>
+        <div style={{ fontSize: 11, color: MUTED, marginTop: 8, fontFamily: FONT_B }}>{player.pikId}</div>
+        
+        {/* XP bars */}
         <div style={{ marginTop: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>Level {player.level}</span>
-            <span style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>{player.xp.toLocaleString()} / {player.xpNext.toLocaleString()} XP</span>
+            <span style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>{player.xpTotal?.toLocaleString() || player.xp.toLocaleString()} Total XP</span>
           </div>
           <PBar value={player.xp} max={player.xpNext} color={player.tierColor} />
         </div>
@@ -213,7 +369,7 @@ function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoo
           <div style={{ marginTop: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: player.tierColor, fontFamily: FONT_B, fontWeight: 600 }}>{player.tier}</span>
-              <span style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>{player.xpTier.toLocaleString()} / {player.xpTierNext.toLocaleString()} to {nextTier.name}</span>
+              <span style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>Next: {nextTier.name}</span>
             </div>
             <PBar value={player.xpTier} max={player.xpTierNext} color={nextTier.color} height={4} />
           </div>
@@ -231,11 +387,29 @@ function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoo
         ))}
       </div>
 
+      {/* Titles */}
+      {player.titles && player.titles.length > 0 && (
+        <>
+          <SecTitle right={<span style={{ fontSize: 10, color: "#a78bfa", fontFamily: FONT_B }}>Tap to equip</span>}>Titles Earned</SecTitle>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+            {player.titles.map(t => (
+              <button key={t.id} onClick={() => onEquipTitle(t.equipped ? null : t.id)} style={{
+                padding: "6px 12px", borderRadius: 8,
+                background: t.equipped ? "rgba(99,102,241,0.2)" : SURFACE,
+                border: `1px solid ${t.equipped ? "rgba(99,102,241,0.4)" : BORDER}`,
+                color: t.equipped ? "#a78bfa" : DIM,
+                fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B,
+              }}>{t.equipped ? "\u2605 " : "\u2726 "}{t.name}</button>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* Gear */}
       <SecTitle right={<button onClick={() => setShowGear(!showGear)} style={{ background: "none", border: "none", color: "#6366f1", fontSize: 11, cursor: "pointer", fontFamily: FONT_B, fontWeight: 600 }}>{showGear ? "Collapse" : "View Gear"}</button>}>Equipment</SecTitle>
       {showGear ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
-          {GEAR_SLOTS.map(g => (
+          {gear.map(g => (
             <Crd key={g.slot} style={{ textAlign: "center", padding: 12, opacity: g.item ? 1 : 0.4 }}>
               <div style={{ fontSize: 22, marginBottom: 4 }}>{g.icon}</div>
               <div style={{ fontSize: 10, fontWeight: 700, color: g.item ? (rarCol[g.rarity] || "#fff") : MUTED, fontFamily: FONT_B, lineHeight: 1.3 }}>{g.item || "Empty"}</div>
@@ -246,7 +420,7 @@ function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoo
         </div>
       ) : (
         <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
-          {GEAR_SLOTS.filter(g => g.item).map(g => (
+          {gear.filter(g => g.item).map(g => (
             <div key={g.slot} style={{ padding: "8px 12px", background: SURFACE, borderRadius: 8, border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               <span style={{ fontSize: 14 }}>{g.icon}</span>
               <span style={{ fontSize: 11, color: rarCol[g.rarity], fontWeight: 600, fontFamily: FONT_B, whiteSpace: "nowrap" }}>{g.item}</span>
@@ -275,27 +449,31 @@ function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoo
         </>
       )}
 
-      {/* Active Quests */}
-      <SecTitle right={<span style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B }}>{activeQuests.length} active</span>}>Active Quests</SecTitle>
-      {activeQuests.slice(0, 2).map(q => (
-        <Crd key={q.id} style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16 }}>{typIcn[q.type]}</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: FONT_B }}>{q.name}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                  <span style={{ fontSize: 11, color: rlmCol[q.realm], fontFamily: FONT_B }}>{rlmIcn[q.realm]} {q.realm}</span>
-                  {q.venue && <Bdg color="#f59e0b" style={{ fontSize: 8 }}>Venue</Bdg>}
+      {/* Active Quests Preview */}
+      {activeQuests.length > 0 && (
+        <>
+          <SecTitle right={<span style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B }}>{activeQuests.length} active</span>}>Active Quests</SecTitle>
+          {activeQuests.slice(0, 2).map(q => (
+            <Crd key={q.id} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>{typIcn[q.type] || "\uD83D\uDCDC"}</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: FONT_B }}>{q.name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                      <span style={{ fontSize: 11, color: rlmCol[q.realm] || DIM, fontFamily: FONT_B }}>{rlmIcn[q.realm] || ""} {q.realm}</span>
+                      {q.venue && <Bdg color="#f59e0b" style={{ fontSize: 8 }}>Venue</Bdg>}
+                    </div>
+                  </div>
                 </div>
+                <span style={{ fontSize: 11, color: "#a78bfa", fontWeight: 600, fontFamily: FONT_B }}>+{q.xp} XP</span>
               </div>
-            </div>
-            <span style={{ fontSize: 11, color: "#a78bfa", fontWeight: 600, fontFamily: FONT_B }}>+{q.xp} XP</span>
-          </div>
-          <PBar value={q.progress} max={q.total} color={rlmCol[q.realm]} height={4} />
-          <div style={{ fontSize: 10, color: MUTED, marginTop: 4, fontFamily: FONT_B }}>{q.progress}/{q.total} objectives</div>
-        </Crd>
-      ))}
+              <PBar value={q.progress} max={q.total} color={rlmCol[q.realm] || "#6366f1"} height={4} />
+              <div style={{ fontSize: 10, color: MUTED, marginTop: 4, fontFamily: FONT_B }}>{q.progress}/{q.total} objectives</div>
+            </Crd>
+          ))}
+        </>
+      )}
 
       {/* Resources */}
       <div style={{ marginTop: 12 }}>
@@ -314,7 +492,11 @@ function HeroHub({ player, resources, daily, sealedLoot, activeQuests, onOpenLoo
   );
 }
 
-/* ═══════ QUEST BOARD ═══════ */
+
+// ══════════════════════════════════════════════════════════
+// QUEST BOARD
+// ══════════════════════════════════════════════════════════
+
 function QuestBoard({ activeQuests, availableQuests, onAcceptQuest }) {
   const [filter, setFilter] = useState("active");
   const quests = filter === "active" ? activeQuests : availableQuests;
@@ -328,13 +510,21 @@ function QuestBoard({ activeQuests, availableQuests, onAcceptQuest }) {
           <button key={id} onClick={() => setFilter(id)} style={{ padding: "8px 16px", borderRadius: 20, background: filter === id ? "rgba(99,102,241,0.2)" : SURFACE, border: `1px solid ${filter === id ? "rgba(99,102,241,0.4)" : BORDER}`, color: filter === id ? "#a78bfa" : MUTED, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B }}>{label}</button>
         ))}
       </div>
+      {quests.length === 0 && (
+        <Crd style={{ textAlign: "center", padding: 32 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>{filter === "active" ? "\uD83D\uDCDC" : "\uD83E\uDDED"}</div>
+          <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B }}>
+            {filter === "active" ? "No active quests. Check the Available tab!" : "No quests available right now. Check back later!"}
+          </p>
+        </Crd>
+      )}
       {quests.map(q => {
         const locked = q.locked;
         return (
           <Crd key={q.id} style={{ marginBottom: 10, opacity: locked ? 0.45 : 1 }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: `${rlmCol[q.realm]}12`, border: `1px solid ${rlmCol[q.realm]}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                {locked ? "\uD83D\uDD12" : typIcn[q.type]}
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: `${(rlmCol[q.realm] || "#6366f1")}12`, border: `1px solid ${(rlmCol[q.realm] || "#6366f1")}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                {locked ? "\uD83D\uDD12" : (typIcn[q.type] || "\uD83D\uDCDC")}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -343,13 +533,13 @@ function QuestBoard({ activeQuests, availableQuests, onAcceptQuest }) {
                 </div>
                 <p style={{ fontSize: 11, color: DIM, fontFamily: FONT_B, margin: "4px 0 8px", lineHeight: 1.5 }}>{q.desc}</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11, color: rlmCol[q.realm], fontFamily: FONT_B }}>{rlmIcn[q.realm]} {q.realm}</span>
-                  <Bdg color={TIERS.find(t => t.name === q.tier)?.color || "#888"}>{q.tier}</Bdg>
+                  <span style={{ fontSize: 11, color: rlmCol[q.realm] || DIM, fontFamily: FONT_B }}>{rlmIcn[q.realm] || ""} {q.realm}</span>
+                  <Bdg color={getTier(1).color}>{q.tier}</Bdg>
                   {q.venue !== undefined && <Bdg color={q.venue ? "#f59e0b" : "#22c55e"}>{q.venue ? "Venue Required" : "In-App"}</Bdg>}
                 </div>
                 {q.progress !== undefined && (
                   <div style={{ marginTop: 8 }}>
-                    <PBar value={q.progress} max={q.total} color={rlmCol[q.realm]} height={4} />
+                    <PBar value={q.progress} max={q.total} color={rlmCol[q.realm] || "#6366f1"} height={4} />
                     <span style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>{q.progress}/{q.total}</span>
                   </div>
                 )}
@@ -366,7 +556,11 @@ function QuestBoard({ activeQuests, availableQuests, onAcceptQuest }) {
   );
 }
 
-/* ═══════ LORE CODEX ═══════ */
+
+// ══════════════════════════════════════════════════════════
+// LORE CODEX (client-side only — no backend endpoint yet)
+// ══════════════════════════════════════════════════════════
+
 function LoreCodex({ codex, daily, onReadEntry }) {
   const [selected, setSelected] = useState(null);
   const [catFilter, setCatFilter] = useState("All");
@@ -390,22 +584,20 @@ function LoreCodex({ codex, daily, onReadEntry }) {
       </div>
       <PBar value={unlocked} max={codex.length} color="#22c55e" height={4} />
       <div style={{ marginBottom: 16 }} />
-
       <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
         {categories.map(c => (
           <button key={c} onClick={() => { setCatFilter(c); setSelected(null); }} style={{ padding: "6px 14px", borderRadius: 16, background: catFilter === c ? "rgba(34,197,94,0.15)" : SURFACE, border: `1px solid ${catFilter === c ? "rgba(34,197,94,0.3)" : BORDER}`, color: catFilter === c ? "#22c55e" : MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B, whiteSpace: "nowrap", flexShrink: 0 }}>{c}</button>
         ))}
       </div>
-
       {selected && selected.unlocked && (
         <Crd style={{ marginBottom: 16, background: "linear-gradient(135deg, rgba(34,197,94,0.06), rgba(0,0,0,0.2))", border: "1px solid rgba(34,197,94,0.15)" }}>
           <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: MUTED, fontSize: 12, cursor: "pointer", fontFamily: FONT_B, padding: 0, marginBottom: 8 }}>{"\u2190"} Back</button>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 18 }}>{rlmIcn[selected.realm]}</span>
+            <span style={{ fontSize: 18 }}>{rlmIcn[selected.realm] || ""}</span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", fontFamily: FONT }}>{selected.title}</div>
               <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
-                <Bdg color={rlmCol[selected.realm]}>{selected.realm}</Bdg>
+                <Bdg color={rlmCol[selected.realm] || DIM}>{selected.realm}</Bdg>
                 <Bdg color="#22c55e">{selected.category}</Bdg>
               </div>
             </div>
@@ -413,12 +605,11 @@ function LoreCodex({ codex, daily, onReadEntry }) {
           <p style={{ fontSize: 13, color: DIM, fontFamily: FONT_B, lineHeight: 1.8, margin: 0 }}>{selected.content}</p>
         </Crd>
       )}
-
       {!selected && filtered.map(entry => (
         <Crd key={entry.id} onClick={() => handleSelect(entry)} style={{ marginBottom: 8, cursor: entry.unlocked ? "pointer" : "default", opacity: entry.unlocked ? 1 : 0.4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: entry.unlocked ? `${rlmCol[entry.realm]}12` : "rgba(255,255,255,0.03)", border: `1px solid ${entry.unlocked ? rlmCol[entry.realm] + "25" : BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-              {entry.unlocked ? rlmIcn[entry.realm] : "\uD83D\uDD12"}
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: entry.unlocked ? `${(rlmCol[entry.realm] || "#6366f1")}12` : "rgba(255,255,255,0.03)", border: `1px solid ${entry.unlocked ? (rlmCol[entry.realm] || "#6366f1") + "25" : BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+              {entry.unlocked ? (rlmIcn[entry.realm] || "\uD83D\uDCD6") : "\uD83D\uDD12"}
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: entry.unlocked ? "#fff" : MUTED, fontFamily: FONT_B }}>
@@ -426,7 +617,7 @@ function LoreCodex({ codex, daily, onReadEntry }) {
                 {entry.read && <span style={{ fontSize: 10, color: "#22c55e", marginLeft: 6 }}>{"\u2713"}</span>}
               </div>
               <div style={{ display: "flex", gap: 6, marginTop: 3 }}>
-                <Bdg color={rlmCol[entry.realm]}>{entry.realm}</Bdg>
+                <Bdg color={rlmCol[entry.realm] || DIM}>{entry.realm}</Bdg>
                 <Bdg color={MUTED}>{entry.category}</Bdg>
               </div>
             </div>
@@ -438,11 +629,14 @@ function LoreCodex({ codex, daily, onReadEntry }) {
   );
 }
 
-/* ═══════ WORKSHOP ═══════ */
+
+// ══════════════════════════════════════════════════════════
+// WORKSHOP (client-side only — no backend endpoint yet)
+// ══════════════════════════════════════════════════════════
+
 function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
   const [, setTick] = useState(0);
   useEffect(() => { const iv = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(iv); }, []);
-
   const fmtTime = (s) => { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60; return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec}s` : `${sec}s`; };
   const canAfford = (cost) => Object.entries(cost).every(([k, v]) => (resources[k] || 0) >= v);
 
@@ -450,7 +644,6 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
     <div style={{ padding: "0 20px 120px" }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, margin: "0 0 4px" }}>Workshop</h2>
       <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 16px" }}>Craft consumables, gear mods, and session boosts between adventures.</p>
-
       <div style={{ display: "flex", gap: 12, marginBottom: 20, padding: "10px 14px", background: SURFACE, borderRadius: 10, border: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
         {Object.entries(resources).map(([key, ct]) => (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -459,12 +652,12 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
           </div>
         ))}
       </div>
-
       {Object.entries(timers).length > 0 && (
         <>
           <SecTitle>In Progress</SecTitle>
           {Object.entries(timers).map(([id, timer]) => {
             const recipe = CRAFT_RECIPES.find(r => r.id === parseInt(id));
+            if (!recipe) return null;
             const elSec = Math.floor((Date.now() - timer.started) / 1000);
             const rem = Math.max(0, timer.duration - elSec);
             const done = rem === 0;
@@ -483,10 +676,8 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
               </Crd>
             );
           })}
-          <div style={{ marginBottom: 8 }} />
         </>
       )}
-
       <SecTitle>Recipes</SecTitle>
       {CRAFT_RECIPES.map(r => {
         const active = !!timers[r.id];
@@ -513,7 +704,6 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
           </Crd>
         );
       })}
-
       <Crd style={{ marginTop: 8, background: "linear-gradient(135deg, rgba(249,115,22,0.06), rgba(0,0,0,0.2))", border: "1px solid rgba(249,115,22,0.15)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 22 }}>{"\uD83D\uDCE1"}</span>
@@ -527,85 +717,246 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
   );
 }
 
-/* ═══════ MAIN PORTAL — ALL STATE LIVES HERE ═══════ */
-export default function PIKPortal() {
+
+// ══════════════════════════════════════════════════════════
+// LOADING SCREEN
+// ══════════════════════════════════════════════════════════
+
+function LoadingScreen() {
+  return (
+    <div style={{ width: "100%", maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: BG, fontFamily: FONT_B, color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div style={{ width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, animation: "pulse 1.5s ease infinite" }}>{"\u25C8"}</div>
+      <p style={{ fontSize: 13, color: MUTED }}>Loading your adventure...</p>
+      <style>{`@keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }`}</style>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
+// MAIN PORTAL — ALL STATE + API INTEGRATION
+// ══════════════════════════════════════════════════════════
+
+export default function PIKPortal({ rootId, onLogout }) {
   const [tab, setTab] = useState("hero");
   const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [dataSource, setDataSource] = useState("loading"); // "api" | "mock" | "loading"
 
   // ── Lifted state ──
-  const [player, setPlayer] = useState(INIT_PLAYER);
+  const [player, setPlayer] = useState(MOCK_PLAYER);
+  const [gear, setGear] = useState(MOCK_GEAR);
   const [resources, setResources] = useState(INIT_RESOURCES);
-  const [activeQuests, setActiveQuests] = useState(INIT_ACTIVE_QUESTS);
-  const [availableQuests, setAvailableQuests] = useState(INIT_AVAILABLE_QUESTS);
-  const [codex, setCodex] = useState(INIT_CODEX);
-  const [sealedLoot, setSealedLoot] = useState(INIT_SEALED_LOOT);
+  const [activeQuests, setActiveQuests] = useState([]);
+  const [availableQuests, setAvailableQuests] = useState([]);
+  const [codex, setCodex] = useState(MOCK_CODEX);
+  const [sealedLoot, setSealedLoot] = useState([]);
   const [craftTimers, setCraftTimers] = useState({});
   const [daily, setDaily] = useState({ name: "Study the Codex", desc: "Read 2 lore entries to prepare for the realms.", progress: 0, total: 2, xp: 50, claimed: false });
 
   const notify = (msg, color) => setToast({ msg, color, key: Date.now() });
 
-  // ── Accept Quest ──
-  const handleAcceptQuest = (questId) => {
-    const quest = availableQuests.find(q => q.id === questId);
-    if (!quest || quest.locked) return;
-    setAvailableQuests(prev => prev.filter(q => q.id !== questId));
-    setActiveQuests(prev => [...prev, { ...quest, progress: 0, total: quest.type === "daily" ? 1 : 3 }]);
-    notify(`Quest accepted: ${quest.name}`, rlmCol[quest.realm]);
+  // ── FETCH ALL DATA ON MOUNT ──
+  useEffect(() => {
+    if (!rootId) {
+      setLoading(false);
+      setDataSource("mock");
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchAll() {
+      try {
+        // Parallel fetch all data
+        const [profileResp, equipResp, cachesResp, questsResp, boardResp, sessionsResp] = await Promise.all([
+          api.getProfile(rootId),
+          api.getEquipment(rootId),
+          api.getCaches('sealed', rootId),
+          api.getPlayerQuests(rootId),
+          api.getQuestBoard(rootId),
+          api.getPlayerSessions(rootId),
+        ]);
+
+        if (cancelled) return;
+
+        const isLive = profileResp.ok;
+        setDataSource(isLive ? "api" : "mock");
+
+        if (profileResp.ok) {
+          const sessions = Array.isArray(sessionsResp.data) ? sessionsResp.data : [];
+          const p = normalizeProfile(profileResp.data, sessions.length);
+
+          // Compute quest completions from player quests
+          if (questsResp.ok && Array.isArray(questsResp.data)) {
+            p.questsComplete = questsResp.data.filter(q => 
+              q.status === 'completed' || q.status === 'COMPLETED'
+            ).length;
+          }
+
+          setPlayer(p);
+        }
+
+        if (equipResp.ok) {
+          const normalizedGear = normalizeEquipment(
+            Array.isArray(equipResp.data) ? equipResp.data : equipResp.data?.slots || equipResp.data?.equipment || []
+          );
+          setGear(normalizedGear);
+          // Compute gear score from equipped items
+          const equippedCount = normalizedGear.filter(g => g.item).length;
+          const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
+          const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
+          setPlayer(prev => ({ ...prev, gearScore: gScore }));
+        }
+
+        if (cachesResp.ok) {
+          setSealedLoot(normalizeCaches(
+            Array.isArray(cachesResp.data) ? cachesResp.data : []
+          ));
+        }
+
+        if (questsResp.ok) {
+          setActiveQuests(normalizeActiveQuests(
+            Array.isArray(questsResp.data) ? questsResp.data : []
+          ));
+        }
+
+        if (boardResp.ok) {
+          setAvailableQuests(normalizeAvailableQuests(
+            Array.isArray(boardResp.data) ? boardResp.data : []
+          ));
+        }
+
+      } catch (err) {
+        console.error('Data fetch error:', err);
+        if (!cancelled) setDataSource("mock");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [rootId]);
+
+
+  // ── ACTIONS (API-connected where possible) ──
+
+  const handleAcceptQuest = async (questId) => {
+    if (dataSource === "api") {
+      const resp = await api.acceptQuest(questId, rootId);
+      if (resp.ok) {
+        // Re-fetch quests to get updated state
+        const [qResp, bResp] = await Promise.all([
+          api.getPlayerQuests(rootId),
+          api.getQuestBoard(rootId),
+        ]);
+        if (qResp.ok) setActiveQuests(normalizeActiveQuests(Array.isArray(qResp.data) ? qResp.data : []));
+        if (bResp.ok) setAvailableQuests(normalizeAvailableQuests(Array.isArray(bResp.data) ? bResp.data : []));
+        notify("Quest accepted!", "#22c55e");
+      } else {
+        notify(`Failed: ${resp.error}`, "#ef4444");
+      }
+    } else {
+      // Mock fallback
+      const quest = availableQuests.find(q => q.id === questId);
+      if (!quest || quest.locked) return;
+      setAvailableQuests(prev => prev.filter(q => q.id !== questId));
+      setActiveQuests(prev => [...prev, { ...quest, progress: 0, total: 3 }]);
+      notify(`Quest accepted: ${quest.name}`, rlmCol[quest.realm] || "#22c55e");
+    }
   };
 
-  // ── Open Sealed Loot ──
-  const handleOpenLoot = (lootId) => {
-    const loot = sealedLoot.find(l => l.id === lootId);
-    if (!loot) return;
-    const rewards = LOOT_REWARDS[loot.rarity] || LOOT_REWARDS.common;
-    const reward = rewards[Math.floor(Math.random() * rewards.length)];
-    setSealedLoot(prev => prev.filter(l => l.id !== lootId));
-    setPlayer(prev => ({ ...prev, gearScore: prev.gearScore + (loot.rarity === "rare" ? 8 : 4) }));
-    notify(`Opened: ${reward.name} (${reward.rarity})`, rarCol[reward.rarity]);
+  const handleOpenLoot = async (lootId) => {
+    if (dataSource === "api") {
+      const resp = await api.openCache(lootId, rootId);
+      if (resp.ok) {
+        // Re-fetch caches and profile
+        const [cResp, pResp] = await Promise.all([
+          api.getCaches('sealed', rootId),
+          api.getProfile(rootId),
+        ]);
+        if (cResp.ok) setSealedLoot(normalizeCaches(Array.isArray(cResp.data) ? cResp.data : []));
+        if (pResp.ok) {
+          const sessions = player.sessions;
+          const p = normalizeProfile(pResp.data, sessions);
+          setPlayer(prev => ({ ...prev, ...p }));
+        }
+        const reward = resp.data;
+        const rewardName = reward?.item_name || reward?.name || 'a mysterious item';
+        notify(`Opened: ${rewardName}!`, "#f59e0b");
+      } else {
+        notify(`Failed to open: ${resp.error}`, "#ef4444");
+      }
+    } else {
+      // Mock fallback
+      setSealedLoot(prev => prev.filter(l => l.id !== lootId));
+      setPlayer(prev => ({ ...prev, gearScore: prev.gearScore + 8 }));
+      notify("Cache opened! Received a new item.", "#f59e0b");
+    }
   };
 
-  // ── Read Codex Entry (advances daily) ──
+  const handleEquipTitle = async (titleId) => {
+    if (dataSource === "api") {
+      const resp = await api.equipTitle(titleId, rootId);
+      if (resp.ok) {
+        // Re-fetch profile
+        const pResp = await api.getProfile(rootId);
+        if (pResp.ok) {
+          const p = normalizeProfile(pResp.data, player.sessions);
+          setPlayer(prev => ({ ...prev, ...p }));
+        }
+        notify(titleId ? "Title equipped!" : "Title unequipped", "#a78bfa");
+      }
+    } else {
+      setPlayer(prev => ({
+        ...prev,
+        equippedTitle: titleId,
+        titles: prev.titles.map(t => ({ ...t, equipped: t.id === titleId })),
+      }));
+      notify(titleId ? "Title equipped!" : "Title unequipped", "#a78bfa");
+    }
+  };
+
   const handleReadEntry = (entryId) => {
     setCodex(prev => prev.map(e => e.id === entryId ? { ...e, read: true } : e));
     setDaily(prev => {
       if (prev.claimed) return prev;
       const newProgress = Math.min(prev.progress + 1, prev.total);
-      if (newProgress > prev.progress) {
-        if (newProgress >= prev.total) notify("Daily complete! Claim your XP on the Hero tab.", "#22c55e");
+      if (newProgress > prev.progress && newProgress >= prev.total) {
+        notify("Daily complete! Claim your XP on the Hero tab.", "#22c55e");
       }
       return { ...prev, progress: newProgress };
     });
   };
 
-  // ── Claim Daily ──
   const handleClaimDaily = () => {
     setDaily(prev => ({ ...prev, claimed: true }));
     setPlayer(prev => ({ ...prev, xp: prev.xp + daily.xp, xpTier: prev.xpTier + daily.xp }));
     notify(`+${daily.xp} XP claimed!`, "#22c55e");
   };
 
-  // ── Start Craft (deducts resources, starts timer) ──
   const handleStartCraft = (recipe) => {
     const newRes = { ...resources };
     for (const [k, v] of Object.entries(recipe.cost)) {
       newRes[k] = (newRes[k] || 0) - v;
-      if (newRes[k] < 0) return; // safety
+      if (newRes[k] < 0) return;
     }
     setResources(newRes);
     setCraftTimers(prev => ({ ...prev, [recipe.id]: { started: Date.now(), duration: recipe.time } }));
     notify(`Crafting ${recipe.name}...`, "#f59e0b");
   };
 
-  // ── Collect Finished Craft ──
   const handleCollectCraft = (recipeId) => {
     const recipe = CRAFT_RECIPES.find(r => r.id === recipeId);
     setCraftTimers(prev => { const n = { ...prev }; delete n[recipeId]; return n; });
-    if (recipe.result === "key") {
-      notify(`${recipe.name} crafted! Use it to open sealed loot.`, "#22c55e");
-    } else {
-      notify(`${recipe.name} collected!`, "#22c55e");
-    }
+    notify(`${recipe?.name || 'Item'} collected!`, "#22c55e");
   };
+
+
+  // ── RENDER ──
+
+  if (loading) return <LoadingScreen />;
 
   return (
     <div style={{ width: "100%", maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: BG, fontFamily: FONT_B, color: "#fff", position: "relative" }}>
@@ -613,18 +964,25 @@ export default function PIKPortal() {
 
       {toast && <Toast key={toast.key} message={toast.msg} color={toast.color} onDone={() => setToast(null)} />}
 
+      {/* Top bar */}
       <div style={{ padding: "16px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: `linear-gradient(180deg, ${BG} 60%, transparent)`, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{"\u25C8"}</div>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FONT_B, color: DIM }}>Heroes' Veritas</span>
         </div>
-        <div style={{ padding: "4px 10px", borderRadius: 6, background: SURFACE, border: `1px solid ${BORDER}` }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: player.tierColor, fontFamily: FONT_B }}>{player.tier} {"\u2022"} Lv {player.level}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {dataSource === "api" && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} title="Live data" />}
+          <div style={{ padding: "4px 10px", borderRadius: 6, background: SURFACE, border: `1px solid ${BORDER}` }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: player.tierColor, fontFamily: FONT_B }}>{player.tier} {"\u2022"} Lv {player.level}</span>
+          </div>
+          {onLogout && (
+            <button onClick={onLogout} style={{ background: "none", border: "none", color: MUTED, fontSize: 11, cursor: "pointer", fontFamily: FONT_B, padding: "4px 8px" }}>Sign Out</button>
+          )}
         </div>
       </div>
 
       <div style={{ paddingTop: 8 }}>
-        {tab === "hero" && <HeroHub player={player} resources={resources} daily={daily} sealedLoot={sealedLoot} activeQuests={activeQuests} onOpenLoot={handleOpenLoot} onClaimDaily={handleClaimDaily} />}
+        {tab === "hero" && <HeroHub player={player} gear={gear} resources={resources} daily={daily} sealedLoot={sealedLoot} activeQuests={activeQuests} onOpenLoot={handleOpenLoot} onClaimDaily={handleClaimDaily} onEquipTitle={handleEquipTitle} />}
         {tab === "quests" && <QuestBoard activeQuests={activeQuests} availableQuests={availableQuests} onAcceptQuest={handleAcceptQuest} />}
         {tab === "codex" && <LoreCodex codex={codex} daily={daily} onReadEntry={handleReadEntry} />}
         {tab === "workshop" && <Workshop resources={resources} timers={craftTimers} onStartCraft={handleStartCraft} onCollectCraft={handleCollectCraft} />}
