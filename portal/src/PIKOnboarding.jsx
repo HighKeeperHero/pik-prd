@@ -100,12 +100,12 @@ function Welcome({ onNext, onBack }) {
         <div style={{ width: 80, height: 80, margin: "0 auto", borderRadius: 20, background: "linear-gradient(135deg,#6366f1,#8b5cf6,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, boxShadow: "0 8px 32px rgba(99,102,241,0.4)" }}>{"\u25C8"}</div>
       </Fade>
       <Fade show={e} delay={200}>
-        <div style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Persistent Identity Kernel</div>
-        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", marginTop: 4 }}>PIK</div>
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(139,92,246,0.7)", marginBottom: 6 }}>Fate ID</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Your Identity Across the Realms</div>
       </Fade>
       <Fade show={e} delay={500}>
-        <p style={{ fontSize: 17, lineHeight: 1.7, color: "rgba(255,255,255,0.7)", margin: "32px 0 0", maxWidth: 360 }}>Your gaming identity, persistent across every venue and experience.</p>
-        <p style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(255,255,255,0.4)", marginTop: 16, maxWidth: 360 }}>Create your PIK account to track progression, earn achievements, and carry your hero across the realms of Elysendar.</p>
+        <p style={{ fontSize: 17, lineHeight: 1.7, color: "rgba(255,255,255,0.7)", margin: "28px 0 0", maxWidth: 360 }}>Every adventurer who enters Elysendar is woven into the Tapestry of Fate — a living record of your deeds, your choices, and your legend.</p>
+        <p style={{ fontSize: 14, lineHeight: 1.6, color: "rgba(255,255,255,0.4)", marginTop: 16, maxWidth: 360 }}>Your Fate ID is your persistent identity. It travels with you across every venue and experience — tracking progression, achievements, and your story as it unfolds.</p>
       </Fade>
       <Fade show={e} delay={700}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", margin: "28px 0 36px" }}>
@@ -113,8 +113,8 @@ function Welcome({ onNext, onBack }) {
         </div>
       </Fade>
       <Fade show={e} delay={900} style={{ width: "100%", maxWidth: 340 }}>
-        <Btn onClick={onNext}>Begin Registration</Btn>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 24, lineHeight: 1.6 }}>Your PIK identity is yours. We never sell your data.<br />You can delete your account at any time.</p>
+        <Btn onClick={onNext}>Create Your Fate ID</Btn>
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 24, lineHeight: 1.6 }}>Your Fate ID is yours. We never sell your data.<br />You can request deletion at any time.</p>
       </Fade>
     </div>
   );
@@ -133,7 +133,7 @@ function Auth({ onNext, onBack }) {
     <div style={{ minHeight: "calc(100vh - 80px)", display: "flex", flexDirection: "column", padding: "0 24px 40px" }}>
       <button onClick={onBack} style={S.back}>{"\u2190"} Back</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", maxWidth: 380, margin: "0 auto", width: "100%" }}>
-        <Fade show={e}><h2 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>Create Your Account</h2><p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 32px", lineHeight: 1.6 }}>Choose how you'd like to sign in. This becomes your authentication across all PIK-connected venues.</p></Fade>
+        <Fade show={e}><h2 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>How Will You Sign In?</h2><p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 32px", lineHeight: 1.6 }}>Choose your authentication method. This is how you'll prove your identity — like a key to your Fate ID. You can link additional sign-in methods later.</p></Fade>
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px 0" }}>
             <div style={{ width: 48, height: 48, border: "3px solid rgba(99,102,241,0.2)", borderTopColor: "#6366f1", borderRadius: "50%", margin: "0 auto 20px", animation: "pikspin 0.8s linear infinite" }} />
@@ -151,43 +151,103 @@ function Auth({ onNext, onBack }) {
             </div>
           </Fade>
         )}
-        <Fade show={e} delay={400}><div style={{ marginTop: 32, padding: 16, ...S.card }}><p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0, lineHeight: 1.7 }}>{"\uD83D\uDD12"} <strong style={{ color: "rgba(255,255,255,0.45)" }}>Privacy First.</strong> Your auth provider only confirms your identity — PIK never accesses contacts, calendar, or other account data.</p></div></Fade>
+        <Fade show={e} delay={400}><div style={{ marginTop: 32, padding: 16, ...S.card }}><p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0, lineHeight: 1.7 }}>{"\uD83D\uDD12"} <strong style={{ color: "rgba(255,255,255,0.45)" }}>Privacy First.</strong> Your sign-in provider only confirms your identity — we never access your contacts, calendar, or other account data. You can link multiple sign-in methods to your Fate ID later.</p></div></Fade>
       </div>
     </div>
   );
 }
 
-/* ═══════ STEP 2: ACCOUNT ═══════ */
-function Account({ authData, onNext, onBack }) {
+/* ═══════ STEP 2: FATE ID ═══════ */
+function FateIdStep({ authData, onNext, onBack, takenDisplayNames = [] }) {
   const [e, setE] = useState(false);
   const [name, setName] = useState("");
   const [agreed, setAgreed] = useState(false);
   useEffect(() => { setTimeout(() => setE(true), 100); }, []);
-  const ok = name.length >= 2 && agreed;
+
+  // Display name uniqueness check
+  const nameLower = name.trim().toLowerCase();
+  const isTaken = nameLower.length >= 2 && takenDisplayNames.some(n => n.toLowerCase() === nameLower);
+  const isValid = name.trim().length >= 2 && !isTaken;
+
+  // Generate suggestions if name is taken
+  const suggestions = [];
+  if (isTaken) {
+    for (let i = 1; suggestions.length < 3; i++) {
+      const candidate = `${name.trim()}${i}`;
+      if (!takenDisplayNames.some(n => n.toLowerCase() === candidate.toLowerCase())) {
+        suggestions.push(candidate);
+      }
+      if (i > 99) break;
+    }
+  }
+
+  const ok = isValid && agreed;
   const mi = { google: "\uD83D\uDD35", apple: "\u26AB", passkey: "\uD83D\uDD10", email: "\u2709\uFE0F" }[authData?.method] || "";
   return (
     <div style={{ minHeight: "calc(100vh - 80px)", display: "flex", flexDirection: "column", padding: "0 24px 40px" }}>
       <button onClick={onBack} style={S.back}>{"\u2190"} Back</button>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", maxWidth: 380, margin: "0 auto", width: "100%" }}>
         <Fade show={e}>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>Your PIK Identity</h2>
-          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 8px", lineHeight: 1.6 }}>This is your persistent identity across all connected venues. Your display name appears on leaderboards and in shared experiences.</p>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>Create Your Fate ID</h2>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", margin: "0 0 8px", lineHeight: 1.6 }}>Your Fate ID is your permanent identity across all connected realms and experiences — like an adventurer's guild card that follows you everywhere. Choose a name the realms will know you by.</p>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "rgba(99,102,241,0.08)", borderRadius: 8, border: "1px solid rgba(99,102,241,0.15)", marginBottom: 28 }}>
             <span style={{ fontSize: 12 }}>{mi}</span><span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Authenticated via {authData?.method}</span><span style={{ fontSize: 11, color: "rgba(99,102,241,0.7)" }}>{"\u2713"}</span>
           </div>
         </Fade>
         <Fade show={e} delay={200}>
-          <Input label="Display Name" value={name} onChange={setName} placeholder="How others will see you" maxLength={24} />
-          {name.length > 0 && (<div style={{ padding: "12px 16px", background: "rgba(99,102,241,0.06)", borderRadius: 10, marginBottom: 20, border: "1px solid rgba(99,102,241,0.1)" }}><span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Preview</span><p style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "4px 0 0" }}>{name}<span style={{ fontSize: 13, color: "rgba(167,139,250,0.6)", fontWeight: 400 }}> #PIK</span></p></div>)}
+          <Input label="Fate Name" value={name} onChange={setName} placeholder="The name the realms will know you by" maxLength={24} />
+
+          {/* Uniqueness indicator */}
+          {name.trim().length >= 2 && (
+            <div style={{ marginTop: -12, marginBottom: 16, padding: "8px 12px", borderRadius: 8, background: isTaken ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)", border: `1px solid ${isTaken ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"}` }}>
+              {isTaken ? (
+                <div>
+                  <div style={{ fontSize: 12, color: "#ef4444", fontWeight: 600, marginBottom: 6 }}>
+                    {"\u2718"} "{name.trim()}" is already claimed
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginBottom: 6 }}>Try one of these:</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {suggestions.map(s => (
+                      <button key={s} onClick={() => setName(s)} style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", color: "#a78bfa", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 600 }}>
+                  {"\u2714"} "{name.trim()}" is available
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Live preview */}
+          {name.length > 0 && isValid && (
+            <div style={{ padding: "12px 16px", background: "rgba(99,102,241,0.06)", borderRadius: 10, marginBottom: 20, border: "1px solid rgba(99,102,241,0.1)" }}>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Preview</span>
+              <p style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: "4px 0 0" }}>{name}<span style={{ fontSize: 13, color: "rgba(167,139,250,0.6)", fontWeight: 400 }}> #FATE</span></p>
+            </div>
+          )}
+
           <div style={S.card}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: "0 0 10px" }}>What your PIK account enables:</p>
-            {[["\uD83C\uDFAE","Track XP, levels, and achievements across every connected venue"],["\uD83D\uDCE1","Sync instantly with venue wristbands \u2014 just tap to link"],["\uD83C\uDFC6","Compete on cross-venue leaderboards and complete quest chains"],["\uD83D\uDEE1\uFE0F","Your progress persists \u2014 even if a venue closes, your data stays"]].map(([icon, text], i) => (<div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}><span style={{ fontSize: 14, lineHeight: "20px" }}>{icon}</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: "20px" }}>{text}</span></div>))}
+            <p style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.5)", margin: "0 0 10px" }}>What your Fate ID enables:</p>
+            {[
+              ["\uD83C\uDFAE","Track XP, levels, and achievements across every connected venue and experience"],
+              ["\uD83D\uDCE1","Sync instantly with venue wristbands — just tap to link your session"],
+              ["\uD83C\uDFC6","Compete on cross-venue leaderboards and complete quest chains"],
+              ["\uD83D\uDEE1\uFE0F","Your progress persists — even if a venue closes, your Fate ID and history remain yours"],
+              ["\u2694\uFE0F","Create heroes and personas in different experiences, all under one Fate ID"],
+            ].map(([icon, text], i) => (<div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}><span style={{ fontSize: 14, lineHeight: "20px" }}>{icon}</span><span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", lineHeight: "20px" }}>{text}</span></div>))}
           </div>
+
+          <div style={{ padding: 14, background: "rgba(139,92,246,0.04)", borderRadius: 10, border: "1px solid rgba(139,92,246,0.1)", marginBottom: 20 }}>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", margin: 0, lineHeight: 1.7, fontStyle: "italic" }}>Think of your Fate ID like an EA Account, Xbox Gamertag, or Epic Games ID — it's <em>your</em> account on our platform, separate from how you sign in. Your heroes and characters live under this identity.</p>
+          </div>
+
           <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer", marginBottom: 24 }}>
             <div onClick={() => setAgreed(!agreed)} style={{ width: 20, height: 20, minWidth: 20, borderRadius: 6, border: `2px solid ${agreed ? "#6366f1" : "rgba(255,255,255,0.15)"}`, background: agreed ? "#6366f1" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease", marginTop: 1, cursor: "pointer" }}>{agreed && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>{"\u2713"}</span>}</div>
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>I understand my PIK identity is persistent and my gameplay data will be stored securely. I can request deletion at any time. I agree to the <span style={{ color: "rgba(139,92,246,0.8)", textDecoration: "underline" }}>Terms</span> and <span style={{ color: "rgba(139,92,246,0.8)", textDecoration: "underline" }}>Privacy Policy</span>.</span>
+            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>I understand my Fate ID is persistent and my gameplay data will be stored securely. I can request deletion at any time. I agree to the <span style={{ color: "rgba(139,92,246,0.8)", textDecoration: "underline" }}>Terms</span> and <span style={{ color: "rgba(139,92,246,0.8)", textDecoration: "underline" }}>Privacy Policy</span>.</span>
           </label>
-          <Btn onClick={() => onNext({ displayName: name })} disabled={!ok}>Create PIK Account</Btn>
+          <Btn onClick={() => onNext({ displayName: name.trim() })} disabled={!ok}>Create Fate ID</Btn>
         </Fade>
       </div>
     </div>
@@ -195,7 +255,7 @@ function Account({ authData, onNext, onBack }) {
 }
 
 /* ═══════ STEP 3: HERO (Adventurer System) ═══════ */
-function HeroStep({ accountData, onNext, onSkip, takenNames = [] }) {
+function HeroStep({ accountData, onNext, onSkip, takenHeroNames = [] }) {
   const [e, setE] = useState(false);
   const [heroName, setHeroName] = useState("");
   const [title, setTitle] = useState(null);
@@ -204,7 +264,7 @@ function HeroStep({ accountData, onNext, onSkip, takenNames = [] }) {
 
   // Name uniqueness check
   const nameLower = heroName.trim().toLowerCase();
-  const isTaken = nameLower.length >= 2 && takenNames.some(n => n.toLowerCase() === nameLower);
+  const isTaken = nameLower.length >= 2 && takenHeroNames.some(n => n.toLowerCase() === nameLower);
   const isValid = heroName.trim().length >= 2 && !isTaken;
 
   // Generate suggestions if name is taken
@@ -212,7 +272,7 @@ function HeroStep({ accountData, onNext, onSkip, takenNames = [] }) {
   if (isTaken) {
     for (let i = 1; suggestions.length < 3; i++) {
       const candidate = `${heroName.trim()}${i}`;
-      if (!takenNames.some(n => n.toLowerCase() === candidate.toLowerCase())) {
+      if (!takenHeroNames.some(n => n.toLowerCase() === candidate.toLowerCase())) {
         suggestions.push(candidate);
       }
       if (i > 99) break;
@@ -224,12 +284,22 @@ function HeroStep({ accountData, onNext, onSkip, takenNames = [] }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <Fade show={e}>
           <h2 style={{ fontSize: 24, fontWeight: 700, color: "#fff", margin: 0 }}>Name Your Adventurer</h2>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "4px 0 0" }}>Every hero begins the same journey</p>
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: "4px 0 0" }}>Your hero within Heroes' Veritas</p>
         </Fade>
         <button onClick={onSkip} style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 14px", color: "rgba(255,255,255,0.4)", fontSize: 12, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Skip {"\u2192"}</button>
       </div>
 
       <div style={{ flex: 1, maxWidth: 420, margin: "0 auto", width: "100%" }}>
+        <Fade show={e} delay={100}>
+          <div style={{ padding: 14, background: "rgba(139,92,246,0.04)", borderRadius: 10, border: "1px solid rgba(139,92,246,0.1)", marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 14 }}>{"\u25C8"}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(167,139,250,0.8)" }}>Fate ID: {accountData?.displayName}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: 0, lineHeight: 1.6 }}>Your hero name is your character within this experience. Your Fate ID ({accountData?.displayName}) is your account — future experiences may have you create different characters, all under the same Fate ID.</p>
+          </div>
+        </Fade>
+
         <Fade show={e} delay={150}>
           <div style={{ padding: 16, background: "linear-gradient(135deg, rgba(205,127,50,0.08), rgba(205,127,50,0.02))", borderRadius: 12, border: "1px solid rgba(205,127,50,0.2)", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -315,7 +385,7 @@ function HeroStep({ accountData, onNext, onSkip, takenNames = [] }) {
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>{"\u2022"}</span>
                 <span style={{ fontSize: 13, color: "rgba(205,127,50,0.7)", fontWeight: 500 }}>Bronze Adventurer</span>
               </div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 8 }}>{accountData?.displayName} {"\u2022"} PIK #{Math.random().toString(36).slice(2,8).toUpperCase()}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginTop: 8 }}>{accountData?.displayName} {"\u2022"} Fate ID Active</div>
               <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                 {[["XP","0"],["Tier","Bronze"],["Quests","0"]].map(([l,v]) => (
                   <div key={l} style={{ textAlign: "center" }}>
@@ -381,7 +451,7 @@ function Done({ accountData, heroData, onFinish }) {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
-      {/* Great Tree emblem instead of generic checkmark */}
+      {/* Great Tree emblem */}
       <Fade show={e} delay={0}>
         <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 24px", background: "linear-gradient(135deg, #22c55e, #059669, #10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, boxShadow: "0 8px 32px rgba(34,197,94,0.35), 0 0 60px rgba(34,197,94,0.1)" }}>{"\uD83C\uDF3F"}</div>
       </Fade>
@@ -389,7 +459,7 @@ function Done({ accountData, heroData, onFinish }) {
       <Fade show={e} delay={300}>
         <h2 style={{ fontSize: 26, fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>The Realms of Elysendar Await</h2>
         <p style={{ fontSize: 14, fontWeight: 500, color: "rgba(34,197,94,0.7)", margin: "0 0 12px", fontStyle: "italic", letterSpacing: "0.02em" }}>Blessed by the Great Tree, your story begins.</p>
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, margin: "0 0 28px", maxWidth: 340 }}>Your PIK identity is bound to the realms. Visit any connected venue, tap your wristband, and step into Elysendar.</p>
+        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.6, margin: "0 0 28px", maxWidth: 340 }}>Your Fate ID is bound to the realms. Visit any connected venue, tap your wristband, and step into Elysendar.</p>
       </Fade>
 
       {hasHero && (
@@ -405,7 +475,7 @@ function Done({ accountData, heroData, onFinish }) {
               <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>{"\u2022"}</span>
               <span style={{ fontSize: 13, color: "rgba(205,127,50,0.7)", fontWeight: 500 }}>Bronze Adventurer</span>
             </div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 8 }}>{accountData?.displayName} {"\u2022"} PIK Identity Active</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", marginTop: 8 }}>{accountData?.displayName} {"\u2022"} Fate ID Active</div>
 
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -472,16 +542,18 @@ export default function PIKOnboarding({ onComplete, onBack }) {
   const [acct, setAcct] = useState(null);
   const [hero, setHero] = useState(null);
   const [fade, setFade] = useState(false);
-  const [takenNames, setTakenNames] = useState([]);
+  const [takenDisplayNames, setTakenDisplayNames] = useState([]);
+  const [takenHeroNames, setTakenHeroNames] = useState([]);
   const go = useCallback((n) => { setFade(true); setTimeout(() => { setStep(n); setFade(false); }, 300); }, []);
 
-  // Fetch existing hero names for uniqueness validation
+  // Fetch existing names for uniqueness validation
   useEffect(() => {
     import('./api.js').then(mod => {
       const api = mod.default;
       api.listUsers().then(resp => {
         if (resp.ok && Array.isArray(resp.data)) {
-          setTakenNames(resp.data.map(u => u.hero_name).filter(Boolean));
+          setTakenHeroNames(resp.data.map(u => u.hero_name).filter(Boolean));
+          setTakenDisplayNames(resp.data.map(u => u.display_name).filter(Boolean));
         }
       }).catch(() => {});
     }).catch(() => {});
@@ -490,12 +562,12 @@ export default function PIKOnboarding({ onComplete, onBack }) {
   return (
     <div style={S.page}>
       <div style={S.orb1} /><div style={S.orb2} />
-      {step > 0 && <div style={{ padding: "24px 24px 0", position: "relative", zIndex: 2 }}><Steps current={step - 1} labels={["Sign In","Identity","Hero"]} /></div>}
+      {step > 0 && <div style={{ padding: "24px 24px 0", position: "relative", zIndex: 2 }}><Steps current={step - 1} labels={["Sign In","Fate ID","Hero"]} /></div>}
       <div style={{ opacity: fade ? 0 : 1, transform: fade ? "translateY(8px)" : "none", transition: "all 0.3s ease", position: "relative", zIndex: 1 }}>
         {step === 0 && <Welcome onNext={() => go(1)} onBack={onBack} />}
         {step === 1 && <Auth onNext={d => { setAuth(d); go(2); }} onBack={() => go(0)} />}
-        {step === 2 && <Account authData={auth} onNext={d => { setAcct(d); go(3); }} onBack={() => go(1)} />}
-        {step === 3 && <HeroStep accountData={acct} onNext={d => { setHero(d); go(4); }} onSkip={() => go(4)} takenNames={takenNames} />}
+        {step === 2 && <FateIdStep authData={auth} onNext={d => { setAcct(d); go(3); }} onBack={() => go(1)} takenDisplayNames={takenDisplayNames} />}
+        {step === 3 && <HeroStep accountData={acct} onNext={d => { setHero(d); go(4); }} onSkip={() => go(4)} takenHeroNames={takenHeroNames} />}
         {step === 4 && <Done accountData={acct} heroData={hero} onFinish={() => onComplete && onComplete({ auth, acct, hero })} />}
       </div>
     </div>
