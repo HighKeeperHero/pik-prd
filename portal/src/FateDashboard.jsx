@@ -410,21 +410,17 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
     setShowHeroModal(false);
   };
 
-  // XP progress within current tier
-  // Compute cumulative XP required to reach each tier boundary using
-  // the same exponential curve the backend uses (xpBaseThreshold=100, multiplier=1.18)
-  const XP_BASE = 100, XP_MULT = 1.18;
-  function xpToReachLevel(lv) {
-    let total = 0;
-    for (let i = 1; i < lv; i++) total += Math.floor(XP_BASE * Math.pow(XP_MULT, i - 1));
-    return total;
-  }
-  const nextTierIdx = TIERS.findIndex(t => t.name === tier.name) + 1;
-  const currentTierMinXp = xpToReachLevel(tier.min);
-  const nextTierMinXp    = nextTierIdx < TIERS.length ? xpToReachLevel(TIERS[nextTierIdx].min) : null;
-  const xpInTier         = fateXP - currentTierMinXp;
-  const xpNeededForTier  = nextTierMinXp ? nextTierMinXp - currentTierMinXp : null;
-  const xpProgress       = xpNeededForTier ? Math.min(xpInTier / xpNeededForTier, 1) : 1;
+  // Tier progress: use Fate Level position within the tier's level range.
+  // This is the canonical measure — avoids any XP curve drift between
+  // client and backend, and maps cleanly to cross-venue cumulative fate level.
+  const tierObj      = TIERS.find(t => t.name === tier.name) || TIERS[0];
+  const nextTierIdx  = TIERS.indexOf(tierObj) + 1;
+  const nextTierObj  = TIERS[nextTierIdx] || null;
+  const tierMinLevel = tierObj.min;
+  const tierMaxLevel = nextTierObj ? nextTierObj.min - 1 : tierObj.min + 10;
+  const levelsInTier = tierMaxLevel - tierMinLevel + 1;
+  const levelInTier  = Math.max(0, fateLevel - tierMinLevel);
+  const xpProgress   = nextTierObj ? Math.min(levelInTier / levelsInTier, 1) : 1;
 
   const authIcon = { google: "🔵", apple: "⚫", passkey: "🔐", email: "✉️" }[authMethod] || "🔑";
 
@@ -506,7 +502,7 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                   <span style={{ fontSize: 10, fontWeight: 600, color: tier.color, textTransform: "uppercase", letterSpacing: "0.06em" }}>{tier.name}</span>
                   <span style={{ fontSize: 10, color: MUTED }}>
-                    {xpInTier.toLocaleString()} {xpNeededForTier ? `/ ${xpNeededForTier.toLocaleString()} XP` : "XP"}
+                    {nextTierObj ? `Lv ${fateLevel} / ${tierMaxLevel}` : `Lv ${fateLevel} · Max Tier`}
                   </span>
                 </div>
                 <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
