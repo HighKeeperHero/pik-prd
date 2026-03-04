@@ -141,7 +141,7 @@
 
   /* ── Modal ── */
   .modal-overlay {
-    display: none; position: fixed; inset: 0; background: #000a;
+    display: none; position: fixed; inset: 0; background: #000c;
     z-index: 100; align-items: center; justify-content: center;
   }
   .modal-overlay.open { display: flex; }
@@ -150,16 +150,51 @@
     padding: 28px; width: 420px; max-width: 95vw;
   }
   .modal h3 { font-size: 14px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; margin-bottom: 20px; }
-  /* Demo modal specifics */
-  .demo-tabs { display: flex; gap: 0; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-  .demo-tab { flex: 1; padding: 9px; background: transparent; border: none; color: var(--dim); font-family: inherit; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all .2s; }
-  .demo-tab.active { background: var(--accent); color: #fff; }
-  .demo-tab:not(:last-child) { border-right: 1px solid var(--border); }
-  .demo-panel { display: none; }
-  .demo-panel.active { display: block; }
-  .demo-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-  .legacy-link { display: block; text-align: center; font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; text-decoration: none; margin-top: 12px; padding: 6px; border: 1px solid var(--border); border-radius: 6px; transition: all .2s; }
-  .legacy-link:hover { color: var(--accent); border-color: var(--accent); }
+  /* ── Demo Simulation Modal ── */
+  #demo-modal .modal { width: 560px; max-height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  .demo-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .demo-header h3 { margin: 0; }
+  .demo-header p  { font-size: 10px; color: var(--dim); letter-spacing: 1px; margin-top: 4px; }
+  .demo-setup  { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; flex-shrink: 0; }
+  .demo-setup select, .demo-setup input {
+    flex: 1; padding: 7px 10px; background: #0a0c10; border: 1px solid var(--border);
+    border-radius: 5px; color: var(--text); font-family: inherit; font-size: 11px;
+  }
+  .demo-setup select:focus, .demo-setup input:focus { outline: none; border-color: var(--accent); }
+  .demo-setup label { font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .demo-steps-track { padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+  .demo-step-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); transition: all .3s; flex-shrink: 0; }
+  .demo-step-dot.done { background: var(--accent2); border-color: var(--accent2); }
+  .demo-step-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .demo-step-line { flex: 1; height: 1px; background: var(--border); }
+  .demo-step-line.done { background: var(--accent2); }
+  .demo-narrative { padding: 12px 24px; background: #7c6aff0a; border-bottom: 1px solid var(--border); flex-shrink: 0; min-height: 52px; }
+  .demo-narrative .step-num { font-size: 9px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
+  .demo-narrative .step-desc { font-size: 12px; color: var(--text); line-height: 1.5; }
+  .demo-log { flex: 1; overflow-y: auto; padding: 10px 24px; min-height: 140px; max-height: 220px; }
+  .demo-log-entry { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid #1a1f2a; font-size: 10px; }
+  .demo-log-entry:last-child { border-bottom: none; }
+  .demo-log-time { color: var(--dim); flex-shrink: 0; font-size: 9px; padding-top: 1px; }
+  .demo-log-icon { flex-shrink: 0; }
+  .demo-log-msg  { color: var(--text); flex: 1; line-height: 1.4; }
+  .demo-log-msg .hi  { color: var(--accent2); font-weight: 700; }
+  .demo-log-msg .lvl { color: var(--gold);    font-weight: 700; }
+  .demo-log-msg .err { color: var(--red); }
+  .demo-controls { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+  .demo-btn { padding: 8px 16px; border-radius: 5px; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; font-family: inherit; cursor: pointer; border: none; transition: all .2s; }
+  .demo-btn-primary  { background: var(--accent); color: #fff; }
+  .demo-btn-primary:hover  { background: #9d8fff; }
+  .demo-btn-primary:disabled  { opacity: .4; cursor: default; }
+  .demo-btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--dim); }
+  .demo-btn-secondary:hover:not(:disabled) { border-color: var(--accent2); color: var(--accent2); }
+  .demo-btn-secondary:disabled { opacity: .4; cursor: default; }
+  .demo-btn-danger { background: transparent; border: 1px solid var(--border); color: var(--dim); margin-left: auto; }
+  .demo-btn-danger:hover { border-color: var(--red); color: var(--red); }
+  .demo-speed { font-size: 9px; color: var(--dim); letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }
+  .demo-speed select { padding: 4px 6px; background: #0a0c10; border: 1px solid var(--border); border-radius: 4px; color: var(--dim); font-family: inherit; font-size: 9px; }
+  .demo-portal-btn { padding: 7px 14px; background: transparent; border: 1px solid var(--accent2); border-radius: 5px; color: var(--accent2); font-size: 10px; letter-spacing: 1px; font-family: inherit; cursor: pointer; text-transform: uppercase; white-space: nowrap; }
+  .demo-portal-btn:hover { background: #00d4a811; }
+  .demo-portal-btn:disabled { opacity: .4; cursor: default; }
   .form-group { margin-bottom: 14px; }
   .form-group label { display:block; font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
   .form-group input, .form-group select {
@@ -410,58 +445,60 @@
   </div>
 </div>
 
-<!-- ── Demo Modal ─────────────────────────────────────────── -->
+<!-- ── Demo Simulation Modal ─────────────────────────────── -->
 <div class="modal-overlay" id="demo-modal" onclick="if(event.target===this)closeDemoModal()">
-  <div class="modal" style="width:460px">
-    <h3>⟐ Demo Mode</h3>
+  <div class="modal">
 
-    <div class="demo-tabs">
-      <button class="demo-tab active" onclick="switchDemoTab('existing')">Existing User</button>
-      <button class="demo-tab" onclick="switchDemoTab('new')">New Demo User</button>
+    <div class="demo-header">
+      <h3>⟐ Simulation Demo</h3>
+      <p>Watch a hero's journey unfold — automatically or step by step</p>
     </div>
 
-    <!-- Existing user panel -->
-    <div class="demo-panel active" id="demo-panel-existing">
-      <div class="form-group">
-        <label>Select Player</label>
-        <select id="demo-existing-user" style="width:100%;padding:8px 12px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
-          <option value="">— loading users —</option>
+    <!-- Hero selection / creation -->
+    <div class="demo-setup" id="demo-setup-row">
+      <div style="flex:1">
+        <label>Hero</label>
+        <select id="demo-hero-select" onchange="onDemoHeroChange()">
+          <option value="__new__">✦ Create new demo hero…</option>
         </select>
       </div>
-      <div id="demo-existing-preview" style="font-size:10px;color:var(--dim);min-height:18px;margin-bottom:12px"></div>
-      <button class="btn-primary" style="width:100%" onclick="launchDemoExisting()">▶ Enter Portal as This Player</button>
-    </div>
-
-    <!-- New user panel -->
-    <div class="demo-panel" id="demo-panel-new">
-      <div class="form-group">
+      <div id="demo-new-name-wrap" style="flex:1">
         <label>Hero Name</label>
-        <input type="text" id="demo-hero-name" placeholder="e.g. Aelindra Voss" style="width:100%;padding:8px 12px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
+        <input type="text" id="demo-new-name" placeholder="e.g. Aelindra Voss">
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Alignment</label>
-          <select id="demo-alignment" style="width:100%;padding:8px 12px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
-            <option value="Unaligned">Unaligned</option>
-            <option value="Order">Order</option>
-            <option value="Veil">Veil</option>
-            <option value="Wild">Wild</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Origin</label>
-          <input type="text" id="demo-origin" placeholder="e.g. Emberwatch" style="width:100%;padding:8px 12px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
-        </div>
-      </div>
-      <div id="demo-new-status" style="font-size:10px;color:var(--dim);min-height:18px;margin-bottom:12px"></div>
-      <button class="btn-primary" style="width:100%" onclick="launchDemoNew()">✦ Enroll &amp; Enter Portal</button>
+      <button class="demo-btn demo-btn-primary" id="demo-begin-btn" onclick="beginDemo()" style="flex-shrink:0;white-space:nowrap">Begin →</button>
     </div>
 
-    <hr class="demo-divider">
-    <a href="/demo.html" class="legacy-link" target="_blank">↗ Open Legacy Demo Page</a>
-    <div class="modal-actions" style="margin-top:12px">
-      <button class="btn-secondary" onclick="closeDemoModal()">Cancel</button>
+    <!-- Step progress track (hidden until running) -->
+    <div class="demo-steps-track" id="demo-track" style="display:none"></div>
+
+    <!-- Current step narrative -->
+    <div class="demo-narrative" id="demo-narrative" style="display:none">
+      <div class="step-num" id="demo-step-num">Step 1 of 8</div>
+      <div class="step-desc" id="demo-step-desc">—</div>
     </div>
+
+    <!-- Event log -->
+    <div class="demo-log" id="demo-log">
+      <div style="font-size:10px;color:var(--dim);padding:20px 0;text-align:center">Configure a hero above and press Begin →</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="demo-controls">
+      <button class="demo-btn demo-btn-primary" id="demo-auto-btn"   onclick="demoAutoPlay()" disabled>▶ Auto</button>
+      <button class="demo-btn demo-btn-secondary" id="demo-step-btn" onclick="demoStep()"     disabled>Step →</button>
+      <div class="demo-speed">
+        Speed
+        <select id="demo-speed">
+          <option value="2500">Slow</option>
+          <option value="1500" selected>Normal</option>
+          <option value="700">Fast</option>
+        </select>
+      </div>
+      <button class="demo-portal-btn" id="demo-portal-btn" onclick="demoOpenPortal()" disabled title="Open player portal">↗ Portal</button>
+      <button class="demo-btn demo-btn-danger" onclick="closeDemoModal()">✕ Close</button>
+    </div>
+
   </div>
 </div>
 
@@ -1388,82 +1425,341 @@ setInterval(async () => {
 
 
 
-// ── Demo Modal ────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+// DEMO SIMULATION
+// ════════════════════════════════════════════════════════════
 
-function openDemoModal() {
+// ── Script: the full hero journey ──
+const DEMO_SCRIPT = [
+  {
+    id: 'enroll',
+    label: 'Identity Enrolled',
+    icon: '◈',
+    desc: 'A new adventurer registers with the PIK system. Their Fate identity is created and tied to a source venue.',
+    action: async (ctx) => {
+      // If using existing hero skip enroll; just log their current state
+      if (ctx.existingHero) {
+        const r = await apiFetch(`/api/users/${ctx.rootId}`);
+        const p = r.data?.progression || r.data || {};
+        const pe = r.data?.persona    || r.data || {};
+        ctx.heroName = pe.hero_name || ctx.heroName;
+        demoLog('◈', `<span class="hi">${ctx.heroName}</span> is ready · Lv ${p.fate_level||1} · ${p.fate_xp||0} XP`);
+        return { ok: true };
+      }
+      // Create new hero
+      const r = await apiFetch('/api/users/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hero_name: ctx.heroName, fate_alignment: 'Unaligned', origin: 'Demo', enrolled_by: 'operator:demo' })
+      });
+      if (r.status !== 'ok') throw new Error(r.message || 'Enroll failed');
+      ctx.rootId = r.data.root_id;
+      await ensureSourceLink(ctx.rootId, 'src-heroes-veritas-01');
+      demoLog('◈', `<span class="hi">${ctx.heroName}</span> enrolled · identity established`);
+      return r;
+    }
+  },
+  {
+    id: 'session1',
+    label: 'First Session',
+    icon: '🎯',
+    desc: 'The hero taps their wristband at a venue and completes their first session. Fate XP flows in from the real world.',
+    action: async (ctx) => {
+      const r = await demoIngest(ctx.rootId, 'progression.session_completed', { difficulty: 'normal', boss_damage_pct: 0, nodes_completed: 4 });
+      const c = r.data?.changes_applied || {};
+      const xp = (c.session_xp||0)+(c.node_xp||0)+(c.xp_granted||0);
+      let msg = `Session complete · <span class="hi">+${xp} XP</span>`;
+      if (c.level_up) msg += ` · <span class="lvl">⬆ LEVEL UP ${c.level_up.from}→${c.level_up.to}</span>`;
+      if (c.cache_granted) msg += ` · 📦 Cache dropped`;
+      demoLog('🎯', msg);
+      ctx.lastXp = xp;
+      return r;
+    }
+  },
+  {
+    id: 'session2',
+    label: 'Hard Session — Boss Encounter',
+    icon: '⚔',
+    desc: 'A harder session with significant boss damage earns bonus XP and triggers a Fate Marker — a permanent mark on this hero\'s identity.',
+    action: async (ctx) => {
+      const r = await demoIngest(ctx.rootId, 'progression.session_completed', { difficulty: 'hard', boss_damage_pct: 80, nodes_completed: 6 });
+      const c = r.data?.changes_applied || {};
+      const xp = (c.session_xp||0)+(c.boss_bonus_xp||0)+(c.node_xp||0)+(c.xp_granted||0);
+      let msg = `Hard session · boss 80% · <span class="hi">+${xp} XP</span>`;
+      if (c.level_up) msg += ` · <span class="lvl">⬆ LEVEL UP ${c.level_up.from}→${c.level_up.to}</span>`;
+      demoLog('⚔', msg);
+      return r;
+    }
+  },
+  {
+    id: 'marker',
+    label: 'Fate Marker — Veil Witness',
+    icon: '◈',
+    desc: 'The hero\'s boss encounter earns them a permanent Fate Marker. These can never be removed — they are the true record of a hero\'s deeds.',
+    action: async (ctx) => {
+      const r = await demoIngest(ctx.rootId, 'progression.fate_marker', { marker: 'veil_witness' });
+      demoLog('◈', `Fate Marker branded: <span class="hi">Veil Witness</span> — permanent`);
+      return r;
+    }
+  },
+  {
+    id: 'grant_cache',
+    label: 'Fate Cache Granted',
+    icon: '📦',
+    desc: 'The system rewards the hero with a sealed Fate Cache. It sits in their inventory until they choose to open it.',
+    action: async (ctx) => {
+      const r = await fetch(`${API}/api/loot/grant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ root_id: ctx.rootId, cache_type: 'boss_kill', rarity: 'uncommon' })
+      }).then(r => r.json());
+      const d = r.data || r;
+      if (!d.cache_id) throw new Error(r.message || 'Grant failed');
+      ctx.cacheId = d.cache_id;
+      demoLog('📦', `Cache granted: <span class="hi">${d.label||'Boss Kill Cache'}</span> (${d.rarity||'uncommon'}) — sealed`);
+      return r;
+    }
+  },
+  {
+    id: 'open_cache',
+    label: 'Open Fate Cache',
+    icon: '✦',
+    desc: 'The hero opens their sealed cache. The loot table rolls and a reward is revealed — gear, title, marker, or XP.',
+    action: async (ctx) => {
+      if (!ctx.cacheId) {
+        // Try to find a sealed cache from the API
+        const cr = await apiFetch(`/api/users/${ctx.rootId}/caches`);
+        const sealed = (Array.isArray(cr.data) ? cr.data : []).filter(c => (c.status||'').toLowerCase() === 'sealed');
+        if (sealed.length) ctx.cacheId = sealed[0].id || sealed[0].cache_id;
+      }
+      if (!ctx.cacheId) throw new Error('No sealed cache to open');
+      const r = await apiFetch(`/api/users/${ctx.rootId}/caches/${ctx.cacheId}/open`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }
+      });
+      const d = r.data || r;
+      const name = d.reward_name || d.reward?.item_name || d.reward?.name || 'reward';
+      const rar  = d.reward_rarity || d.reward?.rarity || '';
+      const type = d.reward_type  || d.reward?.type   || '';
+      demoLog('✦', `Cache opened → <span class="hi">${name}</span>${rar?' · '+rar:''} ${type?'('+type+')':''}`);
+      ctx.rewardType = type;
+      return r;
+    }
+  },
+  {
+    id: 'title',
+    label: 'Title Granted',
+    icon: '👑',
+    desc: 'The hero earns a title for their deeds. Titles can be equipped to change how others see them in the world.',
+    action: async (ctx) => {
+      const r = await demoIngest(ctx.rootId, 'progression.title_granted', { title_id: 'title_rune_master' });
+      demoLog('👑', `Title unlocked: <span class="hi">Rune Master</span> — equip it in the portal`);
+      return r;
+    }
+  },
+  {
+    id: 'session3',
+    label: 'Boss Victory — Full Clear',
+    icon: '🏆',
+    desc: 'The hero returns for one final session and defeats the boss completely. Maximum XP, a chance at legendary loot.',
+    action: async (ctx) => {
+      const r = await demoIngest(ctx.rootId, 'progression.session_completed', { difficulty: 'hard', boss_damage_pct: 100, nodes_completed: 8 });
+      const c = r.data?.changes_applied || {};
+      const xp = (c.session_xp||0)+(c.boss_bonus_xp||0)+(c.node_xp||0)+(c.xp_granted||0);
+      let msg = `Boss defeated · full clear · <span class="hi">+${xp} XP</span>`;
+      if (c.level_up) msg += ` · <span class="lvl">⬆ LEVEL UP ${c.level_up.from}→${c.level_up.to}</span>`;
+      demoLog('🏆', msg);
+      return r;
+    }
+  },
+];
+
+// ── State ──
+let demoCtx       = null;  // { rootId, heroName, existingHero, cacheId, ... }
+let demoCurrent   = -1;    // current step index (-1 = not started)
+let demoRunning   = false;
+let demoAutoTimer = null;
+
+// ── Open / Close ──
+async function openDemoModal() {
   document.getElementById('demo-modal').classList.add('open');
-  // Populate existing user dropdown with live user list
-  apiFetch('/api/users').then(r => {
-    if (r.status !== 'ok') return;
-    const sel = document.getElementById('demo-existing-user');
-    sel.innerHTML = r.data.length
-      ? r.data.map(u => `<option value="${u.root_id}" data-name="${u.hero_name||''}" data-level="${u.fate_level||1}" data-xp="${u.fate_xp||0}" data-align="${u.fate_alignment||''}">${u.hero_name || u.root_id.slice(0,20)} — Lv ${u.fate_level||1} · ${u.fate_xp||0} XP</option>`).join('')
-      : '<option value="">— no users enrolled yet —</option>';
-    sel.onchange = updateDemoPreview;
-    updateDemoPreview();
-  }).catch(() => {});
+  // Populate hero dropdown
+  try {
+    const r = await apiFetch('/api/users');
+    const sel = document.getElementById('demo-hero-select');
+    const existing = (r.status === 'ok' && r.data.length)
+      ? r.data.map(u => `<option value="${u.root_id}">${u.hero_name||u.root_id.slice(0,18)} · Lv ${u.fate_level||1}</option>`).join('')
+      : '';
+    sel.innerHTML = '<option value="__new__">✦ Create new demo hero…</option>' + existing;
+    onDemoHeroChange();
+  } catch(_) {}
 }
 
 function closeDemoModal() {
+  if (demoAutoTimer) { clearTimeout(demoAutoTimer); demoAutoTimer = null; }
+  demoRunning = false;
   document.getElementById('demo-modal').classList.remove('open');
-  document.getElementById('demo-new-status').textContent = '';
+  // Refresh dashboard if a user was created/modified
+  if (demoCtx?.rootId) { loadUsers(); loadAnalytics(); if (selectedRootId === demoCtx.rootId) selectUser(demoCtx.rootId); }
+  // Reset for next open
+  setTimeout(resetDemo, 400);
 }
 
-function switchDemoTab(tab) {
-  document.querySelectorAll('.demo-tab').forEach((t, i) => {
-    t.classList.toggle('active', (i === 0 && tab === 'existing') || (i === 1 && tab === 'new'));
-  });
-  document.getElementById('demo-panel-existing').classList.toggle('active', tab === 'existing');
-  document.getElementById('demo-panel-new').classList.toggle('active', tab === 'new');
+function resetDemo() {
+  demoCtx     = null;
+  demoCurrent = -1;
+  demoRunning = false;
+  document.getElementById('demo-setup-row').style.display   = '';
+  document.getElementById('demo-track').style.display       = 'none';
+  document.getElementById('demo-narrative').style.display   = 'none';
+  document.getElementById('demo-log').innerHTML = '<div style="font-size:10px;color:var(--dim);padding:20px 0;text-align:center">Configure a hero above and press Begin →</div>';
+  document.getElementById('demo-auto-btn').disabled   = true;
+  document.getElementById('demo-step-btn').disabled   = true;
+  document.getElementById('demo-portal-btn').disabled = true;
+  document.getElementById('demo-begin-btn').disabled  = false;
 }
 
-function updateDemoPreview() {
-  const sel = document.getElementById('demo-existing-user');
-  const opt = sel.options[sel.selectedIndex];
-  const el  = document.getElementById('demo-existing-preview');
-  if (!opt || !opt.value) { el.textContent = ''; return; }
-  el.textContent = `${opt.dataset.align || 'Unaligned'} · Level ${opt.dataset.level} · ${opt.dataset.xp} XP`;
+function onDemoHeroChange() {
+  const val = document.getElementById('demo-hero-select').value;
+  document.getElementById('demo-new-name-wrap').style.display = val === '__new__' ? '' : 'none';
 }
 
-async function launchDemoExisting() {
-  const rootId = document.getElementById('demo-existing-user').value;
-  if (!rootId) { showToast('Select a player first', 'var(--red)'); return; }
-  closeDemoModal();
-  await viewAsPlayer(rootId);
+// ── Begin (enroll or select hero, build track, enable controls) ──
+async function beginDemo() {
+  const sel      = document.getElementById('demo-hero-select');
+  const isNew    = sel.value === '__new__';
+  const heroName = isNew ? document.getElementById('demo-new-name').value.trim() : sel.options[sel.selectedIndex].text.split('·')[0].trim();
+
+  if (isNew && !heroName) { showToast('Enter a hero name', 'var(--red)'); return; }
+
+  document.getElementById('demo-begin-btn').disabled = true;
+
+  demoCtx = {
+    rootId:       isNew ? null : sel.value,
+    heroName,
+    existingHero: !isNew,
+    cacheId:      null,
+  };
+
+  // Build step track
+  const track = document.getElementById('demo-track');
+  track.innerHTML = DEMO_SCRIPT.flatMap((s, i) => [
+    `<div class="demo-step-dot" id="dot-${i}" title="${s.label}"></div>`,
+    i < DEMO_SCRIPT.length - 1 ? `<div class="demo-step-line" id="line-${i}"></div>` : ''
+  ]).join('');
+
+  document.getElementById('demo-setup-row').style.display  = 'none';
+  document.getElementById('demo-track').style.display      = '';
+  document.getElementById('demo-narrative').style.display  = '';
+  document.getElementById('demo-log').innerHTML            = '';
+  document.getElementById('demo-auto-btn').disabled        = false;
+  document.getElementById('demo-step-btn').disabled        = false;
+  document.getElementById('demo-portal-btn').disabled      = false;
+
+  demoCurrent = -1;
+  // Run step 0 (enroll) immediately
+  await demoStep();
 }
 
-async function launchDemoNew() {
-  const heroName  = document.getElementById('demo-hero-name').value.trim();
-  const alignment = document.getElementById('demo-alignment').value;
-  const origin    = document.getElementById('demo-origin').value.trim();
-  const status    = document.getElementById('demo-new-status');
+// ── Execute one step ──
+async function demoStep() {
+  if (demoRunning) return;
+  const next = demoCurrent + 1;
+  if (next >= DEMO_SCRIPT.length) { demoFinish(); return; }
 
-  if (!heroName) { showToast('Hero name is required', 'var(--red)'); return; }
-  status.textContent = 'Enrolling…';
-  status.style.color = 'var(--dim)';
+  demoRunning = true;
+  demoCurrent = next;
+  const step = DEMO_SCRIPT[next];
+
+  // Update dot states
+  for (let i = 0; i < DEMO_SCRIPT.length; i++) {
+    const dot  = document.getElementById(`dot-${i}`);
+    const line = document.getElementById(`line-${i}`);
+    if (dot)  dot.className  = 'demo-step-dot ' + (i < next ? 'done' : i === next ? 'active' : '');
+    if (line) line.className = 'demo-step-line ' + (i < next ? 'done' : '');
+  }
+
+  // Update narrative
+  document.getElementById('demo-step-num').textContent  = `Step ${next+1} of ${DEMO_SCRIPT.length} — ${step.label}`;
+  document.getElementById('demo-step-desc').textContent = step.desc;
+
+  // Disable controls during execution
+  document.getElementById('demo-auto-btn').disabled = true;
+  document.getElementById('demo-step-btn').disabled = true;
 
   try {
-    const r = await apiFetch('/api/users/enroll', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hero_name: heroName, fate_alignment: alignment, origin: origin || 'Demo', enrolled_by: 'operator:demo' })
-    });
-    if (r.status !== 'ok') throw new Error(r.message || 'Enrollment failed');
-
-    const rootId = r.data.root_id;
-    status.textContent = `✓ ${heroName} enrolled — opening portal…`;
-    status.style.color = 'var(--accent2)';
-
-    await loadUsers();
-    await loadAnalytics();
-    closeDemoModal();
-    document.getElementById('demo-hero-name').value = '';
-    document.getElementById('demo-origin').value    = '';
-    await viewAsPlayer(rootId);
+    await step.action(demoCtx);
   } catch(err) {
-    status.textContent = err.message;
-    status.style.color = 'var(--red)';
+    demoLog('⚠', `<span class="err">${err.message}</span>`);
   }
+
+  demoRunning = false;
+
+  const isDone = demoCurrent >= DEMO_SCRIPT.length - 1;
+  if (!isDone) {
+    document.getElementById('demo-auto-btn').disabled = false;
+    document.getElementById('demo-step-btn').disabled = false;
+  } else {
+    demoFinish();
+  }
+}
+
+// ── Auto-play ──
+async function demoAutoPlay() {
+  if (demoRunning) return;
+  document.getElementById('demo-auto-btn').disabled = true;
+
+  const runNext = async () => {
+    if (demoCurrent >= DEMO_SCRIPT.length - 1) { demoFinish(); return; }
+    await demoStep();
+    if (demoCurrent < DEMO_SCRIPT.length - 1) {
+      const speed = parseInt(document.getElementById('demo-speed').value, 10);
+      demoAutoTimer = setTimeout(runNext, speed);
+    }
+  };
+  await runNext();
+}
+
+function demoFinish() {
+  // Mark all dots done
+  for (let i = 0; i < DEMO_SCRIPT.length; i++) {
+    const dot  = document.getElementById(`dot-${i}`);
+    const line = document.getElementById(`line-${i}`);
+    if (dot)  dot.className  = 'demo-step-dot done';
+    if (line) line.className = 'demo-step-line done';
+  }
+  document.getElementById('demo-step-num').textContent  = '✦ Simulation complete';
+  document.getElementById('demo-step-desc').textContent = 'All events applied. Open the portal to see this hero's full identity.';
+  document.getElementById('demo-auto-btn').disabled = true;
+  document.getElementById('demo-step-btn').disabled = true;
+  demoLog('✦', '<span class="hi">Demo complete</span> — open the portal to explore this hero');
+  loadUsers(); loadAnalytics();
+}
+
+// ── Open portal for demo hero ──
+async function demoOpenPortal() {
+  if (!demoCtx?.rootId) { showToast('Hero not ready yet', 'var(--red)'); return; }
+  await viewAsPlayer(demoCtx.rootId);
+}
+
+// ── Helpers ──
+function demoLog(icon, msg) {
+  const log  = document.getElementById('demo-log');
+  const time = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const el   = document.createElement('div');
+  el.className = 'demo-log-entry';
+  el.innerHTML = `<span class="demo-log-time">${time}</span><span class="demo-log-icon">${icon}</span><span class="demo-log-msg">${msg}</span>`;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function demoIngest(rootId, eventType, payload) {
+  const r = await fetch(`${API}/api/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-PIK-API-Key': HV_KEY },
+    body: JSON.stringify({ root_id: rootId, event_type: eventType, payload })
+  }).then(r => r.json());
+  if (r.status !== 'ok') throw new Error(r.message || `${eventType} failed`);
+  return r;
 }
 
 init();
