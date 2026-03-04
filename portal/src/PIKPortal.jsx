@@ -118,11 +118,16 @@ function normalizeProfile(apiData, sessionCount = 0) {
 
   const equippedId = persona.equipped_title || prog.equipped_title || apiData.equipped_title || null;
   const rawTitles  = prog.titles || apiData.titles || [];
-  const titles = rawTitles.map(t => ({
-    id: t.title_id,
-    name: (t.display_name || t.title_id || '').replace(/^title_/, '').replace(/_/g, ' ').toUpperCase(),
-    equipped: equippedId === t.title_id,
-  }));
+  const titles = rawTitles.map(t => {
+    // API may return strings ("fate_weaver") or objects ({ title_id, display_name })
+    const id          = typeof t === 'string' ? t : (t.title_id || t.id || '');
+    const displayName = typeof t === 'string' ? '' : (t.display_name || t.name || '');
+    return {
+      id,
+      name: (displayName || id).replace(/^title_/, '').replace(/_/g, ' ').toUpperCase(),
+      equipped: !!equippedId && equippedId === id,
+    };
+  }).filter(t => t.id); // drop any empty entries
 
   const heroName  = persona.hero_name || persona.heroName || apiData.hero_name || 'Unknown';
   const alignment = persona.fate_alignment || apiData.fate_alignment || 'NONE';
