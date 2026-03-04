@@ -100,6 +100,11 @@ export async function updateProfile(updates, rootId = ROOT_ID) {
   return put(`/api/users/${rootId}/profile`, updates);
 }
 
+/** Enroll a new user (create account) */
+export async function enrollUser(dto) {
+  return post('/api/users/enroll', dto);
+}
+
 /** Set equipped title */
 export async function equipTitle(titleId, rootId = ROOT_ID) {
   return put(`/api/users/${rootId}/equipped-title`, { title_id: titleId });
@@ -213,7 +218,7 @@ const api = {
   setBaseUrl, setSession, getSession, clearSession,
   get, post, put,
   impersonate,
-  getProfile, listUsers, updateProfile, equipTitle, getTimeline,
+  getProfile, listUsers, updateProfile, enrollUser, equipTitle, getTimeline,
   getEquipment, getInventory, getModifiers, equipItem, unequipSlot,
   getCaches, openCache,
   getQuestBoard, getPlayerQuests, acceptQuest, evaluateQuests,

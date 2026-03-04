@@ -503,28 +503,33 @@ export default function App() {
   }
   if (screen === 'onboarding') {
     return <PIKOnboarding onComplete={async ({ auth, acct }) => {
-      // Attempt to create user on backend and auto-login
+      // Enroll user via backend
       try {
-        const resp = await api.post('/api/users', {
-          display_name: acct.displayName,
-          auth_method: auth.method,
-          email: auth.email,
+        const resp = await api.enrollUser({
+          hero_name: acct.displayName,
+          fate_alignment: 'NONE',
+          enrolled_by: 'portal',
         });
-        if (resp.ok && resp.data) {
+        if (resp.ok && resp.data?.root_id) {
           const newRootId = resp.data.root_id;
-          if (newRootId) {
-            // Auto-login: impersonate the new user to get a session
-            const loginResp = await api.impersonate(newRootId);
-            if (loginResp.ok) {
-              setRootId(newRootId);
-              setUserData(resp.data);
-              setScreen('dashboard');
-              return;
-            }
+          // Auto-login: impersonate to get a session token
+          const loginResp = await api.impersonate(newRootId);
+          if (loginResp.ok) {
+            setRootId(newRootId);
+            setUserData({
+              root_id: newRootId,
+              hero_name: resp.data.hero_name,
+              display_name: resp.data.hero_name,
+              fate_alignment: resp.data.fate_alignment,
+              fate_level: 1,
+              fate_xp: 0,
+            });
+            setScreen('dashboard');
+            return;
           }
         }
       } catch (err) {
-        console.error('Auto-login after onboarding failed:', err);
+        console.error('Enrollment/auto-login failed:', err);
       }
       // Fallback: send to login
       setScreen('login');
