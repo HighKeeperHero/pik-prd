@@ -89,16 +89,18 @@ function Accordion({ icon, title, subtitle, children, defaultOpen = false }) {
   );
 }
 
-// ── Hero Creation Modal ──
-function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }) {
+// ── Hero Creation / Rename Modal ──
+function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [], mode = "create", currentHeroName = "" }) {
   const [heroName, setHeroName] = useState("");
   const [title, setTitle] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
+  const isRename = mode === "rename";
 
   const nameLower = heroName.trim().toLowerCase();
-  const isTaken = nameLower.length >= 2 && takenHeroNames.some(n => n.toLowerCase() === nameLower);
-  const isValid = heroName.trim().length >= 2 && !isTaken;
+  const isSameAsCurrent = isRename && nameLower === currentHeroName.toLowerCase();
+  const isTaken = nameLower.length >= 2 && !isSameAsCurrent && takenHeroNames.some(n => n.toLowerCase() === nameLower);
+  const isValid = heroName.trim().length >= 2 && !isTaken && !isSameAsCurrent;
 
   const suggestions = [];
   if (isTaken) {
@@ -114,7 +116,11 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
   const handleSubmit = async () => {
     if (!isValid) return;
     setSubmitting(true);
-    await onSubmit({ heroName: heroName.trim(), title, heroClass: "adventurer", tier: "bronze" });
+    if (isRename) {
+      await onSubmit({ heroName: heroName.trim() });
+    } else {
+      await onSubmit({ heroName: heroName.trim(), title, heroClass: "adventurer", tier: "bronze" });
+    }
     setSubmitting(false);
   };
 
@@ -156,26 +162,30 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
 
         {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>⚔️</div>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>{isRename ? "✏️" : "⚔️"}</div>
           <h2 style={{ fontSize: 22, fontWeight: 700, fontFamily: FONT, color: "#fff", margin: "0 0 4px" }}>
-            Create Your Hero
+            {isRename ? "Rename Your Hero" : "Create Your Hero"}
           </h2>
           <p style={{ fontSize: 13, color: MUTED, margin: 0, fontFamily: FONT_B }}>
-            Your adventurer within Heroes' Veritas
+            {isRename
+              ? `Current name: ${currentHeroName}`
+              : "Your adventurer within Heroes' Veritas"}
           </p>
         </div>
 
-        {/* Fate ID context */}
-        <div style={{
-          padding: "10px 14px", borderRadius: 8,
-          background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.12)",
-          marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <span style={{ fontSize: 13 }}>◈</span>
-          <span style={{ fontSize: 12, color: DIM, fontFamily: FONT_B }}>
-            Playing as <strong style={{ color: "rgba(167,139,250,0.9)" }}>{accountData?.displayName || accountData?.display_name || "Unknown"}</strong>
-          </span>
-        </div>
+        {/* Fate ID context — create mode only */}
+        {!isRename && (
+          <div style={{
+            padding: "10px 14px", borderRadius: 8,
+            background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.12)",
+            marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ fontSize: 13 }}>◈</span>
+            <span style={{ fontSize: 12, color: DIM, fontFamily: FONT_B }}>
+              Playing as <strong style={{ color: "rgba(167,139,250,0.9)" }}>{accountData?.displayName || accountData?.display_name || "Unknown"}</strong>
+            </span>
+          </div>
+        )}
 
         {/* Name input */}
         <div style={{ marginBottom: 16 }}>
@@ -203,10 +213,14 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
         {heroName.trim().length >= 2 && (
           <div style={{
             marginBottom: 16, padding: "8px 12px", borderRadius: 8,
-            background: isTaken ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
-            border: `1px solid ${isTaken ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"}`,
+            background: isSameAsCurrent ? "rgba(234,179,8,0.08)" : isTaken ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
+            border: `1px solid ${isSameAsCurrent ? "rgba(234,179,8,0.2)" : isTaken ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.2)"}`,
           }}>
-            {isTaken ? (
+            {isSameAsCurrent ? (
+              <div style={{ fontSize: 12, color: "#eab308", fontWeight: 600, fontFamily: FONT_B }}>
+                ⚠ That's already your current hero name
+              </div>
+            ) : isTaken ? (
               <div>
                 <div style={{ fontSize: 12, color: "#ef4444", fontWeight: 600, marginBottom: 6, fontFamily: FONT_B }}>
                   ✘ "{heroName.trim()}" is already taken
@@ -230,8 +244,8 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
           </div>
         )}
 
-        {/* Title selection */}
-        {heroName.length > 0 && isValid && (
+        {/* Title selection — create mode only */}
+        {!isRename && heroName.length > 0 && isValid && (
           <div style={{ marginBottom: 20 }}>
             <label style={{
               display: "block", fontSize: 11, fontWeight: 600, color: DIM,
@@ -260,14 +274,16 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
             background: "linear-gradient(135deg, rgba(205,127,50,0.08), rgba(0,0,0,0.3))",
             border: "1px solid rgba(205,127,50,0.2)",
           }}>
-            <div style={{ fontSize: 32, marginBottom: 6 }}>⚔️</div>
+            <div style={{ fontSize: 32, marginBottom: 6 }}>{isRename ? "✏️" : "⚔️"}</div>
             <div style={{ fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: FONT }}>
               {heroName.trim()}
-              {title && <span style={{ color: "#cd7f32", fontWeight: 500, fontSize: 14 }}> {title}</span>}
+              {!isRename && title && <span style={{ color: "#cd7f32", fontWeight: 500, fontSize: 14 }}> {title}</span>}
             </div>
-            <div style={{ fontSize: 12, color: "#cd7f32", fontWeight: 600, marginTop: 4, fontFamily: FONT_B }}>
-              Level 1 • Bronze Adventurer
-            </div>
+            {!isRename && (
+              <div style={{ fontSize: 12, color: "#cd7f32", fontWeight: 600, marginTop: 4, fontFamily: FONT_B }}>
+                Level 1 • Bronze Adventurer
+              </div>
+            )}
           </div>
         )}
 
@@ -285,7 +301,7 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
             transition: "all 0.3s ease",
           }}
         >
-          {submitting ? "Creating..." : "Begin Your Adventure"}
+          {submitting ? (isRename ? "Renaming..." : "Creating...") : (isRename ? "Confirm Rename" : "Begin Your Adventure")}
         </button>
       </div>
     </div>
@@ -300,6 +316,7 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
 export default function FateDashboard({ rootId, userData, onLogout, onEnterPortal, onUserDataRefresh }) {
   const [entered, setEntered] = useState(false);
   const [showHeroModal, setShowHeroModal] = useState(false);
+  const [heroModalMode, setHeroModalMode] = useState("create"); // "create" | "rename"
   const [heroData, setHeroData] = useState(null);
   const [takenHeroNames, setTakenHeroNames] = useState([]);
 
@@ -323,6 +340,10 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   const heroName = heroData?.heroName || (hasDistinctHero ? rawHeroName : null);
   const heroDisplayTitle = heroData?.title || userData?.hero_title || null;
 
+  // Hero rename tracking — from backend persona.hero_rename
+  const renameData = userData?.persona?.hero_rename || userData?.hero_rename || null;
+  const renamesRemaining = renameData?.renames_remaining ?? 1;
+
   // Fetch taken names for hero creation
   useEffect(() => {
     import('./api.js').then(mod => {
@@ -335,30 +356,32 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
     }).catch(() => {});
   }, []);
 
-  const handleHeroCreate = async (data) => {
+  const handleHeroSubmit = async (data) => {
     try {
       const apiMod = await import('./api.js');
       const apiClient = apiMod.default;
-      const resp = await apiClient.updateProfile({
-        hero_name: data.heroName,
-        equipped_title: data.title || null,
-      }, rootId);
+      const payload = { hero_name: data.heroName };
+      if (data.title) payload.equipped_title = data.title;
+      const resp = await apiClient.updateProfile(payload, rootId);
       if (resp.ok) {
-        setHeroData(data);
-        // Refresh userData from backend to stay in sync
+        if (heroModalMode === "rename") {
+          // Update existing hero data with new name
+          setHeroData(prev => prev ? { ...prev, heroName: data.heroName } : { heroName: data.heroName });
+        } else {
+          setHeroData(data);
+        }
+        // Refresh userData from backend to stay in sync (includes updated rename count)
         const profileResp = await apiClient.getProfile(rootId);
         if (profileResp.ok && profileResp.data) {
-          // Notify parent if available
           if (onUserDataRefresh) onUserDataRefresh(profileResp.data);
         }
       } else {
-        console.error("Hero creation failed:", resp.error);
-        // Still store locally as fallback so UI updates
-        setHeroData(data);
+        console.error("Hero update failed:", resp.error);
+        if (heroModalMode === "create") setHeroData(data);
       }
     } catch (err) {
-      console.error("Hero creation error:", err);
-      setHeroData(data);
+      console.error("Hero update error:", err);
+      if (heroModalMode === "create") setHeroData(data);
     }
     setShowHeroModal(false);
   };
@@ -509,9 +532,21 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
               }}>⚔️</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 6 }}>
                   {heroName}
-                  {heroDisplayTitle && <span style={{ color: "#cd7f32", fontWeight: 500, fontSize: 12, marginLeft: 4 }}>{heroDisplayTitle}</span>}
+                  {heroDisplayTitle && <span style={{ color: "#cd7f32", fontWeight: 500, fontSize: 12 }}>{heroDisplayTitle}</span>}
+                  {renamesRemaining > 0 && (
+                    <button
+                      onClick={() => { setHeroModalMode("rename"); setShowHeroModal(true); }}
+                      title={`${renamesRemaining} free rename${renamesRemaining !== 1 ? "s" : ""} remaining`}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer", padding: 2,
+                        color: MUTED, fontSize: 12, lineHeight: 1, transition: "color 0.2s ease",
+                      }}
+                      onMouseEnter={e => e.target.style.color = "#a78bfa"}
+                      onMouseLeave={e => e.target.style.color = MUTED}
+                    >✎</button>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                   Level {fateLevel || 1} • Bronze Adventurer
@@ -528,7 +563,7 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
             </div>
           ) : (
             /* Create hero CTA */
-            <button onClick={() => setShowHeroModal(true)} style={{
+            <button onClick={() => { setHeroModalMode("create"); setShowHeroModal(true); }} style={{
               width: "100%", padding: 20, borderRadius: 14, marginBottom: 16,
               background: "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04))",
               border: "1px dashed rgba(99,102,241,0.25)",
@@ -697,9 +732,11 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
       <HeroModal
         show={showHeroModal}
         onClose={() => setShowHeroModal(false)}
-        onSubmit={handleHeroCreate}
+        onSubmit={handleHeroSubmit}
         accountData={{ displayName: fateName }}
         takenHeroNames={takenHeroNames}
+        mode={heroModalMode}
+        currentHeroName={heroName || rawHeroName || ""}
       />
     </div>
   );

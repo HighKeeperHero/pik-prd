@@ -361,6 +361,9 @@ export class IdentityService {
 
     const source_progression = Object.values(sourceStatsMap);
 
+    // Get hero rename status
+    const renameStatus = await this.getHeroRenameStatus(user.id);
+
     return {
       identity: {
         root_id: user.id,
@@ -370,10 +373,12 @@ export class IdentityService {
       },
       persona: {
         persona_id: user.personas[0]?.id ?? null,
+        display_name: user.personas[0]?.displayName ?? user.heroName, // Fate Name
         hero_name: user.heroName,
         origin: user.origin,
         fate_alignment: user.fateAlignment,
         equipped_title: user.equippedTitle ?? null,
+        hero_rename: renameStatus,
       },
       progression: {
         fate_xp: user.fateXp,
@@ -554,6 +559,18 @@ export class IdentityService {
     const changes: Record<string, { from: unknown; to: unknown }> = {};
 
     if (dto.hero_name && dto.hero_name !== user.heroName) {
+      // ── Name change limit: 1 free hero creation + 1 free rename ──
+      const nameChangeCount = await this.countHeroNameChanges(rootId);
+      // First change (index 0) = hero creation, second (index 1) = free rename
+      // Block at 2+ (hero creation + 1 free rename already used)
+      if (nameChangeCount >= 2) {
+        throw new BadRequestException({
+          message: 'No free hero name changes remaining',
+          hero_renames_used: nameChangeCount - 1, // subtract hero creation
+          hero_renames_allowed: 1,
+        });
+      }
+
       // ── Hero name uniqueness check (case-insensitive) ──
       const existingName = await this.prisma.rootIdentity.findFirst({
         where: {
@@ -674,6 +691,41 @@ export class IdentityService {
   }
 
   // ── HELPERS ───────────────────────────────────────────────
+
+  /**
+   * Count how many times a user has changed their hero name.
+   * Counts identity.profile_updated events where changes include hero_name.
+   */
+  private async countHeroNameChanges(rootId: string): Promise<number> {
+    // We can't filter on JSON content directly in a count, so fetch minimal data
+    const events = await this.prisma.identityEvent.findMany({
+      where: {
+        rootId,
+        eventType: 'identity.profile_updated',
+      },
+      select: { changes: true },
+    });
+    return events.filter((e) => {
+      const changes = e.changes as Record<string, unknown> | null;
+      return changes && 'hero_name' in changes;
+    }).length;
+  }
+
+  /**
+   * Get how many free hero renames remain for a user.
+   * Returns { used, allowed, remaining }.
+   */
+  async getHeroRenameStatus(rootId: string) {
+    const nameChangeCount = await this.countHeroNameChanges(rootId);
+    // First change = hero creation (doesn't count as rename)
+    const renamesUsed = Math.max(0, nameChangeCount - 1);
+    const renamesAllowed = 1; // Free allotment
+    return {
+      renames_used: renamesUsed,
+      renames_allowed: renamesAllowed,
+      renames_remaining: Math.max(0, renamesAllowed - renamesUsed),
+    };
+  }
 
   /**
    * Generate available hero name suggestions by appending sequential numbers.
