@@ -320,21 +320,23 @@ function Toast({ message, color, onDone }) {
 
 function TabBar({ active, onChange }) {
   const tabs = [
-    { id: "hero", icon: "\u2694\uFE0F", label: "Hero" },
-    { id: "quests", icon: "\uD83D\uDCDC", label: "Quests" },
-    { id: "codex", icon: "\uD83D\uDCD6", label: "Codex" },
-    { id: "workshop", icon: "\u2699\uFE0F", label: "Workshop" },
+    { id: "hero", icon: "⚔️", label: "Hero" },
+    { id: "quests", icon: "📜", label: "Quests" },
+    { id: "codex", icon: "📖", label: "Codex" },
+    { id: "workshop", icon: "⚙️", label: "Workshop" },
+    { id: "world", icon: "🌐", label: "World" },
+    { id: "identity", icon: "◈", label: "Identity" },
   ];
   return (
-    <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: `linear-gradient(180deg, transparent 0%, ${BG} 30%)`, padding: "20px 0 10px", zIndex: 100 }}>
-      <div style={{ display: "flex", justifyContent: "space-around", padding: "0 8px" }}>
+    <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: `linear-gradient(180deg, transparent 0%, ${BG} 30%)`, padding: "16px 0 10px", zIndex: 100 }}>
+      <div style={{ display: "flex", justifyContent: "space-around", padding: "0 4px" }}>
         {tabs.map(t => {
           const on = active === t.id;
           return (
-            <button key={t.id} onClick={() => onChange(t.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontFamily: FONT_B }}>
-              <span style={{ fontSize: 20, filter: on ? "none" : "grayscale(1) opacity(0.4)", transition: "all 0.2s ease" }}>{t.icon}</span>
-              <span style={{ fontSize: 10, fontWeight: on ? 700 : 500, color: on ? "#fff" : MUTED, letterSpacing: "0.04em", textTransform: "uppercase" }}>{t.label}</span>
-              {on && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#6366f1", marginTop: 2 }} />}
+            <button key={t.id} onClick={() => onChange(t.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: FONT_B, minWidth: 0 }}>
+              <span style={{ fontSize: 17, filter: on ? "none" : "grayscale(1) opacity(0.4)", transition: "all 0.2s ease" }}>{t.icon}</span>
+              <span style={{ fontSize: 9, fontWeight: on ? 700 : 500, color: on ? "#fff" : MUTED, letterSpacing: "0.04em", textTransform: "uppercase" }}>{t.label}</span>
+              {on && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#6366f1" }} />}
             </button>
           );
         })}
@@ -836,6 +838,278 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
 
 
 // ══════════════════════════════════════════════════════════
+// WORLD TAB — Connected Sources + Leaderboard
+// ══════════════════════════════════════════════════════════
+
+const STATUS_COLOR = { active: "#22c55e", pending: "#f59e0b", revoked: "#ef4444", inactive: "#94a3b8" };
+const STATUS_DOT = { active: "#22c55e", pending: "#f59e0b", revoked: "#ef4444", inactive: "#6b7280" };
+
+function WorldTab({ sourceLinks, leaderboard, player }) {
+  const [lbFilter, setLbFilter] = useState("xp");
+
+  const sortedLb = [...leaderboard].sort((a, b) => {
+    if (lbFilter === "xp") return (b.fate_xp || b.xp || 0) - (a.fate_xp || a.xp || 0);
+    if (lbFilter === "level") return (b.fate_level || b.level || 0) - (a.fate_level || a.level || 0);
+    return (b.sessions || 0) - (a.sessions || 0);
+  });
+
+  return (
+    <div style={{ padding: "0 20px 120px" }}>
+      <h2 style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, margin: "0 0 4px" }}>Connected Worlds</h2>
+      <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 20px" }}>Venues and platforms where your identity is recognised.</p>
+
+      {/* Source Links */}
+      {sourceLinks.length === 0 ? (
+        <Crd style={{ textAlign: "center", padding: 32, marginBottom: 24 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>🌐</div>
+          <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B }}>No worlds connected yet. Visit a venue to link your first source.</p>
+        </Crd>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          {sourceLinks.map((link, i) => {
+            const status = (link.status || 'active').toLowerCase();
+            return (
+              <Crd key={link.id || link.source_id || i} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: `${STATUS_COLOR[status] || "#6366f1"}12`, border: `1px solid ${STATUS_COLOR[status] || "#6366f1"}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+                    🏰
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: FONT_B, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{link.source_name || link.name || "Unknown Source"}</div>
+                    <div style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, marginTop: 2 }}>{link.scope || link.platform || "Venue"}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: "50%", background: STATUS_DOT[status] || "#6b7280" }} />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: STATUS_COLOR[status] || MUTED, fontFamily: FONT_B, textTransform: "capitalize" }}>{status}</span>
+                  </div>
+                </div>
+                {link.linked_at && (
+                  <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER}` }}>
+                    Linked {timeAgo(link.linked_at)} · {link.external_id ? `ID: ${String(link.external_id).slice(0, 12)}…` : ""}
+                  </div>
+                )}
+              </Crd>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Leaderboard */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: DIM, fontFamily: FONT_B, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Leaderboard</h3>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[["xp", "XP"], ["level", "Level"], ["sessions", "Sessions"]].map(([id, label]) => (
+            <button key={id} onClick={() => setLbFilter(id)} style={{ padding: "3px 10px", borderRadius: 12, background: lbFilter === id ? "rgba(99,102,241,0.2)" : SURFACE, border: `1px solid ${lbFilter === id ? "rgba(99,102,241,0.4)" : BORDER}`, color: lbFilter === id ? "#a78bfa" : MUTED, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {sortedLb.length === 0 ? (
+        <Crd style={{ textAlign: "center", padding: 24 }}>
+          <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B }}>Leaderboard loading…</p>
+        </Crd>
+      ) : (
+        <div>
+          {sortedLb.slice(0, 10).map((entry, idx) => {
+            const isMe = entry.root_id === player.pikId || entry.hero_name === player.heroName;
+            const tier = getTier(entry.fate_level || entry.level || 1);
+            const medals = ["🥇", "🥈", "🥉"];
+            return (
+              <div key={entry.root_id || idx} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: isMe ? "rgba(99,102,241,0.08)" : SURFACE, border: `1px solid ${isMe ? "rgba(99,102,241,0.25)" : BORDER}`, marginBottom: 6 }}>
+                <div style={{ width: 28, textAlign: "center", flexShrink: 0 }}>
+                  {idx < 3 ? <span style={{ fontSize: 16 }}>{medals[idx]}</span> : <span style={{ fontSize: 12, fontWeight: 700, color: MUTED, fontFamily: FONT_B }}>#{idx + 1}</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: isMe ? 700 : 600, color: isMe ? "#a78bfa" : "#fff", fontFamily: FONT_B, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {entry.hero_name || entry.display_name || "Adventurer"}{isMe && " (You)"}
+                  </div>
+                  <div style={{ fontSize: 10, color: tier.color, fontFamily: FONT_B }}>{tier.name} · Lv {entry.fate_level || entry.level || "?"}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: FONT_B }}>
+                    {lbFilter === "xp" ? (entry.fate_xp || entry.xp || 0).toLocaleString() : lbFilter === "level" ? `Lv ${entry.fate_level || entry.level || 0}` : entry.sessions || 0}
+                  </div>
+                  <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT_B, textTransform: "uppercase", letterSpacing: "0.05em" }}>{lbFilter === "xp" ? "XP" : lbFilter === "level" ? "Level" : "Sessions"}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
+// IDENTITY TAB — Fate Markers + Event Chronicle
+// ══════════════════════════════════════════════════════════
+
+const MARKER_ICON = (raw) => {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("veil")) return "◈";
+  if (s.includes("shard") || s.includes("ember") || s.includes("fire")) return "◆";
+  if (s.includes("boss") || s.includes("kill")) return "⚔";
+  if (s.includes("fate") || s.includes("mark")) return "✦";
+  return "◇";
+};
+const MARKER_COLOR = (raw) => {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("veil")) return "#a78bfa";
+  if (s.includes("shard") || s.includes("ember")) return "#f97316";
+  if (s.includes("boss")) return "#ef4444";
+  if (s.includes("legendary")) return "#f59e0b";
+  return "#6366f1";
+};
+const MARKER_TYPE = (raw) => {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("veil")) return "Veil";
+  if (s.includes("shard") || s.includes("ember")) return "Ember";
+  if (s.includes("boss")) return "Combat";
+  return "Fate";
+};
+function fmtMarkerLabel(m) {
+  const raw = typeof m === "string" ? m : (m?.marker || m?.value || "");
+  return raw.replace(/^node:/, "").replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const EVT_DOT = {
+  "loot.cache_opened": "#f59e0b", "loot.cache_granted": "#6366f1",
+  "progression.level_up": "#22c55e", "progression.xp_earned": "#22c55e",
+  "progression.fate_marker": "#f97316", "identity.title_equipped": "#a78bfa",
+  "session.started": "#3b82f6", "session.completed": "#22c55e",
+  "gear.equipped": "#c084fc", "gear.unequipped": "#94a3b8",
+  "quest.completed": "#22c55e", "quest.accepted": "#3b82f6",
+};
+function evtColor(type) { return EVT_DOT[type] || "#6366f1"; }
+function evtIcon(type) {
+  if (!type) return "●";
+  if (type.includes("cache")) return "📦";
+  if (type.includes("level_up")) return "⬆";
+  if (type.includes("xp")) return "⚡";
+  if (type.includes("marker")) return "◆";
+  if (type.includes("title")) return "👑";
+  if (type.includes("session")) return "🎯";
+  if (type.includes("gear")) return "⚔";
+  if (type.includes("quest")) return "📜";
+  return "●";
+}
+function evtLabel(evt) {
+  const t = evt.event_type || evt.type || "";
+  const pl = evt.payload || {};
+  const ch = evt.changes || {};
+  if (t === "loot.cache_opened") return `Opened ${ch.reward_name || pl.cache_type || "cache"} → ${ch.reward_rarity || ""} ${ch.reward_type || ""}`.trim();
+  if (t === "loot.cache_granted") return `Received ${ch.cache_label || "Fate Cache"} (${ch.rarity || ""})`;
+  if (t === "progression.level_up") return `Reached Level ${ch.new_level || pl.new_level || ""}`;
+  if (t === "progression.xp_earned") return `+${ch.xp_gained || pl.xp || ""} XP earned`;
+  if (t === "progression.fate_marker") return `Marker: ${fmtMarkerLabel(ch.marker || pl.marker || "")}`;
+  if (t === "identity.title_equipped") return `Title equipped: ${ch.title_id || pl.title_id || ""}`;
+  if (t.includes("session")) return `Session ${t.includes("completed") ? "completed" : "started"}${pl.source_name ? ` at ${pl.source_name}` : ""}`;
+  if (t.includes("gear")) return `Gear ${t.includes("unequip") ? "unequipped" : "equipped"}: ${ch.item_name || pl.item_name || "item"}`;
+  if (t === "quest.completed") return `Quest completed: ${pl.quest_name || ""}`;
+  if (t === "quest.accepted") return `Quest accepted: ${pl.quest_name || ""}`;
+  return t.replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function IdentityTab({ fateMarkers, recentEvents, player }) {
+  const [evtFilter, setEvtFilter] = useState("all");
+
+  const filteredEvents = recentEvents.filter(e => {
+    if (evtFilter === "all") return true;
+    const t = e.event_type || e.type || "";
+    if (evtFilter === "loot") return t.includes("loot") || t.includes("cache");
+    if (evtFilter === "progress") return t.includes("progression") || t.includes("level") || t.includes("xp");
+    if (evtFilter === "combat") return t.includes("session") || t.includes("quest") || t.includes("gear");
+    return true;
+  });
+
+  return (
+    <div style={{ padding: "0 20px 120px" }}>
+      <h2 style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, margin: "0 0 4px" }}>Identity</h2>
+      <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 20px" }}>Your fate markers and the chronicle of your journey.</p>
+
+      {/* Fate Markers */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: DIM, fontFamily: FONT_B, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Fate Markers</h3>
+        {fateMarkers.length > 0 && (
+          <span style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(99,102,241,0.15)", color: "#a78bfa", fontSize: 10, fontWeight: 700, fontFamily: FONT_B }}>{fateMarkers.length}</span>
+        )}
+      </div>
+
+      {fateMarkers.length === 0 ? (
+        <Crd style={{ textAlign: "center", padding: 24, marginBottom: 24 }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>◇</div>
+          <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B, margin: 0 }}>No fate markers yet.</p>
+          <p style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, marginTop: 4 }}>Open Fate Caches to earn markers.</p>
+        </Crd>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          {fateMarkers.map((m, i) => {
+            const raw = typeof m === "string" ? m : (m?.marker || m?.value || "");
+            const label = fmtMarkerLabel(raw);
+            const col = MARKER_COLOR(raw);
+            const icon = MARKER_ICON(raw);
+            const type = MARKER_TYPE(raw);
+            return (
+              <div key={raw + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: SURFACE, border: `1px solid ${BORDER}`, marginBottom: 6, transition: "border-color 0.2s" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: `${col}12`, border: `1px solid ${col}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: col, flexShrink: 0 }}>{icon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: FONT_B }}>{label}</div>
+                  {typeof m === "object" && m?.sourceId && (
+                    <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B, marginTop: 2 }}>via {m.sourceId}</div>
+                  )}
+                </div>
+                <span style={{ padding: "2px 8px", borderRadius: 8, background: `${col}12`, color: col, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: FONT_B, flexShrink: 0 }}>{type}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Event Chronicle */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: DIM, fontFamily: FONT_B, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Chronicle</h3>
+      </div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap" }}>
+        {[["all", "All"], ["loot", "Loot"], ["progress", "Progress"], ["combat", "Combat"]].map(([id, label]) => (
+          <button key={id} onClick={() => setEvtFilter(id)} style={{ padding: "5px 12px", borderRadius: 14, background: evtFilter === id ? "rgba(99,102,241,0.2)" : SURFACE, border: `1px solid ${evtFilter === id ? "rgba(99,102,241,0.4)" : BORDER}`, color: evtFilter === id ? "#a78bfa" : MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B }}>{label}</button>
+        ))}
+      </div>
+
+      {filteredEvents.length === 0 ? (
+        <Crd style={{ textAlign: "center", padding: 24 }}>
+          <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B }}>No events recorded yet.</p>
+        </Crd>
+      ) : (
+        <div style={{ position: "relative" }}>
+          {/* Timeline spine */}
+          <div style={{ position: "absolute", left: 17, top: 0, bottom: 0, width: 1, background: BORDER, zIndex: 0 }} />
+          {filteredEvents.slice(0, 25).map((evt, i) => {
+            const col = evtColor(evt.event_type || evt.type);
+            const icon = evtIcon(evt.event_type || evt.type);
+            const label = evtLabel(evt);
+            const when = evt.created_at || evt.timestamp ? timeAgo(evt.created_at || evt.timestamp) : "";
+            return (
+              <div key={evt.id || i} style={{ display: "flex", gap: 12, marginBottom: 12, position: "relative", zIndex: 1 }}>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${col}15`, border: `1px solid ${col}35`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{icon}</div>
+                <div style={{ flex: 1, paddingTop: 6, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", fontFamily: FONT_B, lineHeight: 1.4 }}>{label}</div>
+                  {when && <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B, marginTop: 2 }}>{when}</div>}
+                </div>
+              </div>
+            );
+          })}
+          {recentEvents.length > 25 && (
+            <p style={{ fontSize: 11, color: MUTED, textAlign: "center", fontFamily: FONT_B }}>+ {recentEvents.length - 25} earlier events</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════
 // LOADING SCREEN
 // ══════════════════════════════════════════════════════════
 
@@ -871,6 +1145,10 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
   const [inventory, setInventory] = useState([]);
   const [craftTimers, setCraftTimers] = useState({});
   const [daily, setDaily] = useState({ name: "Study the Codex", desc: "Read 2 lore entries to prepare for the realms.", progress: 0, total: 2, xp: 50, claimed: false });
+  const [fateMarkers, setFateMarkers] = useState([]);
+  const [sourceLinks, setSourceLinks] = useState([]);
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
 
   const notify = (msg, color) => setToast({ msg, color, key: Date.now() });
 
@@ -914,7 +1192,20 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           }
 
           setPlayer(p);
+
+          // Extract world / identity data from profile payload
+          setFateMarkers(profileResp.data.fate_markers || []);
+          setSourceLinks(profileResp.data.source_links || []);
+          setRecentEvents(profileResp.data.recent_events || []);
         }
+
+        // Leaderboard (best-effort — not critical)
+        try {
+          const lbResp = await api.getLeaderboard ? api.getLeaderboard() : fetch('/api/leaderboard?limit=10').then(r => r.json());
+          const lbData = lbResp?.data || lbResp;
+          if (Array.isArray(lbData)) setLeaderboard(lbData);
+          else if (lbData?.entries) setLeaderboard(lbData.entries);
+        } catch (_) { /* leaderboard is non-critical */ }
 
         if (equipResp.ok) {
           // DEBUG: log raw equipment response to verify data shape
@@ -1202,6 +1493,8 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
         {tab === "quests" && <QuestBoard activeQuests={activeQuests} availableQuests={availableQuests} onAcceptQuest={handleAcceptQuest} />}
         {tab === "codex" && <LoreCodex codex={codex} daily={daily} onReadEntry={handleReadEntry} />}
         {tab === "workshop" && <Workshop resources={resources} timers={craftTimers} onStartCraft={handleStartCraft} onCollectCraft={handleCollectCraft} />}
+        {tab === "world" && <WorldTab sourceLinks={sourceLinks} leaderboard={leaderboard} player={player} />}
+        {tab === "identity" && <IdentityTab fateMarkers={fateMarkers} recentEvents={recentEvents} player={player} />}
       </div>
 
       <TabBar active={tab} onChange={setTab} />
