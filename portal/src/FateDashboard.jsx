@@ -681,23 +681,25 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
 
           {/* Tier Progression */}
           <Accordion icon="⭐" title="Adventurer Tiers" subtitle="Bronze through Adamantium">
-            <p style={{ fontSize: 12, color: MUTED, margin: "0 0 12px", lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, color: MUTED, margin: "0 0 14px", lineHeight: 1.6 }}>
               Earn XP across venues to climb the ranks. Your tier determines which quests you can accept and the challenges you'll face.
             </p>
-            <div style={{ display: "flex", gap: 3, marginBottom: 8 }}>
+            {/* Tier bar */}
+            <div style={{ display: "flex", gap: 3, marginBottom: 10 }}>
               {TIERS.map((t, i) => (
                 <div key={t.name} style={{
-                  flex: 1, height: 6,
-                  borderRadius: i === 0 ? "3px 0 0 3px" : i === TIERS.length - 1 ? "0 3px 3px 0" : 0,
-                  background: i === 0 ? `linear-gradient(90deg, ${t.color}, ${t.color}88)` : `${t.color}25`,
+                  flex: 1, height: 8,
+                  borderRadius: i === 0 ? "4px 0 0 4px" : i === TIERS.length - 1 ? "0 4px 4px 0" : 0,
+                  background: `linear-gradient(90deg, ${t.color}dd, ${t.color}88)`,
                 }} />
               ))}
             </div>
+            {/* Tier labels */}
             <div style={{ display: "flex", gap: 3 }}>
-              {TIERS.map((t, i) => (
+              {TIERS.map((t) => (
                 <div key={t.name} style={{ flex: 1, textAlign: "center" }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: i === 0 ? t.color : "rgba(255,255,255,0.2)", marginTop: 4 }}>{t.name}</div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.12)", marginTop: 1 }}>Lv {t.level}</div>
+                  <div style={{ fontSize: 9, fontWeight: 800, color: t.color, letterSpacing: "0.03em" }}>{t.name}</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>Lv {t.min}–{t.max < 99 ? t.max : t.min + "+"}</div>
                 </div>
               ))}
             </div>

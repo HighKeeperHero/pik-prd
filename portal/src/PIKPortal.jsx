@@ -69,7 +69,7 @@ const CRAFT_RECIPES = [
   { id: 1, name: "Minor Elixir", desc: "Restores a small amount during sessions", time: 15, cost: { wyldroot: 3 }, result: "consumable", icon: "\uD83E\uDDEA" },
   { id: 2, name: "Ember Ward", desc: "Temporary defense boost at LBE sessions", time: 30, cost: { emberstone: 5, dustiron: 2 }, result: "gear_mod", icon: "\uD83D\uDD25" },
   { id: 3, name: "Wayfinder Charm", desc: "+10% XP for your next venue session", time: 45, cost: { seaglass: 4, wyldroot: 2 }, result: "boost", icon: "\uD83E\uDDED" },
-  { id: 4, name: "Sealed Crate Key", desc: "Opens sealed loot from LBE sessions", time: 10, cost: { dustiron: 3 }, result: "key", icon: "\uD83D\uDD11" },
+  { id: 4, name: "Sealed Crate Key", desc: "Opens sealed loot from LBE sessions", time: 10, cost: { dustiron: 3, nexus: 25 }, result: "key", icon: "\uD83D\uDD11" },
 ];
 
 const INIT_RESOURCES = { emberstone: 34, wyldroot: 12, seaglass: 8, dustiron: 21, nexus: 0 };
@@ -99,32 +99,38 @@ const NEXUS_YIELD = { common: 5, uncommon: 15, rare: 40, epic: 100, legendary: 2
 // ══════════════════════════════════════════════════════════
 
 function normalizeProfile(apiData, sessionCount = 0) {
-  const level = apiData.fate_level || 1;
-  const xp = apiData.fate_xp || 0;
-  const tier = getTier(level);
-  const xpNext = xpForLevel(level);
+  // API returns nested: { persona:{...}, progression:{...}, source_links, recent_events }
+  // Fall back gracefully to flat shape
+  const persona = apiData.persona     || apiData;
+  const prog    = apiData.progression || apiData;
+
+  const level     = prog.fate_level  || prog.fateLevel  || 1;
+  const xp        = prog.fate_xp     || prog.fateXp     || 0;
+  const tier      = getTier(level);
+  const xpNext    = xpForLevel(level);
   const xpCurrent = xp % xpNext;
-  const tRange = tierXpRange(tier);
-  
-  // Count boss kills from fate_markers
-  const markers = apiData.fate_markers || [];
-  const bossKills = markers.filter(m => 
-    m.marker?.includes('boss') || m.marker?.includes('veil')
+  const tRange    = tierXpRange(tier);
+
+  const markers   = prog.fate_markers || apiData.fate_markers || [];
+  const bossKills = markers.filter(m =>
+    (typeof m === 'string' ? m : m?.marker || '').toLowerCase().includes('boss')
   ).length;
 
-  // Titles
-  const titles = (apiData.titles || []).map(t => ({
+  const equippedId = persona.equipped_title || prog.equipped_title || apiData.equipped_title || null;
+  const rawTitles  = prog.titles || apiData.titles || [];
+  const titles = rawTitles.map(t => ({
     id: t.title_id,
-    name: (t.title_id || '').replace(/^title_/, '').replace(/_/g, ' ').toUpperCase(),
-    equipped: apiData.equipped_title === t.title_id,
+    name: (t.display_name || t.title_id || '').replace(/^title_/, '').replace(/_/g, ' ').toUpperCase(),
+    equipped: equippedId === t.title_id,
   }));
 
+  const heroName  = persona.hero_name || persona.heroName || apiData.hero_name || 'Unknown';
+  const alignment = persona.fate_alignment || apiData.fate_alignment || 'NONE';
+
   return {
-    displayName: apiData.hero_name || 'Unknown',
-    title: apiData.equipped_title 
-      ? titles.find(t => t.id === apiData.equipped_title)?.name || '' 
-      : apiData.fate_alignment || '',
-    heroName: apiData.hero_name || 'Unknown',
+    displayName: heroName,
+    title: equippedId ? titles.find(t => t.id === equippedId)?.name || '' : alignment,
+    heroName,
     tier: tier.name,
     tierColor: tier.color,
     level,
@@ -134,13 +140,13 @@ function normalizeProfile(apiData, sessionCount = 0) {
     xpTier: xp - tRange.min,
     xpTierNext: tRange.max - tRange.min,
     sessions: sessionCount,
-    questsComplete: 0, // updated from quests
+    questsComplete: 0,
     bossKills,
-    gearScore: 0, // updated from gear
-    pikId: apiData.root_id || '',
-    equippedTitle: apiData.equipped_title || null,
+    gearScore: 0,
+    pikId: apiData.root_id || apiData.id || '',
+    equippedTitle: equippedId,
     titles,
-    fateAlignment: apiData.fate_alignment || 'NONE',
+    fateAlignment: alignment,
   };
 }
 
@@ -320,12 +326,12 @@ function Toast({ message, color, onDone }) {
 
 function TabBar({ active, onChange }) {
   const tabs = [
-    { id: "hero", icon: "⚔️", label: "Hero" },
-    { id: "quests", icon: "📜", label: "Quests" },
-    { id: "codex", icon: "📖", label: "Codex" },
-    { id: "workshop", icon: "⚙️", label: "Workshop" },
-    { id: "world", icon: "🌐", label: "World" },
-    { id: "identity", icon: "◈", label: "Identity" },
+    { id: "hero",      icon: "⚔️",  label: "Hero" },
+    { id: "quests",    icon: "📜",  label: "Quests" },
+    { id: "codex",     icon: "📖",  label: "Codex" },
+    { id: "workshop",  icon: "⚙️",  label: "Workshop" },
+    { id: "world",     icon: "🌐",  label: "World" },
+    { id: "identity",  icon: null,  label: "Identity", symbol: "◈" },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: `linear-gradient(180deg, transparent 0%, ${BG} 30%)`, padding: "16px 0 10px", zIndex: 100 }}>
@@ -334,7 +340,10 @@ function TabBar({ active, onChange }) {
           const on = active === t.id;
           return (
             <button key={t.id} onClick={() => onChange(t.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: FONT_B, minWidth: 0 }}>
-              <span style={{ fontSize: 17, filter: on ? "none" : "grayscale(1) opacity(0.4)", transition: "all 0.2s ease" }}>{t.icon}</span>
+              {t.symbol
+                ? <span style={{ fontSize: 20, color: on ? "#a78bfa" : "rgba(255,255,255,0.3)", transition: "color 0.2s", lineHeight: 1 }}>{t.symbol}</span>
+                : <span style={{ fontSize: 17, filter: on ? "none" : "grayscale(1) opacity(0.4)", transition: "all 0.2s ease" }}>{t.icon}</span>
+              }
               <span style={{ fontSize: 9, fontWeight: on ? 700 : 500, color: on ? "#fff" : MUTED, letterSpacing: "0.04em", textTransform: "uppercase" }}>{t.label}</span>
               {on && <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#6366f1" }} />}
             </button>
@@ -1193,18 +1202,31 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
 
           setPlayer(p);
 
-          // Extract world / identity data from profile payload
-          setFateMarkers(profileResp.data.fate_markers || []);
+          // Extract world/identity data — handle nested API shape
+          const progData   = profileResp.data.progression || profileResp.data;
+          setFateMarkers(progData.fate_markers || profileResp.data.fate_markers || []);
           setSourceLinks(profileResp.data.source_links || []);
           setRecentEvents(profileResp.data.recent_events || []);
         }
 
-        // Leaderboard (best-effort — not critical)
+        // Leaderboard — try api module first, then direct fetch via same base
         try {
-          const lbResp = await api.getLeaderboard ? api.getLeaderboard() : fetch('/api/leaderboard?limit=10').then(r => r.json());
-          const lbData = lbResp?.data || lbResp;
+          let lbData = null;
+          if (typeof api.getLeaderboard === 'function') {
+            const r = await api.getLeaderboard();
+            lbData = r?.data || r;
+          } else {
+            // Derive base URL from api module's known endpoint pattern
+            const base = (typeof api._baseUrl === 'string') ? api._baseUrl
+              : (typeof api.baseUrl === 'string') ? api.baseUrl
+              : '';
+            const url = `${base}/api/leaderboard?limit=10`;
+            const r = await fetch(url, { credentials: 'include' });
+            if (r.ok) lbData = await r.json();
+          }
           if (Array.isArray(lbData)) setLeaderboard(lbData);
-          else if (lbData?.entries) setLeaderboard(lbData.entries);
+          else if (Array.isArray(lbData?.data)) setLeaderboard(lbData.data);
+          else if (Array.isArray(lbData?.entries)) setLeaderboard(lbData.entries);
         } catch (_) { /* leaderboard is non-critical */ }
 
         if (equipResp.ok) {
