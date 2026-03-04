@@ -84,15 +84,20 @@ export class IdentityController {
   async getTimeline(@Param('root_id') rootId: string) {
     return this.identityService.getTimeline(rootId);
   }
-@Post(':root_id/inventory/:inventory_id/dismantle')
-async dismantleItem(
-  @Param('root_id') rootId: string,
-  @Param('inventory_id') inventoryId: string,
-) {
-  return this.identityService.dismantleItem(rootId, inventoryId);
-}
 
-// 
+  /**
+   * POST /api/users/:root_id/inventory/:inventory_id/dismantle
+   *
+   * Dismantle an unequipped inventory item for Nexus currency.
+   */
+  @Post(':root_id/inventory/:inventory_id/dismantle')
+  async dismantleItem(
+    @Param('root_id') rootId: string,
+    @Param('inventory_id') inventoryId: string,
+  ) {
+    return this.identityService.dismantleItem(rootId, inventoryId);
+  }
+
   /**
    * PUT /api/users/:root_id/profile
    *

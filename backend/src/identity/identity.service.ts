@@ -19,6 +19,14 @@ import { EnrollUserDto } from './dto/enroll-user.dto';
 export class IdentityService {
   private readonly logger = new Logger(IdentityService.name);
 
+  private readonly NEXUS_YIELD: Record<string, number> = {
+    common: 5,
+    uncommon: 15,
+    rare: 40,
+    epic: 100,
+    legendary: 250,
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
@@ -689,69 +697,64 @@ export class IdentityService {
       previous: prev,
     };
   }
-const NEXUS_YIELD: Record<string, number> = {
-  common: 5,
-  uncommon: 15,
-  rare: 40,
-  epic: 100,
-  legendary: 250,
-};
 
-async dismantleItem(rootId: string, inventoryId: string) {
-  // 1. Verify the inventory record exists and belongs to this player
-  const inv = await this.prisma.playerInventory.findFirst({
-    where: { id: inventoryId, rootId },
-    include: { item: true, equipment: true },
-  });
+  // ── DISMANTLE ─────────────────────────────────────────────
 
-  if (!inv) {
-    throw new NotFoundException(
-      `Inventory item not found: ${inventoryId}`,
+  async dismantleItem(rootId: string, inventoryId: string) {
+    // 1. Verify the inventory record exists and belongs to this player
+    const inv = await this.prisma.playerInventory.findFirst({
+      where: { id: inventoryId, rootId },
+      include: { item: true, equipment: true },
+    });
+
+    if (!inv) {
+      throw new NotFoundException(
+        `Inventory item not found: ${inventoryId}`,
+      );
+    }
+
+    // 2. Cannot dismantle equipped items
+    if (inv.equipment) {
+      throw new BadRequestException(
+        `Cannot dismantle equipped item. Unequip it first.`,
+      );
+    }
+
+    // 3. Calculate Nexus yield based on rarity
+    const rarity = (inv.item.rarityTier || 'common').toLowerCase();
+    const nexusGained = this.NEXUS_YIELD[rarity] || this.NEXUS_YIELD.common;
+
+    // 4. Delete the inventory record
+    await this.prisma.playerInventory.delete({
+      where: { id: inventoryId },
+    });
+
+    // 5. Log the event
+    await this.events.log({
+      rootId,
+      eventType: 'gear.item_dismantled',
+      payload: {
+        inventory_id: inventoryId,
+        item_id: inv.item.id,
+        item_name: inv.item.name,
+        rarity: inv.item.rarityTier,
+        nexus_gained: nexusGained,
+      },
+    });
+
+    this.logger.log(
+      `Item dismantled: ${rootId} → ${inv.item.name} (${rarity}) → +${nexusGained} Nexus`,
     );
-  }
 
-  // 2. Cannot dismantle equipped items
-  if (inv.equipment) {
-    throw new BadRequestException(
-      `Cannot dismantle equipped item. Unequip it first.`,
-    );
-  }
-
-  // 3. Calculate Nexus yield based on rarity
-  const rarity = (inv.item.rarityTier || 'common').toLowerCase();
-  const nexusGained = NEXUS_YIELD[rarity] || NEXUS_YIELD.common;
-
-  // 4. Delete the inventory record (cascades equipment if any)
-  await this.prisma.playerInventory.delete({
-    where: { id: inventoryId },
-  });
-
-  // 5. Log the event
-  await this.events.log({
-    rootId,
-    eventType: 'gear.item_dismantled',
-    payload: {
+    return {
+      root_id: rootId,
       inventory_id: inventoryId,
-      item_id: inv.item.id,
       item_name: inv.item.name,
       rarity: inv.item.rarityTier,
       nexus_gained: nexusGained,
-    },
-  });
+    };
+  }
 
-  this.logger.log(
-    `Item dismantled: ${rootId} → ${inv.item.name} (${rarity}) → +${nexusGained} Nexus`,
-  );
-
-  return {
-    root_id: rootId,
-    inventory_id: inventoryId,
-    item_name: inv.item.name,
-    rarity: inv.item.rarityTier,
-    nexus_gained: nexusGained,
-  };
-}
-// 
   // ── HELPERS ───────────────────────────────────────────────
 
   /**
