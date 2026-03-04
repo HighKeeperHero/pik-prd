@@ -100,6 +100,180 @@ function Accordion({ icon, title, subtitle, children, defaultOpen = false }) {
   );
 }
 
+// ── Realm Alignment Selection Modal ──
+// Shown once when Fate Level reaches 20 and no alignment has been chosen.
+// Order/Chaos/Light/Dark only — Life/Death excluded.
+function AlignmentModal({ show, onClose, onSubmit, submitting }) {
+  const [selected, setSelected] = useState(null);
+  const [hovered, setHovered] = useState(null);
+
+  useEffect(() => { if (!show) setSelected(null); }, [show]);
+
+  if (!show) return null;
+
+  const CHOICES = [
+    {
+      key: "ORDER",
+      label: "Order",
+      color: "#3b82f6",
+      icon: "⚖",
+      realm: "The Realm of Structure",
+      desc: "Law, celestial balance, and unyielding discipline. Order champions rally beneath banners of azure and iron.",
+    },
+    {
+      key: "CHAOS",
+      label: "Chaos",
+      color: "#ef4444",
+      icon: "🜲",
+      realm: "The Realm of Entropy",
+      desc: "Untamed power, constant change, and the thrill of the unpredictable. Chaos hunters strike fast and strike first.",
+    },
+    {
+      key: "LIGHT",
+      label: "Light",
+      color: "#f5a623",
+      icon: "☀",
+      realm: "The Realm of Radiance",
+      desc: "Solar force, truth, and blinding clarity. Light-sworn are drawn to sacred hunts and ancient illuminated relics.",
+    },
+    {
+      key: "DARK",
+      label: "Dark",
+      color: "#8b5cf6",
+      icon: "☽",
+      realm: "The Realm of Shadow",
+      desc: "Lunar mystery, hidden knowledge, and the strength found in silence. Dark-sworn walk where others dare not look.",
+    },
+  ];
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 20,
+    }}>
+      {/* Backdrop — not clickable to close, choice must be made deliberately */}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)" }} />
+
+      <div style={{
+        position: "relative", width: "100%", maxWidth: 440, maxHeight: "90vh",
+        overflowY: "auto", borderRadius: 20,
+        background: "linear-gradient(180deg, #12121e 0%, #0a0a14 100%)",
+        border: "1px solid rgba(167,139,250,0.2)",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 60px rgba(99,102,241,0.12)",
+        padding: "32px 24px 24px",
+      }}>
+        {/* Dismiss — will re-prompt next login until chosen */}
+        <button onClick={onClose} style={{
+          position: "absolute", top: 16, right: 16,
+          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 8, width: 32, height: 32,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "rgba(255,255,255,0.3)", fontSize: 14, cursor: "pointer",
+        }}>✕</button>
+
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16, margin: "0 auto 16px",
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 26, boxShadow: "0 0 30px rgba(99,102,241,0.4)",
+          }}>⟐</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, marginBottom: 6 }}>
+            Choose Your Realm
+          </div>
+          <div style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, lineHeight: 1.6, maxWidth: 320, margin: "0 auto" }}>
+            You've reached Fate Level 20. Your alignment determines which realm hunts are issued to you, the titles you can earn, and the legendary equipment paths ahead. This choice is permanent.
+          </div>
+        </div>
+
+        {/* Realm choices */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+          {CHOICES.map(c => {
+            const isSelected = selected === c.key;
+            const isHovered  = hovered === c.key;
+            return (
+              <div
+                key={c.key}
+                onClick={() => setSelected(c.key)}
+                onMouseEnter={() => setHovered(c.key)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  padding: "14px 16px", borderRadius: 14, cursor: "pointer",
+                  background: isSelected ? `${c.color}12` : isHovered ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+                  border: `2px solid ${isSelected ? c.color + "60" : isHovered ? c.color + "30" : "rgba(255,255,255,0.07)"}`,
+                  transition: "all 0.18s ease",
+                  display: "flex", alignItems: "flex-start", gap: 14,
+                }}
+              >
+                {/* Icon */}
+                <div style={{
+                  width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                  background: isSelected ? `${c.color}20` : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${isSelected ? c.color + "50" : "rgba(255,255,255,0.08)"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 20, color: isSelected ? c.color : "rgba(255,255,255,0.4)",
+                  transition: "all 0.18s ease",
+                }}>
+                  {c.icon}
+                </div>
+                {/* Text */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: isSelected ? c.color : "#fff", fontFamily: FONT_B, transition: "color 0.18s" }}>
+                      {c.label}
+                    </span>
+                    <span style={{ fontSize: 9, color: isSelected ? c.color + "bb" : MUTED, fontFamily: FONT_B, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {c.realm}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, lineHeight: 1.5 }}>{c.desc}</div>
+                </div>
+                {/* Selection indicator */}
+                <div style={{
+                  width: 18, height: 18, borderRadius: "50%", flexShrink: 0, marginTop: 2,
+                  border: `2px solid ${isSelected ? c.color : "rgba(255,255,255,0.15)"}`,
+                  background: isSelected ? c.color : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.18s ease",
+                }}>
+                  {isSelected && <span style={{ fontSize: 9, color: "#fff", fontWeight: 700 }}>✓</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Confirm */}
+        <button
+          onClick={() => selected && onSubmit(selected)}
+          disabled={!selected || submitting}
+          style={{
+            width: "100%", padding: "14px",
+            borderRadius: 12, border: "none", cursor: selected ? "pointer" : "not-allowed",
+            background: selected
+              ? `linear-gradient(135deg, ${CHOICES.find(c => c.key === selected)?.color}, ${CHOICES.find(c => c.key === selected)?.color}bb)`
+              : "rgba(255,255,255,0.05)",
+            color: selected ? "#fff" : "rgba(255,255,255,0.2)",
+            fontSize: 15, fontWeight: 700, fontFamily: FONT_B,
+            transition: "all 0.2s ease",
+            boxShadow: selected ? `0 4px 20px ${CHOICES.find(c => c.key === selected)?.color}40` : "none",
+            opacity: submitting ? 0.6 : 1,
+          }}
+        >
+          {submitting ? "Sealing your fate…" : selected ? `Pledge to ${CHOICES.find(c => c.key === selected)?.label}` : "Select a Realm"}
+        </button>
+
+        {/* Fine print */}
+        <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: "rgba(255,255,255,0.2)", fontFamily: FONT_B }}>
+          This choice is permanent and cannot be changed.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Hero Creation / Rename Modal ──
 function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [], mode = "create", currentHeroName = "" }) {
   const [heroName, setHeroName] = useState("");
@@ -328,6 +502,9 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   const [entered, setEntered] = useState(false);
   const [showHeroModal, setShowHeroModal] = useState(false);
   const [heroModalMode, setHeroModalMode] = useState("create"); // "create" | "rename"
+  const [showAlignmentModal, setShowAlignmentModal] = useState(false);
+  const [alignmentSubmitting, setAlignmentSubmitting] = useState(false);
+  const alignmentPromptedRef = useRef(false); // prevent re-showing within the same session
   const [heroData, setHeroData] = useState(null);
   const [takenHeroNames, setTakenHeroNames] = useState([]);
 
@@ -339,14 +516,47 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
     if (userData) console.log('[FateDashboard v2] userData.sessions =', JSON.stringify(userData?.sessions), 'type =', typeof userData?.sessions);
   }, [userData]);
 
-  const fateName = userData?.display_name || userData?.displayName || "Adventurer";
+  // Trigger alignment selection once when Fate Level reaches 20 and no alignment chosen
   const fateLevel = userData?.fate_level || 0;
+  const alignment = userData?.fate_alignment || null;
+  useEffect(() => {
+    if (fateLevel >= ALIGNMENT_UNLOCK_LEVEL && !alignment && !alignmentPromptedRef.current) {
+      alignmentPromptedRef.current = true;
+      // Small delay so the dashboard renders fully before the modal appears
+      const t = setTimeout(() => setShowAlignmentModal(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [fateLevel, alignment]);
+
+  const handleAlignmentSubmit = async (choice) => {
+    setAlignmentSubmitting(true);
+    try {
+      const apiMod = await import('./api.js');
+      const apiClient = apiMod.default;
+      const resp = await apiClient.updateProfile({ fate_alignment: choice }, rootId);
+      if (resp.ok) {
+        setShowAlignmentModal(false);
+        // Refresh userData so alignment badge and any downstream logic updates immediately
+        const profileResp = await apiClient.getProfile(rootId);
+        if (profileResp.ok && profileResp.data && onUserDataRefresh) {
+          onUserDataRefresh(profileResp.data);
+        }
+      } else {
+        console.error("Alignment update failed:", resp.error);
+      }
+    } catch (err) {
+      console.error("Alignment update error:", err);
+    }
+    setAlignmentSubmitting(false);
+  };
+
+
+  const fateName = userData?.display_name || userData?.displayName || "Adventurer";
   const fateXP = userData?.fate_xp || 0;
   const tier = getTier(Math.max(fateLevel, 1));
   const rawHeroName = userData?.hero_name || null;
   const heroTitle = userData?.hero_title || heroData?.title || null;
   const authMethod = userData?.auth_method || "passkey";
-  const alignment = userData?.fate_alignment || null;
   const quests = userData?.quests_completed || 0;
   // Sessions: API may return number, object, array, or nested structure
   const rawSessions = userData?.sessions;
@@ -496,14 +706,28 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
                   <div style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT, color: "#fff" }}>{fateName}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: tier.color }}>{tier.name}</span>
-                    <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)" }}>•</span>
+                    <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)" }}>{"\u2022"}</span>
                     <span style={{ fontSize: 12, color: MUTED }}>Level {fateLevel}</span>
                     {fateLevel >= ALIGNMENT_UNLOCK_LEVEL && (
                       <>
-                        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)" }}>•</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: alignment ? alignmentColor(alignment) : "#6b7280" }}>
-                          {alignment ? (ALIGNMENT_META[alignment]?.label || alignment) : "Neutral"}
-                        </span>
+                        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)" }}>{"\u2022"}</span>
+                        {alignment ? (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: alignmentColor(alignment) }}>
+                            {ALIGNMENT_META[alignment]?.label || alignment}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setShowAlignmentModal(true)}
+                            style={{
+                              fontSize: 10, fontWeight: 700, color: "#a78bfa",
+                              background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)",
+                              borderRadius: 6, padding: "1px 8px", cursor: "pointer",
+                              fontFamily: FONT_B, letterSpacing: "0.04em",
+                            }}
+                          >
+                            Choose Realm ✦
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -783,6 +1007,14 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
         takenHeroNames={takenHeroNames}
         mode={heroModalMode}
         currentHeroName={heroName || rawHeroName || ""}
+      />
+
+      {/* Realm Alignment Modal */}
+      <AlignmentModal
+        show={showAlignmentModal}
+        onClose={() => setShowAlignmentModal(false)}
+        onSubmit={handleAlignmentSubmit}
+        submitting={alignmentSubmitting}
       />
     </div>
   );
