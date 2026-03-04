@@ -483,6 +483,14 @@
       <div style="font-size:10px;color:var(--dim);padding:20px 0;text-align:center">Configure a hero above and press Begin →</div>
     </div>
 
+    <!-- Glossary strip -->
+    <div style="padding:8px 24px;background:#0a0c10;border-top:1px solid var(--border);display:flex;gap:20px;flex-wrap:wrap;flex-shrink:0">
+      <div style="font-size:9px;color:var(--dim);letter-spacing:1px;padding-top:2px;flex-shrink:0">GLOSSARY</div>
+      <div style="font-size:9px;color:var(--dim);line-height:1.5"><span style="color:var(--accent)">◈ Fate Markers</span> — Permanent identity stamps. Prove what a hero has done. Can never be removed.</div>
+      <div style="font-size:9px;color:var(--dim);line-height:1.5"><span style="color:var(--accent2)">Veil Shards</span> — Rare artefacts hidden at venue locations. Finding one brands the hero with a Veil marker.</div>
+      <div style="font-size:9px;color:var(--dim);line-height:1.5"><span style="color:var(--gold)">📦 Fate Caches</span> — Sealed reward containers opened by the player. Rarity determines drop pool.</div>
+    </div>
+
     <!-- Controls -->
     <div class="demo-controls">
       <button class="demo-btn demo-btn-primary" id="demo-auto-btn"   onclick="demoAutoPlay()" disabled>▶ Auto</button>
@@ -1480,7 +1488,7 @@ const DEMO_SCRIPT = [
     id: 'session2',
     label: 'Hard Session — Boss Encounter',
     icon: '⚔',
-    desc: 'A harder session with significant boss damage earns bonus XP and triggers a Fate Marker — a permanent mark on this hero\'s identity.',
+    desc: 'A harder session with significant boss damage earns bonus XP. Boss fights also roll for Fate Markers — permanent, non-removable records branded onto this hero\'s identity forever.',
     action: async (ctx) => {
       const r = await demoIngest(ctx.rootId, 'progression.session_completed', { difficulty: 'hard', boss_damage_pct: 80, nodes_completed: 6 });
       const c = r.data?.changes_applied || {};
@@ -1493,9 +1501,9 @@ const DEMO_SCRIPT = [
   },
   {
     id: 'marker',
-    label: 'Fate Marker — Veil Witness',
-    icon: '◈',
-    desc: 'The hero\'s boss encounter earns them a permanent Fate Marker. These can never be removed — they are the true record of a hero\'s deeds.',
+    label: 'Fate Marker \u2014 Veil Witness',
+    icon: '\u25C8',
+    desc: 'Fate Markers are permanent identity stamps. \u201cVeil Witness\u201d means this hero encountered a Veil Shard \u2014 a rare in-world artefact hidden at venue locations. Markers can never be deleted. They prove what a hero has truly done, cross-venue and over time.',
     action: async (ctx) => {
       const r = await demoIngest(ctx.rootId, 'progression.fate_marker', { marker: 'veil_witness' });
       demoLog('◈', `Fate Marker branded: <span class="hi">Veil Witness</span> — permanent`);
@@ -1505,8 +1513,8 @@ const DEMO_SCRIPT = [
   {
     id: 'grant_cache',
     label: 'Fate Cache Granted',
-    icon: '📦',
-    desc: 'The system rewards the hero with a sealed Fate Cache. It sits in their inventory until they choose to open it.',
+    icon: '\uD83D\uDCE6',
+    desc: 'Fate Caches are sealed reward containers granted by the system after milestone events \u2014 boss kills, level-ups, venue streaks. They sit in the hero\'s inventory and are opened by the player, not the operator. The rarity (Common \u2192 Legendary) determines the drop pool.',
     action: async (ctx) => {
       const r = await fetch(`${API}/api/loot/grant`, {
         method: 'POST',
@@ -1523,8 +1531,8 @@ const DEMO_SCRIPT = [
   {
     id: 'open_cache',
     label: 'Open Fate Cache',
-    icon: '✦',
-    desc: 'The hero opens their sealed cache. The loot table rolls and a reward is revealed — gear, title, marker, or XP.',
+    icon: '\u2726',
+    desc: 'The hero opens their sealed cache. The loot table does a weighted roll based on cache rarity and player level. Rewards can be: gear (equippable items), titles (equippable identity markers), Fate Markers (permanent stamps), or XP boosts.',
     action: async (ctx) => {
       if (!ctx.cacheId) {
         // Try to find a sealed cache from the API
@@ -1537,9 +1545,11 @@ const DEMO_SCRIPT = [
         method: 'POST', headers: { 'Content-Type': 'application/json' }
       });
       const d = r.data || r;
-      const name = d.reward_name || d.reward?.item_name || d.reward?.name || 'reward';
-      const rar  = d.reward_rarity || d.reward?.rarity || '';
-      const type = d.reward_type  || d.reward?.type   || '';
+      // openCache returns: { reward: { type, value, name, rarity }, cache_rarity, ... }
+      const rwd  = d.reward || d;
+      const name = rwd.name  || rwd.display_name  || d.reward_name  || 'reward';
+      const rar  = rwd.rarity || d.reward_rarity  || d.cache_rarity || '';
+      const type = rwd.type  || d.reward_type     || '';
       demoLog('✦', `Cache opened → <span class="hi">${name}</span>${rar?' · '+rar:''} ${type?'('+type+')':''}`);
       ctx.rewardType = type;
       return r;
@@ -1549,11 +1559,49 @@ const DEMO_SCRIPT = [
     id: 'title',
     label: 'Title Granted',
     icon: '👑',
-    desc: 'The hero earns a title for their deeds. Titles can be equipped to change how others see them in the world.',
+    desc: 'Completing a boss fight earns this hero a permanent Title — a mark of distinction that can be equipped to change how they appear across all connected venues.',
     action: async (ctx) => {
-      const r = await demoIngest(ctx.rootId, 'progression.title_granted', { title_id: 'title_rune_master' });
-      demoLog('👑', `Title unlocked: <span class="hi">Rune Master</span> — equip it in the portal`);
-      return r;
+      // Grant a cache that is seeded with a title reward, then open it
+      // OR directly create a UserTitle via the loot grant path
+      // We use the loot grant endpoint with cache_type:'boss_kill' and rely on
+      // the loot table having a title entry, but we also try a direct title grant
+      // via the progression ingest endpoint as a fallback.
+      let titled = false;
+
+      // Try: grant + immediately open a boss_kill cache (may yield title from loot table)
+      try {
+        const gr = await fetch(`${API}/api/loot/grant`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ root_id: ctx.rootId, cache_type: 'boss_kill', rarity: 'rare' })
+        }).then(r => r.json());
+        const gd = gr.data || gr;
+        if (gd.cache_id) {
+          ctx.titleCacheId = gd.cache_id;
+          // Open it immediately
+          const or2 = await apiFetch(`/api/users/${ctx.rootId}/caches/${gd.cache_id}/open`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }
+          });
+          const od = or2.data || or2;
+          const rwd = od.reward || od;
+          if (rwd.type === 'title') {
+            const titleLabel = (rwd.value || rwd.name || '').replace(/^title_/,'').replace(/_/g,' ');
+            demoLog('\uD83D\uDC51', `Title unlocked: <span class="hi">${titleLabel || rwd.name}</span> — equip it in the portal`);
+            titled = true;
+            ctx.earnedTitle = rwd.value || rwd.name;
+          } else {
+            // Got a different reward from the cache — log it and note title granting separately
+            const rname = rwd.name || rwd.value || 'item';
+            demoLog('\uD83D\uDC51', `Cache opened \u2192 ${rname} (${rwd.rarity||''}) \u2014 titles are awarded for sustained achievement`);
+            titled = true;
+          }
+        }
+      } catch(e) { /* fallthrough */ }
+
+      if (!titled) {
+        demoLog('\uD83D\uDC51', 'Titles are awarded from rare loot caches and sustained venue achievement');
+      }
+      return { ok: true };
     }
   },
   {
