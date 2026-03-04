@@ -30,6 +30,7 @@ import { IngestEventDto } from './dto/ingest-event.dto';
 import { ResolvedSource } from '../auth/guards/api-key.guard';
 import { LootService } from '../loot/loot.service';
 import { QuestService } from '../quest/quest.service';
+import { MarkerEngineService } from '../marker-engine/marker-engine.service'; // ← ADDED
 
 /** Titles automatically granted at specific Fate Levels */
 const LEVEL_TITLES: Record<number, string> = {
@@ -56,6 +57,7 @@ export class IngestService {
     private readonly identity: IdentityService,
     private readonly loot: LootService,
     private readonly quests: QuestService,
+    private readonly markerEngine: MarkerEngineService, // ← ADDED
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -434,6 +436,13 @@ export class IngestService {
         sourceId: source.id,
       },
     });
+
+    // ← ADDED: check whether any milestone thresholds were crossed
+    try {
+      await this.markerEngine.checkMilestones(user.id, source.id);
+    } catch (err) {
+      this.logger.warn(`Marker engine failed for ${user.id}: ${err}`);
+    }
 
     const changesApplied = { marker };
 

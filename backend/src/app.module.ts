@@ -27,6 +27,7 @@ import { SessionModule } from './session/session.module';
 import { WearableModule } from './wearable/wearable.module';
 import { QuestModule } from './quest/quest.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { MarkerEngineModule } from './marker-engine/marker-engine.module'; // ← ADDED
 
 @Global()
 @Module({
@@ -76,6 +77,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
     WearableModule,
     QuestModule,
     LeaderboardModule,
+    MarkerEngineModule, // ← ADDED
   ],
   providers: [
     PrismaService,

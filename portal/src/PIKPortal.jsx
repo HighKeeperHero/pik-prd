@@ -1025,89 +1025,190 @@ function evtLabel(evt) {
   return t.replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function IdentityTab({ fateMarkers, recentEvents, player }) {
+function MilestoneLadder({ ladder }) {
+  const CAT_META = {
+    veil:     { label: "Veil",     color: "#7c6aff", icon: "\u25C8", desc: "Veil Shard encounters & Veil moments" },
+    combat:   { label: "Combat",   color: "#ef4444", icon: "\u2694",  desc: "Boss kills & guardian defeats" },
+    fate:     { label: "Fate",     color: "#6366f1", icon: "\u2726",  desc: "Story beats & artefact discoveries" },
+    explorer: { label: "Explorer", color: "#3ecf8e", icon: "\u2605",  desc: "Venue discoveries & hidden rooms" },
+    survivor: { label: "Survivor", color: "#f5a623", icon: "\u26E8",  desc: "High-difficulty & solo completions" },
+    total:    { label: "All",      color: "#a78bfa", icon: "\u25C6",  desc: "Total markers across all categories" },
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+      {ladder.filter(l => l.count > 0 || l.category === "total").map(l => {
+        const meta = CAT_META[l.category] || { label: l.category, color: "#6366f1", icon: "\u25C6", desc: "" };
+        const earned = l.tiers.filter(t => t.earned);
+        const next   = l.tiers.find(t => !t.earned);
+        const pct    = l.progress_pct ?? 0;
+        return (
+          <div key={l.category} style={{ padding: "12px 14px", borderRadius: 12, background: SURFACE, border: "1px solid " + BORDER }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: next || earned.length ? 8 : 0 }}>
+              <span style={{ fontSize: 16, color: meta.color }}>{meta.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: FONT_B }}>{meta.label}</div>
+                <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B }}>{meta.desc}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: meta.color, fontFamily: FONT_B }}>{l.count}</div>
+                <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT_B }}>markers</div>
+              </div>
+            </div>
+            {next && (
+              <>
+                <div style={{ height: 3, borderRadius: 2, background: BORDER, overflow: "hidden", marginBottom: 5 }}>
+                  <div style={{ height: "100%", width: pct + "%", background: "linear-gradient(90deg," + meta.color + "99," + meta.color + ")", borderRadius: 2, transition: "width 0.6s ease" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 9, color: MUTED, fontFamily: FONT_B }}>
+                    {l.count}&thinsp;/&thinsp;{next.threshold} \u2192 <span style={{ color: meta.color }}>{next.label}</span>
+                    {next.cache_bonus ? <span style={{ color: MUTED }}> + {next.cache_bonus.rarity} cache</span> : null}
+                  </span>
+                  <span style={{ fontSize: 9, color: meta.color, fontFamily: FONT_B, fontWeight: 700 }}>{pct}%</span>
+                </div>
+              </>
+            )}
+            {!next && earned.length > 0 && (
+              <div style={{ fontSize: 9, color: "#3ecf8e", fontFamily: FONT_B, fontWeight: 700 }}>\u2713 All milestones reached</div>
+            )}
+            {earned.length > 0 && (
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+                {earned.map(t => (
+                  <span key={t.title_id} style={{ padding: "2px 8px", borderRadius: 8, background: meta.color + "15", border: "1px solid " + meta.color + "35", color: meta.color, fontSize: 9, fontWeight: 700, fontFamily: FONT_B, letterSpacing: "0.05em" }}>
+                    \u2713 {t.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function IdentityTab({ fateMarkers, recentEvents, player, milestones }) {
   const [evtFilter, setEvtFilter] = useState("all");
+  const [showAll, setShowAll]     = useState(false);
 
   const filteredEvents = recentEvents.filter(e => {
-    if (evtFilter === "all") return true;
+    if (evtFilter === "all")      return true;
     const t = e.event_type || e.type || "";
-    if (evtFilter === "loot") return t.includes("loot") || t.includes("cache");
-    if (evtFilter === "progress") return t.includes("progression") || t.includes("level") || t.includes("xp");
-    if (evtFilter === "combat") return t.includes("session") || t.includes("quest") || t.includes("gear");
+    if (evtFilter === "loot")     return t.includes("loot") || t.includes("cache");
+    if (evtFilter === "progress") return t.includes("progression") || t.includes("level") || t.includes("xp") || t.includes("milestone");
+    if (evtFilter === "combat")   return t.includes("session") || t.includes("quest") || t.includes("gear");
     return true;
   });
+
+  const visibleMarkers = showAll ? fateMarkers : fateMarkers.slice(0, 6);
 
   return (
     <div style={{ padding: "0 20px 120px" }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, margin: "0 0 4px" }}>Identity</h2>
-      <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 20px" }}>Your fate markers and the chronicle of your journey.</p>
+      <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 20px" }}>
+        Fate Markers are permanent records of your deeds \u2014 they drive title milestones, unlock loot pools, and prove your history across every venue.
+      </p>
 
-      {/* Fate Markers */}
+      {/* Milestone Progress */}
+      {milestones && milestones.ladders ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: DIM, fontFamily: FONT_B, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Milestone Progress</h3>
+            <span style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(99,102,241,0.15)", color: "#a78bfa", fontSize: 10, fontWeight: 700, fontFamily: FONT_B }}>{milestones.total_markers} total</span>
+          </div>
+          <MilestoneLadder ladder={milestones.ladders} />
+        </>
+      ) : fateMarkers.length > 0 ? (
+        /* Fallback counts while milestone endpoint is deploying */
+        <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 12, overflow: "hidden", border: "1px solid " + BORDER }}>
+          {[
+            { label: "Veil",   color: "#7c6aff", re: /veil|thinning|weave/i },
+            { label: "Combat", color: "#ef4444", re: /boss|guardian|trophy/i },
+            { label: "Fate",   color: "#6366f1", re: /fate|rune|omen/i },
+            { label: "Total",  color: "#a78bfa", re: null },
+          ].map((c, ci) => {
+            const count = c.re ? fateMarkers.filter(m => c.re.test(typeof m === "string" ? m : (m && m.marker) || "")).length : fateMarkers.length;
+            return (
+              <div key={c.label} style={{ flex: 1, textAlign: "center", padding: "12px 8px", background: SURFACE, borderRight: ci < 3 ? "1px solid " + BORDER : "none" }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: c.color, fontFamily: FONT_B }}>{count}</div>
+                <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT_B, marginTop: 2 }}>{c.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* Markers list */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: DIM, fontFamily: FONT_B, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Fate Markers</h3>
         {fateMarkers.length > 0 && (
           <span style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(99,102,241,0.15)", color: "#a78bfa", fontSize: 10, fontWeight: 700, fontFamily: FONT_B }}>{fateMarkers.length}</span>
         )}
       </div>
-
       {fateMarkers.length === 0 ? (
         <Crd style={{ textAlign: "center", padding: 24, marginBottom: 24 }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>◇</div>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>\u25C7</div>
           <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B, margin: 0 }}>No fate markers yet.</p>
-          <p style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, marginTop: 4 }}>Open Fate Caches to earn markers.</p>
+          <p style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, marginTop: 4 }}>Markers are earned at venues \u2014 complete sessions, find Veil Shards, defeat bosses.</p>
         </Crd>
       ) : (
         <div style={{ marginBottom: 24 }}>
-          {fateMarkers.map((m, i) => {
-            const raw = typeof m === "string" ? m : (m?.marker || m?.value || "");
+          {visibleMarkers.map((m, i) => {
+            const raw   = typeof m === "string" ? m : ((m && m.marker) || (m && m.value) || "");
             const label = fmtMarkerLabel(raw);
-            const col = MARKER_COLOR(raw);
-            const icon = MARKER_ICON(raw);
-            const type = MARKER_TYPE(raw);
+            const col   = MARKER_COLOR(raw);
+            const icon  = MARKER_ICON(raw);
+            const type  = MARKER_TYPE(raw);
             return (
-              <div key={raw + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: SURFACE, border: `1px solid ${BORDER}`, marginBottom: 6, transition: "border-color 0.2s" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: `${col}12`, border: `1px solid ${col}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: col, flexShrink: 0 }}>{icon}</div>
+              <div key={raw + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: SURFACE, border: "1px solid " + BORDER, marginBottom: 6 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: col + "12", border: "1px solid " + col + "30", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: col, flexShrink: 0 }}>{icon}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: FONT_B }}>{label}</div>
-                  {typeof m === "object" && m?.sourceId && (
+                  {m && typeof m === "object" && m.sourceId && (
                     <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B, marginTop: 2 }}>via {m.sourceId}</div>
                   )}
                 </div>
-                <span style={{ padding: "2px 8px", borderRadius: 8, background: `${col}12`, color: col, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: FONT_B, flexShrink: 0 }}>{type}</span>
+                <span style={{ padding: "2px 8px", borderRadius: 8, background: col + "12", color: col, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: FONT_B, flexShrink: 0 }}>{type}</span>
               </div>
             );
           })}
+          {fateMarkers.length > 6 && (
+            <button onClick={() => setShowAll(v => !v)} style={{ width: "100%", padding: "8px", borderRadius: 10, background: SURFACE, border: "1px solid " + BORDER, color: MUTED, fontSize: 11, fontFamily: FONT_B, cursor: "pointer", marginBottom: 8 }}>
+              {showAll ? "Show less \u2191" : "Show all " + fateMarkers.length + " markers \u2193"}
+            </button>
+          )}
         </div>
       )}
 
-      {/* Event Chronicle */}
+      {/* Chronicle */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: DIM, fontFamily: FONT_B, margin: 0, textTransform: "uppercase", letterSpacing: "0.08em" }}>Chronicle</h3>
       </div>
       <div style={{ display: "flex", gap: 4, marginBottom: 14, flexWrap: "wrap" }}>
-        {[["all", "All"], ["loot", "Loot"], ["progress", "Progress"], ["combat", "Combat"]].map(([id, label]) => (
-          <button key={id} onClick={() => setEvtFilter(id)} style={{ padding: "5px 12px", borderRadius: 14, background: evtFilter === id ? "rgba(99,102,241,0.2)" : SURFACE, border: `1px solid ${evtFilter === id ? "rgba(99,102,241,0.4)" : BORDER}`, color: evtFilter === id ? "#a78bfa" : MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B }}>{label}</button>
+        {[["all","All"],["loot","Loot"],["progress","Progress"],["combat","Combat"]].map(([id, lbl]) => (
+          <button key={id} onClick={() => setEvtFilter(id)} style={{ padding: "5px 12px", borderRadius: 14, background: evtFilter === id ? "rgba(99,102,241,0.2)" : SURFACE, border: "1px solid " + (evtFilter === id ? "rgba(99,102,241,0.4)" : BORDER), color: evtFilter === id ? "#a78bfa" : MUTED, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT_B }}>{lbl}</button>
         ))}
       </div>
-
       {filteredEvents.length === 0 ? (
         <Crd style={{ textAlign: "center", padding: 24 }}>
           <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B }}>No events recorded yet.</p>
         </Crd>
       ) : (
         <div style={{ position: "relative" }}>
-          {/* Timeline spine */}
           <div style={{ position: "absolute", left: 17, top: 0, bottom: 0, width: 1, background: BORDER, zIndex: 0 }} />
           {filteredEvents.slice(0, 25).map((evt, i) => {
-            const col = evtColor(evt.event_type || evt.type);
-            const icon = evtIcon(evt.event_type || evt.type);
+            const col   = evtColor(evt.event_type || evt.type);
+            const icon  = evtIcon(evt.event_type || evt.type);
             const label = evtLabel(evt);
-            const when = evt.created_at || evt.timestamp ? timeAgo(evt.created_at || evt.timestamp) : "";
+            const when  = (evt.created_at || evt.timestamp) ? timeAgo(evt.created_at || evt.timestamp) : "";
+            const isMilestone = (evt.event_type || "").includes("milestone");
             return (
               <div key={evt.id || i} style={{ display: "flex", gap: 12, marginBottom: 12, position: "relative", zIndex: 1 }}>
-                <div style={{ width: 34, height: 34, borderRadius: "50%", background: `${col}15`, border: `1px solid ${col}35`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>{icon}</div>
+                <div style={{ width: 34, height: 34, borderRadius: "50%", background: isMilestone ? "rgba(99,102,241,0.2)" : col + "15", border: "1px solid " + (isMilestone ? "rgba(99,102,241,0.5)" : col + "35"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
+                  {isMilestone ? "\uD83C\uDFC6" : icon}
+                </div>
                 <div style={{ flex: 1, paddingTop: 6, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", fontFamily: FONT_B, lineHeight: 1.4 }}>{label}</div>
+                  <div style={{ fontSize: 12, fontWeight: isMilestone ? 700 : 600, color: isMilestone ? "#a78bfa" : "#fff", fontFamily: FONT_B, lineHeight: 1.4 }}>{label}</div>
                   {when && <div style={{ fontSize: 10, color: MUTED, fontFamily: FONT_B, marginTop: 2 }}>{when}</div>}
                 </div>
               </div>
@@ -1123,7 +1224,7 @@ function IdentityTab({ fateMarkers, recentEvents, player }) {
 }
 
 
-// ══════════════════════════════════════════════════════════
+
 // LOADING SCREEN
 // ══════════════════════════════════════════════════════════
 
@@ -1163,6 +1264,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
   const [sourceLinks, setSourceLinks] = useState([]);
   const [recentEvents, setRecentEvents] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [milestones, setMilestones]   = useState(null);
 
   const notify = (msg, color) => setToast({ msg, color, key: Date.now() });
 
@@ -1212,6 +1314,12 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           setFateMarkers(progData.fate_markers || profileResp.data.fate_markers || []);
           setSourceLinks(profileResp.data.source_links || []);
           setRecentEvents(profileResp.data.recent_events || []);
+          // Milestone snapshot - best effort, non-blocking
+          try {
+            const base = (typeof api._baseUrl === 'string') ? api._baseUrl : (typeof api.baseUrl === 'string') ? api.baseUrl : '';
+            const mr = await fetch(base + '/api/users/' + rootId + '/marker-milestones', { credentials: 'include' });
+            if (mr.ok) { const md = await mr.json(); if (md && md.ladders) setMilestones(md); }
+          } catch (_) {}
         }
 
         // Leaderboard — try api module first, then direct fetch via same base
@@ -1521,7 +1629,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
         {tab === "codex" && <LoreCodex codex={codex} daily={daily} onReadEntry={handleReadEntry} />}
         {tab === "workshop" && <Workshop resources={resources} timers={craftTimers} onStartCraft={handleStartCraft} onCollectCraft={handleCollectCraft} />}
         {tab === "world" && <WorldTab sourceLinks={sourceLinks} leaderboard={leaderboard} player={player} />}
-        {tab === "identity" && <IdentityTab fateMarkers={fateMarkers} recentEvents={recentEvents} player={player} />}
+        {tab === "identity" && <IdentityTab fateMarkers={fateMarkers} recentEvents={recentEvents} player={player} milestones={milestones} />}
       </div>
 
       <TabBar active={tab} onChange={setTab} />
