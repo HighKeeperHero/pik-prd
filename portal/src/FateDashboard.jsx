@@ -10,6 +10,17 @@ const TIERS = [
   { name: "Adamantium", color: "#4ff0d0", level: "40+", min: 40 },
 ];
 
+// Realm Alignment — unlocks at Fate Level 20.
+// Life/Death excluded to keep themes appropriate for all ages.
+const ALIGNMENT_META = {
+  ORDER: { color: "#3b82f6", label: "Order",  desc: "The realm of structure, law, and celestial balance." },
+  CHAOS: { color: "#ef4444", label: "Chaos",  desc: "The realm of entropy, change, and untamed power." },
+  LIGHT: { color: "#f5a623", label: "Light",  desc: "The realm of radiance, truth, and solar force." },
+  DARK:  { color: "#8b5cf6", label: "Dark",   desc: "The realm of shadow, secrets, and lunar mystery." },
+};
+const ALIGNMENT_UNLOCK_LEVEL = 20;
+function alignmentColor(a) { return ALIGNMENT_META[a]?.color || "#6b7280"; }
+
 const ADV_CLASSES = [
   { name: "Aegis", role: "Tank", weapon: "Sword / Shield", icon: "\uD83D\uDEE1\uFE0F", color: "#3b82f6" },
   { name: "Scalesworn", role: "DPS", weapon: "Spear", icon: "\uD83D\uDD31", color: "#ef4444" },
@@ -487,10 +498,12 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
                     <span style={{ fontSize: 12, fontWeight: 700, color: tier.color }}>{tier.name}</span>
                     <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)" }}>•</span>
                     <span style={{ fontSize: 12, color: MUTED }}>Level {fateLevel}</span>
-                    {alignment && (
+                    {fateLevel >= ALIGNMENT_UNLOCK_LEVEL && (
                       <>
                         <span style={{ fontSize: 9, color: "rgba(255,255,255,0.15)" }}>•</span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: alignment === "ORDER" ? "#3b82f6" : alignment === "CHAOS" ? "#ef4444" : "#a855f7" }}>{alignment}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: alignment ? alignmentColor(alignment) : "#6b7280" }}>
+                          {alignment ? (ALIGNMENT_META[alignment]?.label || alignment) : "Neutral"}
+                        </span>
                       </>
                     )}
                   </div>

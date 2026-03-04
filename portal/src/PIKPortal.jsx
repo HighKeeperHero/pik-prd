@@ -7,6 +7,17 @@ import api from './api.js';
    ═══════════════════════════════════════════ */
 
 // ── TIER CONFIG ──
+// Realm Alignment — unlocks at Fate Level 20
+const ALIGNMENT_META = {
+  ORDER: { color: "#3b82f6", label: "Order"  },
+  CHAOS: { color: "#ef4444", label: "Chaos"  },
+  LIGHT: { color: "#f5a623", label: "Light"  },
+  DARK:  { color: "#8b5cf6", label: "Dark"   },
+};
+const ALIGNMENT_UNLOCK_LEVEL = 20;
+function alignmentColor(a) { return ALIGNMENT_META[a]?.color || "#6b7280"; }
+function alignmentLabel(a) { return ALIGNMENT_META[a]?.label || a; }
+
 const TIERS = [
   { name: "Bronze", color: "#cd7f32", min: 1, max: 6 },
   { name: "Copper", color: "#b87333", min: 7, max: 13 },
@@ -409,7 +420,11 @@ function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, active
         </div>
         {player.title && <div style={{ fontSize: 14, color: DIM, fontStyle: "italic", fontFamily: FONT, marginTop: 4 }}>{player.title}</div>}
         <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
-          <Bdg color={player.fateAlignment === 'ORDER' ? '#3b82f6' : player.fateAlignment === 'CHAOS' ? '#ef4444' : '#a78bfa'}>{player.fateAlignment || 'NEUTRAL'}</Bdg>
+          {player.level >= ALIGNMENT_UNLOCK_LEVEL && (
+            <Bdg color={player.fateAlignment ? alignmentColor(player.fateAlignment) : "#6b7280"}>
+              {player.fateAlignment ? alignmentLabel(player.fateAlignment) : "Neutral"}
+            </Bdg>
+          )}
           <Bdg color={player.tierColor}>{player.tier} Adventurer</Bdg>
         </div>
         <div style={{ fontSize: 11, color: MUTED, marginTop: 8, fontFamily: FONT_B }}>{player.pikId}</div>
