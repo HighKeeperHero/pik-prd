@@ -11,7 +11,6 @@ import {
   IsString,
   IsOptional,
   IsNotEmpty,
-  IsIn,
 } from 'class-validator';
 
 export class EnrollUserDto {
@@ -25,11 +24,12 @@ export class EnrollUserDto {
 
   /**
    * Fate alignment — the hero's mythic orientation.
-   * Required. Free-form string (Order, Chaos, Wild, Veil, etc.)
+   * Optional at enrollment. Players choose their realm at Fate Level 20
+   * via the FateDashboard alignment selection flow.
    */
   @IsString()
-  @IsNotEmpty()
-  fate_alignment: string;
+  @IsOptional()
+  fate_alignment?: string;
 
   /**
    * Origin story / background label.
