@@ -488,7 +488,7 @@ export default function App() {
   };
 
   if (screen === 'portal' && rootId) {
-    return <PIKPortal rootId={rootId} onLogout={handleLogout} />;
+    return <PIKPortal rootId={rootId} onLogout={handleLogout} onBackToDashboard={() => setScreen('dashboard')} />;
   }
   if (screen === 'dashboard' && rootId) {
     return (

@@ -21,14 +21,6 @@ const ADV_CLASSES = [
   { name: "Arcane Scholar", role: "DPS", weapon: "Arcane Tome / Wand", icon: "\uD83D\uDCD6", color: "#8b5cf6" },
 ];
 
-const REALMS = [
-  { name: "Kingvale", icon: "\uD83C\uDFF0", color: "#ffd700", desc: "The seat of the High Crown, where politics and power collide" },
-  { name: "The Wylds", icon: "\uD83C\uDF3F", color: "#22c55e", desc: "Untamed forests teeming with ancient druidic magic" },
-  { name: "Lochmaw", icon: "\u2693", color: "#3b82f6", desc: "Coastal strongholds and pirate havens on treacherous seas" },
-  { name: "Origin Sands", icon: "\u2600\uFE0F", color: "#f97316", desc: "Sun-scorched deserts hiding buried civilizations" },
-  { name: "Desolate Peaks", icon: "\uD83C\uDFD4\uFE0F", color: "#94a3b8", desc: "Frozen mountain passes guarding forgotten vaults" },
-];
-
 const TITLES = ["the Unbroken","Shadowbane","of the Ashen Gate","the Wanderer","Dawnbringer","the Relentless","Voidwalker","of the Iron Covenant"];
 
 const roleBadge = (role) => {
@@ -462,6 +454,18 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
           </div>
         </Fade>
 
+        {/* ── Hero Section Header ── */}
+        <Fade show={entered} delay={120}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12, margin: "8px 0 12px",
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.12em", whiteSpace: "nowrap" }}>
+              Your Heroes
+            </div>
+            <div style={{ flex: 1, height: 1, background: BORDER }} />
+          </div>
+        </Fade>
+
         {/* ── Hero Section ── */}
         <Fade show={entered} delay={150}>
           {heroName ? (
@@ -565,14 +569,18 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
               </div>
               <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600 }}>Active</span>
             </div>
-            <button style={{
+            <div style={{
               marginTop: 10, width: "100%", padding: "10px 14px", borderRadius: 8,
-              background: "none", border: `1px dashed rgba(255,255,255,0.08)`,
-              color: MUTED, fontSize: 12, cursor: "pointer", fontFamily: FONT_B,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              background: "none", border: `1px dashed rgba(255,255,255,0.06)`,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}>
-              <span>+</span> Link another method
-            </button>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.18)" }}>+ Link additional sign-in methods</span>
+              <span style={{
+                padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 700,
+                background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.2)",
+                textTransform: "uppercase", letterSpacing: "0.06em",
+              }}>Coming Soon</span>
+            </div>
           </div>
         </Fade>
 
@@ -604,25 +612,6 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
                 <div key={t.name} style={{ flex: 1, textAlign: "center" }}>
                   <div style={{ fontSize: 9, fontWeight: 700, color: i === 0 ? t.color : "rgba(255,255,255,0.2)", marginTop: 4 }}>{t.name}</div>
                   <div style={{ fontSize: 8, color: "rgba(255,255,255,0.12)", marginTop: 1 }}>Lv {t.level}</div>
-                </div>
-              ))}
-            </div>
-          </Accordion>
-
-          {/* Five Realms */}
-          <Accordion icon="🏰" title="The Five Realms" subtitle="Explore the world of Elysendar">
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {REALMS.map(r => (
-                <div key={r.name} style={{
-                  padding: "10px 12px", borderRadius: 10,
-                  background: `${r.color}08`, border: `1px solid ${r.color}15`,
-                  display: "flex", alignItems: "center", gap: 10,
-                }}>
-                  <span style={{ fontSize: 20 }}>{r.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: r.color }}>{r.name}</div>
-                    <div style={{ fontSize: 11, color: MUTED, marginTop: 1, lineHeight: 1.4 }}>{r.desc}</div>
-                  </div>
                 </div>
               ))}
             </div>
