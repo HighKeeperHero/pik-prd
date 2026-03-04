@@ -69,7 +69,7 @@ export class IdentityService {
         const root = await tx.rootIdentity.create({
           data: {
             heroName: dto.hero_name,
-            fateAlignment: dto.fate_alignment ?? null,
+            fateAlignment: dto.fate_alignment ?? '',
             origin: dto.origin ?? null,
             enrolledBy: dto.enrolled_by,
           },
