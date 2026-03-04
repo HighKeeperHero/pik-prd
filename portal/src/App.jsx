@@ -469,6 +469,25 @@ export default function App() {
 
   useEffect(() => { api.setBaseUrl(API_BASE); }, []);
 
+  // Admin handoff: check URL params for ?admin_token=...&root_id=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const adminToken = params.get('admin_token');
+    const adminRootId = params.get('root_id');
+    if (adminToken && adminRootId) {
+      // Clear URL params so refresh doesn't re-trigger
+      window.history.replaceState({}, '', window.location.pathname);
+      // Set session and go to dashboard
+      api.setBaseUrl(API_BASE);
+      api.impersonate(adminRootId).then(resp => {
+        if (resp.ok) {
+          setRootId(adminRootId);
+          setScreen('dashboard');
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
   // Fetch full user data when rootId is set but userData is incomplete (e.g. passkey login)
   useEffect(() => {
     if (!rootId || (userData && userData.display_name)) return;

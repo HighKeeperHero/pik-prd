@@ -283,6 +283,87 @@
   .live-session .ls-meta { font-size: 8px; color: var(--dim); }
   .live-session .ls-time { font-size: 9px; color: var(--accent2); font-variant-numeric: tabular-nums; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+  /* ── Demo Runner ── */
+  .demo-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); backdrop-filter:blur(6px);
+    z-index:300; align-items:center; justify-content:center;
+  }
+  .demo-overlay.open { display:flex; }
+  .demo-panel {
+    background:#0f1318; border:1px solid var(--border); border-radius:14px;
+    width:560px; max-width:95vw; max-height:90vh; overflow-y:auto;
+    padding:0; position:relative;
+  }
+  .demo-header {
+    padding:24px 28px 16px; border-bottom:1px solid var(--border);
+    background:linear-gradient(135deg,#0f1318 0%,#131c2a 100%);
+    border-radius:14px 14px 0 0;
+  }
+  .demo-header h3 { font-size:16px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:4px; }
+  .demo-header p { font-size:11px; color:var(--dim); margin:0; }
+  .demo-close {
+    position:absolute; top:16px; right:16px; background:rgba(255,255,255,.06); border:none;
+    border-radius:8px; width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+    color:var(--dim); font-size:16px; cursor:pointer;
+  }
+  .demo-close:hover { color:#fff; }
+  .demo-body { padding:20px 28px; }
+  .demo-setup { margin-bottom:20px; }
+  .demo-setup label { display:block; font-size:10px; color:var(--dim); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+  .demo-setup select, .demo-setup input {
+    width:100%; padding:8px 12px; background:#0a0c10; border:1px solid var(--border);
+    border-radius:6px; color:var(--text); font-family:inherit; font-size:12px;
+  }
+  .demo-setup select:focus, .demo-setup input:focus { outline:none; border-color:var(--accent); }
+  .demo-mode-row { display:flex; gap:8px; margin-bottom:16px; }
+  .demo-mode-btn {
+    flex:1; padding:10px; background:transparent; border:1px solid var(--border); border-radius:8px;
+    color:var(--dim); font-size:10px; letter-spacing:1px; text-transform:uppercase; cursor:pointer;
+    font-family:inherit; transition:all .15s; text-align:center;
+  }
+  .demo-mode-btn:hover { border-color:var(--accent); color:var(--text); }
+  .demo-mode-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(124,106,255,.08); }
+  .demo-steps { margin-top:16px; }
+  .demo-step {
+    display:flex; align-items:flex-start; gap:12px; padding:10px 0;
+    border-bottom:1px solid #1a1f28; transition:opacity .3s;
+  }
+  .demo-step:last-child { border-bottom:none; }
+  .demo-step.pending { opacity:.35; }
+  .demo-step.active { opacity:1; }
+  .demo-step.done { opacity:.7; }
+  .demo-step-icon {
+    width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+    font-size:13px; flex-shrink:0; background:#1e253022;
+  }
+  .demo-step.active .demo-step-icon { background:rgba(124,106,255,.2); animation:pulse 1.5s infinite; }
+  .demo-step.done .demo-step-icon { background:rgba(62,207,142,.15); }
+  .demo-step-body { flex:1; }
+  .demo-step-title { font-size:11px; font-weight:600; color:var(--text); }
+  .demo-step.pending .demo-step-title { color:var(--dim); }
+  .demo-step.done .demo-step-title { color:var(--green); }
+  .demo-step-desc { font-size:9px; color:var(--dim); margin-top:2px; }
+  .demo-step-result { font-size:9px; color:var(--accent2); margin-top:4px; font-weight:600; }
+  .demo-step-check { font-size:14px; color:var(--green); }
+  .demo-btn-start {
+    width:100%; padding:12px; margin-top:16px; border:none; border-radius:8px;
+    background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff;
+    font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase;
+    cursor:pointer; font-family:inherit; transition:all .2s;
+  }
+  .demo-btn-start:hover { opacity:.9; box-shadow:0 4px 20px rgba(99,102,241,.4); }
+  .demo-btn-start:disabled { opacity:.4; cursor:not-allowed; }
+  .demo-btn-advance {
+    width:100%; padding:10px; margin-top:12px; border:1px solid var(--accent); border-radius:8px;
+    background:transparent; color:var(--accent);
+    font-size:11px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase;
+    cursor:pointer; font-family:inherit; transition:all .15s;
+  }
+  .demo-btn-advance:hover { background:rgba(124,106,255,.08); }
+  .demo-btn-advance:disabled { opacity:.3; cursor:not-allowed; }
+  .demo-progress-bar { height:3px; background:var(--border); border-radius:2px; margin-top:16px; overflow:hidden; }
+  .demo-progress-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:2px; transition:width .4s; }
 </style>
 </head>
 <body>
@@ -298,7 +379,8 @@
     <div class="stat-pill">Events: <span id="hdr-events">—</span></div>
     <div class="stat-pill">Sources: <span id="hdr-sources">—</span></div>
     <div class="stat-pill" style="border-color:#3ecf8e;color:#3ecf8e">⚡ Live: <span id="hdr-live">0</span></div>
-    <a href="/demo.html" class="stat-pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent);text-decoration:none;font-family:inherit;font-size:11px">⟐ Demo</a>
+    <a href="/demo.html" class="stat-pill" style="cursor:pointer;border-color:var(--dim);color:var(--dim);text-decoration:none;font-family:inherit;font-size:11px" title="Legacy demo">⟐ Legacy</a>
+    <button class="stat-pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent);font-family:inherit;font-size:11px;background:transparent" onclick="openDemoRunner()">▶ Demo</button>
     <div class="status-dot" title="PIK API Live"></div>
   </div>
 </div>
@@ -443,6 +525,51 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ── Demo Runner Modal ─────────────────────────────────── -->
+<div class="demo-overlay" id="demo-overlay">
+  <div class="demo-panel">
+    <button class="demo-close" onclick="closeDemoRunner()">✕</button>
+    <div class="demo-header">
+      <h3>▶ Demo Runner</h3>
+      <p>Guided walkthrough: Onboarding → Events → Progression → Portal</p>
+    </div>
+    <div class="demo-body">
+      <!-- Setup -->
+      <div id="demo-setup-section">
+        <div class="demo-mode-row">
+          <button class="demo-mode-btn active" id="demo-mode-new" onclick="setDemoMode('new')">+ New User</button>
+          <button class="demo-mode-btn" id="demo-mode-existing" onclick="setDemoMode('existing')">Use Existing</button>
+        </div>
+        <div class="demo-setup" id="demo-new-fields">
+          <label>Hero Name</label>
+          <input type="text" id="demo-hero-name" placeholder="e.g. Aelindra Voss" style="margin-bottom:10px">
+          <label>Fate Alignment</label>
+          <select id="demo-alignment" style="margin-bottom:10px">
+            <option value="Order">Order</option>
+            <option value="Veil">Veil</option>
+            <option value="Wild">Wild</option>
+            <option value="Unaligned">Unaligned</option>
+          </select>
+        </div>
+        <div class="demo-setup" id="demo-existing-fields" style="display:none">
+          <label>Select User</label>
+          <select id="demo-user-select"></select>
+        </div>
+        <button class="demo-btn-start" onclick="startDemo()">Launch Demo Sequence</button>
+      </div>
+
+      <!-- Steps (hidden until started) -->
+      <div id="demo-steps-section" style="display:none">
+        <div class="demo-steps" id="demo-steps-list"></div>
+        <div class="demo-progress-bar"><div class="demo-progress-fill" id="demo-progress" style="width:0%"></div></div>
+        <button class="demo-btn-advance" id="demo-advance-btn" onclick="advanceDemo()" disabled>Next Step →</button>
+        <button class="demo-btn-advance" id="demo-portal-btn" onclick="demoOpenPortal()" style="display:none;border-color:var(--accent2);color:var(--accent2)">👁 Open Fate Portal</button>
+        <button class="demo-btn-advance" id="demo-reset-btn" onclick="resetDemo()" style="display:none;border-color:var(--dim);color:var(--dim)">↺ Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 const API = window.location.origin;
@@ -941,7 +1068,7 @@ async function viewAsPlayer(rootId) {
     });
     const token = r.data?.token || r.token;
     if (!token) { showToast('Failed to create session', 'var(--red)'); return; }
-    const portalUrl = window.location.origin + '/portal.html?token=' + encodeURIComponent(token) + '&root_id=' + encodeURIComponent(rootId);
+    const portalUrl = 'https://pik-eyo4nrkij-highkeeperheros-projects.vercel.app/?admin_token=' + encodeURIComponent(token) + '&root_id=' + encodeURIComponent(rootId);
     window.open(portalUrl, '_blank');
   } catch(err) {
     showToast(err.message || 'Impersonate failed', 'var(--red)');
@@ -1131,6 +1258,236 @@ async function grantCache() {
   } catch(err) {
     showToast(err.message, 'var(--red)');
   }
+}
+
+
+// ── Demo Runner ──────────────────────────────────────────────
+let demoMode = 'new';
+let demoRootId = null;
+let demoStepIndex = -1;
+let demoSteps = [];
+let demoRunning = false;
+
+const DEMO_STEPS_TEMPLATE = [
+  { id:'enroll',    icon:'⚡', title:'Enroll Identity',             desc:'Create new identity in PIK' },
+  { id:'link',      icon:'🔗', title:'Link Source',                 desc:'Connect to Heroes\' Veritas venue' },
+  { id:'session1',  icon:'⚔',  title:'Session: Normal Run',        desc:'Complete a standard venue session' },
+  { id:'session2',  icon:'⚔',  title:'Session: Hard Mode (75%)',    desc:'Hard difficulty with 75% boss damage' },
+  { id:'session3',  icon:'🏆', title:'Session: Boss Victory!',      desc:'Full boss kill — major XP + loot' },
+  { id:'title',     icon:'🏆', title:'Grant Title: Rune Master',    desc:'Award a progression title' },
+  { id:'marker',    icon:'◈',  title:'Fate Marker: Veil Witness',   desc:'Narrative breadcrumb recorded' },
+  { id:'cache',     icon:'🎁', title:'Grant Fate Cache',            desc:'Drop a loot cache for the player' },
+  { id:'portal',    icon:'👁',  title:'Open Fate Portal',           desc:'View player experience in Fate Portal' },
+];
+
+function openDemoRunner() {
+  document.getElementById('demo-overlay').classList.add('open');
+  // Populate existing user dropdown
+  const sel = document.getElementById('demo-user-select');
+  const iu = document.getElementById('ingest-user');
+  sel.innerHTML = iu.innerHTML;
+}
+function closeDemoRunner() {
+  document.getElementById('demo-overlay').classList.remove('open');
+}
+
+function setDemoMode(mode) {
+  demoMode = mode;
+  document.getElementById('demo-mode-new').classList.toggle('active', mode === 'new');
+  document.getElementById('demo-mode-existing').classList.toggle('active', mode === 'existing');
+  document.getElementById('demo-new-fields').style.display = mode === 'new' ? '' : 'none';
+  document.getElementById('demo-existing-fields').style.display = mode === 'existing' ? '' : 'none';
+}
+
+function renderDemoSteps() {
+  const list = document.getElementById('demo-steps-list');
+  list.innerHTML = demoSteps.map((step, i) => {
+    const state = i < demoStepIndex ? 'done' : i === demoStepIndex ? 'active' : 'pending';
+    return `
+      <div class="demo-step ${state}" id="demo-step-${i}">
+        <div class="demo-step-icon">${state === 'done' ? '✓' : step.icon}</div>
+        <div class="demo-step-body">
+          <div class="demo-step-title">${step.title}</div>
+          <div class="demo-step-desc">${step.desc}</div>
+          ${step.result ? `<div class="demo-step-result">${step.result}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  const pct = demoSteps.length > 0 ? Math.round(((demoStepIndex + 1) / demoSteps.length) * 100) : 0;
+  document.getElementById('demo-progress').style.width = pct + '%';
+}
+
+async function startDemo() {
+  if (demoMode === 'new') {
+    const heroName = document.getElementById('demo-hero-name').value.trim();
+    if (!heroName) { showToast('Enter a hero name', 'var(--red)'); return; }
+    demoSteps = DEMO_STEPS_TEMPLATE.map(s => ({...s, result: null}));
+  } else {
+    demoRootId = document.getElementById('demo-user-select').value;
+    if (!demoRootId) { showToast('Select a user', 'var(--red)'); return; }
+    // Skip enroll + link for existing users
+    demoSteps = DEMO_STEPS_TEMPLATE.filter(s => s.id !== 'enroll' && s.id !== 'link').map(s => ({...s, result: null}));
+  }
+
+  demoRunning = true;
+  demoStepIndex = -1;
+  document.getElementById('demo-setup-section').style.display = 'none';
+  document.getElementById('demo-steps-section').style.display = '';
+  document.getElementById('demo-portal-btn').style.display = 'none';
+  document.getElementById('demo-reset-btn').style.display = 'none';
+  document.getElementById('demo-advance-btn').style.display = '';
+  document.getElementById('demo-advance-btn').disabled = false;
+  renderDemoSteps();
+
+  // Auto-advance to first step
+  await advanceDemo();
+}
+
+async function advanceDemo() {
+  if (!demoRunning) return;
+  const btn = document.getElementById('demo-advance-btn');
+  btn.disabled = true;
+
+  demoStepIndex++;
+  if (demoStepIndex >= demoSteps.length) {
+    demoRunning = false;
+    btn.style.display = 'none';
+    document.getElementById('demo-reset-btn').style.display = '';
+    renderDemoSteps();
+    return;
+  }
+
+  renderDemoSteps();
+  const step = demoSteps[demoStepIndex];
+
+  try {
+    switch (step.id) {
+      case 'enroll': {
+        const heroName = document.getElementById('demo-hero-name').value.trim();
+        const alignment = document.getElementById('demo-alignment').value;
+        const sourceId = allSources.length > 0 ? allSources[0].source_id : '';
+        const body = { hero_name: heroName, fate_alignment: alignment, origin: 'Demo Runner', enrolled_by: 'operator:demo' };
+        if (sourceId) body.source_id = sourceId;
+        const r = await apiFetch('/api/users/enroll', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (r.status !== 'ok' && !r.data?.root_id) throw new Error(r.message || 'Enrollment failed');
+        demoRootId = r.data.root_id;
+        step.result = `✓ ${heroName} enrolled (${demoRootId.slice(0,8)}…)`;
+        // Select in dashboard
+        selectUser(demoRootId);
+        await loadUsers();
+        await loadAnalytics();
+        break;
+      }
+      case 'link': {
+        await ensureSourceLink(demoRootId, allSources[0]?.source_id || 'src-heroes-veritas-01');
+        step.result = '✓ Source linked: Heroes\' Veritas';
+        selectUser(demoRootId);
+        break;
+      }
+      case 'session1': {
+        await ensureSourceLink(demoRootId, 'src-heroes-veritas-01');
+        const r = await demoIngest(demoRootId, 'progression.session_completed', { difficulty: 'normal', boss_damage_pct: 0, nodes_completed: 6 });
+        const c = r.data?.changes_applied || {};
+        const xp = (c.session_xp||0) + (c.node_xp||0);
+        step.result = `✓ +${xp} XP${c.level_up ? ` · LEVEL UP ${c.level_up.from}→${c.level_up.to}` : ''}`;
+        selectUser(demoRootId);
+        await loadUsers();
+        await loadAnalytics();
+        await loadLeaderboard();
+        break;
+      }
+      case 'session2': {
+        const r = await demoIngest(demoRootId, 'progression.session_completed', { difficulty: 'hard', boss_damage_pct: 75, nodes_completed: 8 });
+        const c = r.data?.changes_applied || {};
+        const xp = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0);
+        step.result = `✓ +${xp} XP${c.level_up ? ` · LEVEL UP ${c.level_up.from}→${c.level_up.to}` : ''}`;
+        selectUser(demoRootId);
+        await loadUsers();
+        await loadAnalytics();
+        await loadLeaderboard();
+        break;
+      }
+      case 'session3': {
+        const r = await demoIngest(demoRootId, 'progression.session_completed', { difficulty: 'normal', boss_damage_pct: 100, nodes_completed: 10 });
+        const c = r.data?.changes_applied || {};
+        const xp = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0);
+        step.result = `✓ +${xp} XP · BOSS KILL${c.level_up ? ` · LEVEL UP ${c.level_up.from}→${c.level_up.to}` : ''}`;
+        selectUser(demoRootId);
+        await loadUsers();
+        await loadAnalytics();
+        await loadLeaderboard();
+        break;
+      }
+      case 'title': {
+        const r = await demoIngest(demoRootId, 'progression.title_granted', { title_id: 'title_rune_master' });
+        step.result = '✓ Title awarded: Rune Master';
+        selectUser(demoRootId);
+        break;
+      }
+      case 'marker': {
+        const r = await demoIngest(demoRootId, 'progression.fate_marker', { marker: 'Witnessed the thinning of the Veil at Thornspire Keep' });
+        step.result = '✓ Fate marker recorded';
+        selectUser(demoRootId);
+        break;
+      }
+      case 'cache': {
+        const r = await fetch(`${API}/api/loot/grant`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ root_id: demoRootId, cache_type: 'boss_kill', rarity: 'rare' })
+        }).then(r => r.json());
+        const d = r.data || r;
+        step.result = `✓ ${d.label || 'Radiant Cache'} (${d.rarity || 'rare'}) granted`;
+        selectUser(demoRootId);
+        break;
+      }
+      case 'portal': {
+        step.result = '✓ Ready — click below to open';
+        renderDemoSteps();
+        btn.style.display = 'none';
+        document.getElementById('demo-portal-btn').style.display = '';
+        document.getElementById('demo-reset-btn').style.display = '';
+        return; // Don't auto-enable advance
+      }
+    }
+  } catch(err) {
+    step.result = `✘ Error: ${err.message}`;
+    showToast('Demo step failed: ' + err.message, 'var(--red)');
+  }
+
+  renderDemoSteps();
+  // Brief pause then enable advance
+  setTimeout(() => { btn.disabled = false; }, 600);
+}
+
+async function demoIngest(rootId, eventType, payload) {
+  const r = await fetch(`${API}/api/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-PIK-API-Key': HV_KEY },
+    body: JSON.stringify({ root_id: rootId, event_type: eventType, payload })
+  }).then(r => r.json());
+  if (r.status !== 'ok') throw new Error(r.message || 'Ingest failed');
+  return r;
+}
+
+async function demoOpenPortal() {
+  if (!demoRootId) return;
+  await viewAsPlayer(demoRootId);
+}
+
+function resetDemo() {
+  demoRunning = false;
+  demoStepIndex = -1;
+  demoSteps = [];
+  demoRootId = null;
+  document.getElementById('demo-setup-section').style.display = '';
+  document.getElementById('demo-steps-section').style.display = 'none';
+  // Refresh user dropdown
+  const sel = document.getElementById('demo-user-select');
+  sel.innerHTML = document.getElementById('ingest-user').innerHTML;
 }
 
 
