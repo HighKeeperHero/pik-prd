@@ -308,8 +308,9 @@ function TabBar({ active, onChange }) {
 // HERO HUB
 // ══════════════════════════════════════════════════════════
 
-function HeroHub({ player, gear, resources, daily, sealedLoot, activeQuests, onOpenLoot, onClaimDaily, onEquipTitle }) {
+function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, activeQuests, onOpenLoot, onClaimDaily, onEquipTitle, onEquipItem, onUnequipSlot }) {
   const [showGear, setShowGear] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
   const tierIdx = TIERS.findIndex(t => t.name === player.tier);
   const nextTier = TIERS[tierIdx + 1];
 
@@ -408,15 +409,65 @@ function HeroHub({ player, gear, resources, daily, sealedLoot, activeQuests, onO
       {/* Gear */}
       <SecTitle right={<button onClick={() => setShowGear(!showGear)} style={{ background: "none", border: "none", color: "#6366f1", fontSize: 11, cursor: "pointer", fontFamily: FONT_B, fontWeight: 600 }}>{showGear ? "Collapse" : "View Gear"}</button>}>Equipment</SecTitle>
       {showGear ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 20 }}>
-          {gear.map(g => (
-            <Crd key={g.slot} style={{ textAlign: "center", padding: 12, opacity: g.item ? 1 : 0.4 }}>
-              <div style={{ fontSize: 22, marginBottom: 4 }}>{g.icon}</div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: g.item ? (rarCol[g.rarity] || "#fff") : MUTED, fontFamily: FONT_B, lineHeight: 1.3 }}>{g.item || "Empty"}</div>
-              <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: FONT_B, marginTop: 2 }}>{g.slot}</div>
-              {g.rarity && <Bdg color={rarCol[g.rarity]} style={{ fontSize: 8, marginTop: 4 }}>{g.rarity}</Bdg>}
-            </Crd>
-          ))}
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+            {gear.map(g => (
+              <Crd key={g.slot} style={{ textAlign: "center", padding: 12, opacity: g.item ? 1 : 0.4, position: "relative" }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{g.icon}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: g.item ? (rarCol[g.rarity] || "#fff") : MUTED, fontFamily: FONT_B, lineHeight: 1.3 }}>{g.item || "Empty"}</div>
+                <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: FONT_B, marginTop: 2 }}>{g.slot}</div>
+                {g.rarity && <Bdg color={rarCol[g.rarity]} style={{ fontSize: 8, marginTop: 4 }}>{g.rarity}</Bdg>}
+                {g.item && onUnequipSlot && (
+                  <button onClick={() => onUnequipSlot(g.slot.toLowerCase().replace('-', '_'))} style={{
+                    marginTop: 6, padding: "3px 8px", borderRadius: 6, fontSize: 9, fontWeight: 600,
+                    background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)",
+                    color: "#ef4444", cursor: "pointer", fontFamily: FONT_B, letterSpacing: "0.03em",
+                  }}>Unequip</button>
+                )}
+              </Crd>
+            ))}
+          </div>
+          {/* Inventory */}
+          {inventory && inventory.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <button onClick={() => setShowInventory(!showInventory)} style={{
+                  background: "none", border: "none", color: "#a78bfa", fontSize: 11, cursor: "pointer",
+                  fontFamily: FONT_B, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  {showInventory ? "\u25BC" : "\u25B6"} Inventory ({inventory.length} items)
+                </button>
+              </div>
+              {showInventory && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {inventory.map(item => {
+                    const rarity = (item.rarity || '').toLowerCase();
+                    return (
+                      <Crd key={item.inventory_id || item.id} style={{
+                        display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                      }}>
+                        <span style={{ fontSize: 18 }}>{item.icon || SLOT_ICONS[(item.slot || '').toLowerCase()] || "\uD83D\uDEE1"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: rarCol[rarity] || "#fff", fontFamily: FONT_B }}>{item.item_name || item.name}</div>
+                          <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT_B }}>
+                            {item.slot || "—"} {"\u2022"} <span style={{ color: rarCol[rarity] }}>{rarity || "common"}</span>
+                            {item.is_equipped && <span style={{ color: "#22c55e", marginLeft: 6 }}>{"\u2605"} Equipped</span>}
+                          </div>
+                        </div>
+                        {!item.is_equipped && onEquipItem && (
+                          <button onClick={() => onEquipItem(item.inventory_id || item.id)} style={{
+                            padding: "4px 10px", borderRadius: 6, fontSize: 9, fontWeight: 600,
+                            background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)",
+                            color: "#a78bfa", cursor: "pointer", fontFamily: FONT_B,
+                          }}>Equip</button>
+                        )}
+                      </Crd>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
@@ -751,6 +802,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
   const [availableQuests, setAvailableQuests] = useState([]);
   const [codex, setCodex] = useState(MOCK_CODEX);
   const [sealedLoot, setSealedLoot] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [craftTimers, setCraftTimers] = useState({});
   const [daily, setDaily] = useState({ name: "Study the Codex", desc: "Read 2 lore entries to prepare for the realms.", progress: 0, total: 2, xp: 50, claimed: false });
 
@@ -769,13 +821,14 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
     async function fetchAll() {
       try {
         // Parallel fetch all data
-        const [profileResp, equipResp, cachesResp, questsResp, boardResp, sessionsResp] = await Promise.all([
+        const [profileResp, equipResp, cachesResp, questsResp, boardResp, sessionsResp, inventoryResp] = await Promise.all([
           api.getProfile(rootId),
           api.getEquipment(rootId),
           api.getCaches('sealed', rootId),
           api.getPlayerQuests(rootId),
           api.getQuestBoard(rootId),
           api.getPlayerSessions(rootId),
+          api.getInventory(rootId),
         ]);
 
         if (cancelled) return;
@@ -807,6 +860,11 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
           const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
           setPlayer(prev => ({ ...prev, gearScore: gScore }));
+        }
+
+        if (inventoryResp?.ok) {
+          const inv = Array.isArray(inventoryResp.data) ? inventoryResp.data : [];
+          setInventory(inv);
         }
 
         if (cachesResp.ok) {
@@ -871,10 +929,12 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
     if (dataSource === "api") {
       const resp = await api.openCache(lootId, rootId);
       if (resp.ok) {
-        // Re-fetch caches and profile
-        const [cResp, pResp] = await Promise.all([
+        // Re-fetch caches, profile, equipment, and inventory
+        const [cResp, pResp, eResp, iResp] = await Promise.all([
           api.getCaches('sealed', rootId),
           api.getProfile(rootId),
+          api.getEquipment(rootId),
+          api.getInventory(rootId),
         ]);
         if (cResp.ok) setSealedLoot(normalizeCaches(Array.isArray(cResp.data) ? cResp.data : []));
         if (pResp.ok) {
@@ -882,9 +942,24 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           const p = normalizeProfile(pResp.data, sessions);
           setPlayer(prev => ({ ...prev, ...p }));
         }
+        if (eResp.ok) {
+          const normalizedGear = normalizeEquipment(
+            Array.isArray(eResp.data) ? eResp.data : eResp.data?.slots || eResp.data?.equipment || []
+          );
+          setGear(normalizedGear);
+          const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
+          const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
+          setPlayer(prev => ({ ...prev, gearScore: gScore }));
+        }
+        if (iResp.ok) setInventory(Array.isArray(iResp.data) ? iResp.data : []);
         const reward = resp.data;
-        const rewardName = reward?.item_name || reward?.name || 'a mysterious item';
-        notify(`Opened: ${rewardName}!`, "#f59e0b");
+        // Backend may return reward info at various nesting levels
+        const rewardName = reward?.reward_name 
+          || reward?.reward?.item_name || reward?.reward?.name || reward?.reward?.display_name
+          || reward?.item_name || reward?.name || reward?.display_name
+          || 'a mysterious item';
+        const rewardRarity = reward?.reward_rarity || reward?.reward?.rarity || reward?.rarity || '';
+        notify(`Opened: ${rewardName}${rewardRarity ? ` (${rewardRarity})` : ''}!`, "#f59e0b");
       } else {
         notify(`Failed to open: ${resp.error}`, "#ef4444");
       }
@@ -915,6 +990,57 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
         titles: prev.titles.map(t => ({ ...t, equipped: t.id === titleId })),
       }));
       notify(titleId ? "Title equipped!" : "Title unequipped", "#a78bfa");
+    }
+  };
+
+  const handleEquipItem = async (inventoryId) => {
+    if (dataSource === "api") {
+      const resp = await api.equipItem(inventoryId, rootId);
+      if (resp.ok) {
+        // Re-fetch equipment and inventory
+        const [eResp, iResp] = await Promise.all([
+          api.getEquipment(rootId),
+          api.getInventory(rootId),
+        ]);
+        if (eResp.ok) {
+          const normalizedGear = normalizeEquipment(
+            Array.isArray(eResp.data) ? eResp.data : eResp.data?.slots || eResp.data?.equipment || []
+          );
+          setGear(normalizedGear);
+          const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
+          const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
+          setPlayer(prev => ({ ...prev, gearScore: gScore }));
+        }
+        if (iResp.ok) setInventory(Array.isArray(iResp.data) ? iResp.data : []);
+        notify("Item equipped!", "#22c55e");
+      } else {
+        notify(`Equip failed: ${resp.error}`, "#ef4444");
+      }
+    }
+  };
+
+  const handleUnequipSlot = async (slot) => {
+    if (dataSource === "api") {
+      const resp = await api.unequipSlot(slot, rootId);
+      if (resp.ok) {
+        const [eResp, iResp] = await Promise.all([
+          api.getEquipment(rootId),
+          api.getInventory(rootId),
+        ]);
+        if (eResp.ok) {
+          const normalizedGear = normalizeEquipment(
+            Array.isArray(eResp.data) ? eResp.data : eResp.data?.slots || eResp.data?.equipment || []
+          );
+          setGear(normalizedGear);
+          const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
+          const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
+          setPlayer(prev => ({ ...prev, gearScore: gScore }));
+        }
+        if (iResp.ok) setInventory(Array.isArray(iResp.data) ? iResp.data : []);
+        notify("Item unequipped", "#f59e0b");
+      } else {
+        notify(`Unequip failed: ${resp.error}`, "#ef4444");
+      }
     }
   };
 
@@ -968,9 +1094,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
       <div style={{ padding: "16px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: `linear-gradient(180deg, ${BG} 60%, transparent)`, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {onBackToDashboard && (
-            <button onClick={onBackToDashboard} style={{ background: "none", border: "none", color: MUTED, fontSize: 13, cursor: "pointer", fontFamily: FONT_B, padding: "4px 0", marginRight: 4, display: "flex", alignItems: "center", gap: 4 }} onMouseEnter={e => e.currentTarget.style.color = "#fff"} onMouseLeave={e => e.currentTarget.style.color = MUTED}>
-              {"\u2190"}
-            </button>
+            <button onClick={onBackToDashboard} style={{ background: "none", border: "none", color: MUTED, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }} title="Back to Dashboard">{"\u2190"}</button>
           )}
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{"\u25C8"}</div>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FONT_B, color: DIM }}>Heroes' Veritas</span>
@@ -987,7 +1111,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
       </div>
 
       <div style={{ paddingTop: 8 }}>
-        {tab === "hero" && <HeroHub player={player} gear={gear} resources={resources} daily={daily} sealedLoot={sealedLoot} activeQuests={activeQuests} onOpenLoot={handleOpenLoot} onClaimDaily={handleClaimDaily} onEquipTitle={handleEquipTitle} />}
+        {tab === "hero" && <HeroHub player={player} gear={gear} inventory={inventory} resources={resources} daily={daily} sealedLoot={sealedLoot} activeQuests={activeQuests} onOpenLoot={handleOpenLoot} onClaimDaily={handleClaimDaily} onEquipTitle={handleEquipTitle} onEquipItem={handleEquipItem} onUnequipSlot={handleUnequipSlot} />}
         {tab === "quests" && <QuestBoard activeQuests={activeQuests} availableQuests={availableQuests} onAcceptQuest={handleAcceptQuest} />}
         {tab === "codex" && <LoreCodex codex={codex} daily={daily} onReadEntry={handleReadEntry} />}
         {tab === "workshop" && <Workshop resources={resources} timers={craftTimers} onStartCraft={handleStartCraft} onCollectCraft={handleCollectCraft} />}

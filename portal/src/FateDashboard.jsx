@@ -332,7 +332,10 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   const authMethod = userData?.auth_method || "passkey";
   const alignment = userData?.fate_alignment || null;
   const quests = userData?.quests_completed || 0;
-  const sessions = userData?.sessions || 0;
+  // sessions comes as an object { active, recent, total_completed } from the API
+  const sessions = typeof userData?.sessions === 'object'
+    ? (userData.sessions?.total_completed || userData.sessions?.recent?.length || 0)
+    : (userData?.sessions || userData?.total_sessions || 0);
 
   // Hero exists only when explicitly created (hero_name differs from Fate Name)
   // At enrollment, hero_name = display_name (Fate Name). Hero creation changes hero_name.
