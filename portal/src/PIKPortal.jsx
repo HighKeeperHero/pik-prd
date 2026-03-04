@@ -1106,7 +1106,7 @@ function IdentityTab({ fateMarkers, recentEvents, player, milestones }) {
     <div style={{ padding: "0 20px 120px" }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, margin: "0 0 4px" }}>Identity</h2>
       <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 20px" }}>
-        Fate Markers are permanent records of your deeds \u2014 they drive title milestones, unlock loot pools, and prove your history across every venue.
+        Fate Markers are permanent records of your deeds — they drive title milestones, unlock loot pools, and prove your history across every venue.
       </p>
 
       {/* Milestone Progress */}
@@ -1149,7 +1149,7 @@ function IdentityTab({ fateMarkers, recentEvents, player, milestones }) {
         <Crd style={{ textAlign: "center", padding: 24, marginBottom: 24 }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>\u25C7</div>
           <p style={{ fontSize: 13, color: MUTED, fontFamily: FONT_B, margin: 0 }}>No fate markers yet.</p>
-          <p style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, marginTop: 4 }}>Markers are earned at venues \u2014 complete sessions, find Veil Shards, defeat bosses.</p>
+          <p style={{ fontSize: 11, color: MUTED, fontFamily: FONT_B, marginTop: 4 }}>Markers are earned at venues — complete sessions, find Veil Shards, defeat bosses.</p>
         </Crd>
       ) : (
         <div style={{ marginBottom: 24 }}>
