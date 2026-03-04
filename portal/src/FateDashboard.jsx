@@ -414,7 +414,7 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   // Compute cumulative XP required to reach each tier boundary using
   // the same exponential curve the backend uses (xpBaseThreshold=100, multiplier=1.18)
   const XP_BASE = 100, XP_MULT = 1.18;
-  function xpToReachLevel(lv: number) {
+  function xpToReachLevel(lv) {
     let total = 0;
     for (let i = 1; i < lv; i++) total += Math.floor(XP_BASE * Math.pow(XP_MULT, i - 1));
     return total;
