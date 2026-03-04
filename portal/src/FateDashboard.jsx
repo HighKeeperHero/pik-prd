@@ -297,7 +297,7 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [] }
 // FATE DASHBOARD
 // ══════════════════════════════════════════════════════════
 
-export default function FateDashboard({ rootId, userData, onLogout, onEnterPortal }) {
+export default function FateDashboard({ rootId, userData, onLogout, onEnterPortal, onUserDataRefresh }) {
   const [entered, setEntered] = useState(false);
   const [showHeroModal, setShowHeroModal] = useState(false);
   const [heroData, setHeroData] = useState(null);
@@ -330,9 +330,30 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   }, []);
 
   const handleHeroCreate = async (data) => {
-    // TODO: Wire to api.createHero or api.updateUser
-    // For now, store locally
-    setHeroData(data);
+    try {
+      const apiMod = await import('./api.js');
+      const apiClient = apiMod.default;
+      const resp = await apiClient.updateProfile({
+        hero_name: data.heroName,
+        equipped_title: data.title || null,
+      }, rootId);
+      if (resp.ok) {
+        setHeroData(data);
+        // Refresh userData from backend to stay in sync
+        const profileResp = await apiClient.getProfile(rootId);
+        if (profileResp.ok && profileResp.data) {
+          // Notify parent if available
+          if (onUserDataRefresh) onUserDataRefresh(profileResp.data);
+        }
+      } else {
+        console.error("Hero creation failed:", resp.error);
+        // Still store locally as fallback so UI updates
+        setHeroData(data);
+      }
+    } catch (err) {
+      console.error("Hero creation error:", err);
+      setHeroData(data);
+    }
     setShowHeroModal(false);
   };
 

@@ -497,13 +497,36 @@ export default function App() {
         userData={userData}
         onLogout={handleLogout}
         onEnterPortal={(rid) => setScreen('portal')}
+        onUserDataRefresh={(newData) => setUserData(newData)}
       />
     );
   }
   if (screen === 'onboarding') {
-    return <PIKOnboarding onComplete={({ auth, acct }) => {
-      // After onboarding, send to login to sign in with new Fate ID
-      // TODO: Auto-login after account creation once backend supports it
+    return <PIKOnboarding onComplete={async ({ auth, acct }) => {
+      // Attempt to create user on backend and auto-login
+      try {
+        const resp = await api.post('/api/users', {
+          display_name: acct.displayName,
+          auth_method: auth.method,
+          email: auth.email,
+        });
+        if (resp.ok && resp.data) {
+          const newRootId = resp.data.root_id;
+          if (newRootId) {
+            // Auto-login: impersonate the new user to get a session
+            const loginResp = await api.impersonate(newRootId);
+            if (loginResp.ok) {
+              setRootId(newRootId);
+              setUserData(resp.data);
+              setScreen('dashboard');
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Auto-login after onboarding failed:', err);
+      }
+      // Fallback: send to login
       setScreen('login');
     }} onBack={() => setScreen('login')} />;
   }
