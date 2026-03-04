@@ -323,6 +323,11 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   useEffect(() => { setTimeout(() => setEntered(true), 100); }, []);
 
   // Derive display values from userData (passed from App)
+  // DEBUG: log to verify this code version is deployed
+  useEffect(() => {
+    if (userData) console.log('[FateDashboard v2] userData.sessions =', JSON.stringify(userData?.sessions), 'type =', typeof userData?.sessions);
+  }, [userData]);
+
   const fateName = userData?.display_name || userData?.displayName || "Adventurer";
   const fateLevel = userData?.fate_level || 0;
   const fateXP = userData?.fate_xp || 0;
@@ -332,10 +337,26 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   const authMethod = userData?.auth_method || "passkey";
   const alignment = userData?.fate_alignment || null;
   const quests = userData?.quests_completed || 0;
-  // sessions comes as an object { active, recent, total_completed } from the API
-  const sessions = typeof userData?.sessions === 'object'
-    ? (userData.sessions?.total_completed || userData.sessions?.recent?.length || 0)
-    : (userData?.sessions || userData?.total_sessions || 0);
+  // Sessions: API may return number, object, array, or nested structure
+  const rawSessions = userData?.sessions;
+  let sessions = 0;
+  if (typeof rawSessions === 'number') {
+    sessions = rawSessions;
+  } else if (Array.isArray(rawSessions)) {
+    sessions = rawSessions.length;
+  } else if (rawSessions && typeof rawSessions === 'object') {
+    // Try all known property names for session count
+    sessions = rawSessions.total_completed || rawSessions.total || rawSessions.count 
+      || rawSessions.session_count || rawSessions.completed
+      || (Array.isArray(rawSessions.recent) ? rawSessions.recent.length : 0)
+      || (Array.isArray(rawSessions.active) ? rawSessions.active.length : 0)
+      || 0;
+    // Last resort: count numeric values
+    if (sessions === 0) {
+      const vals = Object.values(rawSessions).filter(v => typeof v === 'number');
+      if (vals.length > 0) sessions = Math.max(...vals);
+    }
+  }
 
   // Hero exists only when explicitly created (hero_name differs from Fate Name)
   // At enrollment, hero_name = display_name (Fate Name). Hero creation changes hero_name.

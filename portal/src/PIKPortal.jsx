@@ -41,13 +41,13 @@ const MOCK_PLAYER = {
   pikId: "PIK#7X2M9K", equippedTitle: null, titles: [],
 };
 
-const MOCK_GEAR = [
-  { slot: "Head", item: "Wyldguard Helm", rarity: "uncommon", icon: "\uD83D\uDC51" },
-  { slot: "Chest", item: "Kingvale Brigandine", rarity: "rare", icon: "\uD83D\uDEE1" },
-  { slot: "Hands", item: "Traveler's Wraps", rarity: "common", icon: "\uD83E\uDDE4" },
-  { slot: "Weapon", item: "Forged Shortsword", rarity: "uncommon", icon: "\u2694\uFE0F" },
-  { slot: "Off-Hand", item: null, rarity: null, icon: "\uD83D\uDEE1" },
-  { slot: "Trinket", item: "Ember Sigil", rarity: "rare", icon: "\uD83D\uDC8E" },
+const EMPTY_GEAR = [
+  { slot: "Weapon", slotKey: "weapon", item: null, rarity: null, icon: "\u2694\uFE0F" },
+  { slot: "Helm",   slotKey: "helm",   item: null, rarity: null, icon: "\uD83D\uDC51" },
+  { slot: "Chest",  slotKey: "chest",  item: null, rarity: null, icon: "\uD83D\uDEE1\uFE0F" },
+  { slot: "Arms",   slotKey: "arms",   item: null, rarity: null, icon: "\uD83E\uDDE4" },
+  { slot: "Legs",   slotKey: "legs",   item: null, rarity: null, icon: "\uD83D\uDC62" },
+  { slot: "Rune",   slotKey: "rune",   item: null, rarity: null, icon: "\uD83D\uDD2E" },
 ];
 
 const SLOT_ICONS = { head: "\uD83D\uDC51", chest: "\uD83D\uDEE1", hands: "\uD83E\uDDE4", weapon: "\u2694\uFE0F", "off-hand": "\uD83D\uDEE1", offhand: "\uD83D\uDEE1", trinket: "\uD83D\uDC8E", legs: "\uD83D\uDC62", feet: "\uD83D\uDC62", ring: "\uD83D\uDC8D", neck: "\uD83D\uDCFF" };
@@ -142,22 +142,59 @@ function normalizeProfile(apiData, sessionCount = 0) {
 }
 
 function normalizeEquipment(apiEquipment) {
-  if (!apiEquipment || !Array.isArray(apiEquipment)) return MOCK_GEAR;
+  // Backend returns equipment as an object keyed by slot name:
+  // { weapon: { item_name, rarity, ... }, helm: null, chest: {...}, arms: {...}, legs: {...}, rune: {...} }
+  // OR as an array of items with a .slot field
+  // OR wrapped in { equipment: {...} }
   
-  const slots = ['Head', 'Chest', 'Hands', 'Weapon', 'Off-Hand', 'Trinket'];
-  return slots.map(slotName => {
-    const equipped = apiEquipment.find(e => 
-      (e.slot || '').toLowerCase() === slotName.toLowerCase() ||
-      (e.slot || '').toLowerCase() === slotName.replace('-', '').toLowerCase()
-    );
-    return {
-      slot: slotName,
-      item: equipped?.item_name || equipped?.name || null,
-      rarity: equipped?.rarity?.toLowerCase() || null,
-      icon: SLOT_ICONS[slotName.toLowerCase()] || "\uD83D\uDEE1",
-      inventoryId: equipped?.inventory_id || null,
-    };
-  });
+  const BACKEND_SLOTS = [
+    { key: 'weapon', label: 'Weapon', icon: "\u2694\uFE0F" },
+    { key: 'helm',   label: 'Helm',   icon: "\uD83D\uDC51" },
+    { key: 'chest',  label: 'Chest',  icon: "\uD83D\uDEE1\uFE0F" },
+    { key: 'arms',   label: 'Arms',   icon: "\uD83E\uDDE4" },
+    { key: 'legs',   label: 'Legs',   icon: "\uD83D\uDC62" },
+    { key: 'rune',   label: 'Rune',   icon: "\uD83D\uDD2E" },
+  ];
+
+  if (!apiEquipment) return BACKEND_SLOTS.map(s => ({ slot: s.label, slotKey: s.key, item: null, rarity: null, icon: s.icon, inventoryId: null }));
+
+  // Handle object format: { weapon: {...}, helm: {...}, ... }
+  if (!Array.isArray(apiEquipment) && typeof apiEquipment === 'object') {
+    // Could be { equipment: {...} } wrapper
+    const eq = apiEquipment.equipment || apiEquipment;
+    return BACKEND_SLOTS.map(s => {
+      const equipped = eq[s.key];
+      if (!equipped) return { slot: s.label, slotKey: s.key, item: null, rarity: null, icon: s.icon, inventoryId: null };
+      return {
+        slot: s.label,
+        slotKey: s.key,
+        item: equipped.item_name || equipped.name || equipped.display_name || null,
+        rarity: (equipped.rarity || '').toLowerCase() || null,
+        icon: equipped.icon || s.icon,
+        inventoryId: equipped.inventory_id || null,
+      };
+    });
+  }
+
+  // Handle array format: [{ slot: "weapon", item_name: "...", ... }]
+  if (Array.isArray(apiEquipment)) {
+    return BACKEND_SLOTS.map(s => {
+      const equipped = apiEquipment.find(e =>
+        (e.slot || '').toLowerCase() === s.key
+      );
+      if (!equipped) return { slot: s.label, slotKey: s.key, item: null, rarity: null, icon: s.icon, inventoryId: null };
+      return {
+        slot: s.label,
+        slotKey: s.key,
+        item: equipped.item_name || equipped.name || null,
+        rarity: (equipped.rarity || '').toLowerCase() || null,
+        icon: equipped.icon || s.icon,
+        inventoryId: equipped.inventory_id || null,
+      };
+    });
+  }
+
+  return BACKEND_SLOTS.map(s => ({ slot: s.label, slotKey: s.key, item: null, rarity: null, icon: s.icon, inventoryId: null }));
 }
 
 function normalizeCaches(apiCaches) {
@@ -418,7 +455,7 @@ function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, active
                 <div style={{ fontSize: 9, color: MUTED, textTransform: "uppercase", fontFamily: FONT_B, marginTop: 2 }}>{g.slot}</div>
                 {g.rarity && <Bdg color={rarCol[g.rarity]} style={{ fontSize: 8, marginTop: 4 }}>{g.rarity}</Bdg>}
                 {g.item && onUnequipSlot && (
-                  <button onClick={() => onUnequipSlot(g.slot.toLowerCase().replace('-', '_'))} style={{
+                  <button onClick={() => onUnequipSlot(g.slotKey || g.slot.toLowerCase())} style={{
                     marginTop: 6, padding: "3px 8px", borderRadius: 6, fontSize: 9, fontWeight: 600,
                     background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)",
                     color: "#ef4444", cursor: "pointer", fontFamily: FONT_B, letterSpacing: "0.03em",
@@ -796,7 +833,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
 
   // ── Lifted state ──
   const [player, setPlayer] = useState(MOCK_PLAYER);
-  const [gear, setGear] = useState(MOCK_GEAR);
+  const [gear, setGear] = useState(EMPTY_GEAR);
   const [resources, setResources] = useState(INIT_RESOURCES);
   const [activeQuests, setActiveQuests] = useState([]);
   const [availableQuests, setAvailableQuests] = useState([]);
@@ -851,9 +888,10 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
         }
 
         if (equipResp.ok) {
-          const normalizedGear = normalizeEquipment(
-            Array.isArray(equipResp.data) ? equipResp.data : equipResp.data?.slots || equipResp.data?.equipment || []
-          );
+          // DEBUG: log raw equipment response to verify data shape
+          console.log('[PIKPortal v2] equipResp.data =', JSON.stringify(equipResp.data));
+          const normalizedGear = normalizeEquipment(equipResp.data);
+          console.log('[PIKPortal v2] normalizedGear =', JSON.stringify(normalizedGear));
           setGear(normalizedGear);
           // Compute gear score from equipped items
           const equippedCount = normalizedGear.filter(g => g.item).length;
@@ -863,6 +901,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
         }
 
         if (inventoryResp?.ok) {
+          console.log('[PIKPortal v2] inventoryResp.data =', JSON.stringify(inventoryResp.data));
           const inv = Array.isArray(inventoryResp.data) ? inventoryResp.data : [];
           setInventory(inv);
         }
@@ -928,6 +967,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
   const handleOpenLoot = async (lootId) => {
     if (dataSource === "api") {
       const resp = await api.openCache(lootId, rootId);
+      console.log('[PIKPortal v2] openCache resp.data =', JSON.stringify(resp.data));
       if (resp.ok) {
         // Re-fetch caches, profile, equipment, and inventory
         const [cResp, pResp, eResp, iResp] = await Promise.all([
@@ -943,9 +983,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           setPlayer(prev => ({ ...prev, ...p }));
         }
         if (eResp.ok) {
-          const normalizedGear = normalizeEquipment(
-            Array.isArray(eResp.data) ? eResp.data : eResp.data?.slots || eResp.data?.equipment || []
-          );
+          const normalizedGear = normalizeEquipment(eResp.data);
           setGear(normalizedGear);
           const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
           const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
@@ -1003,9 +1041,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           api.getInventory(rootId),
         ]);
         if (eResp.ok) {
-          const normalizedGear = normalizeEquipment(
-            Array.isArray(eResp.data) ? eResp.data : eResp.data?.slots || eResp.data?.equipment || []
-          );
+          const normalizedGear = normalizeEquipment(eResp.data);
           setGear(normalizedGear);
           const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
           const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
@@ -1028,9 +1064,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
           api.getInventory(rootId),
         ]);
         if (eResp.ok) {
-          const normalizedGear = normalizeEquipment(
-            Array.isArray(eResp.data) ? eResp.data : eResp.data?.slots || eResp.data?.equipment || []
-          );
+          const normalizedGear = normalizeEquipment(eResp.data);
           setGear(normalizedGear);
           const rarityScore = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
           const gScore = normalizedGear.reduce((sum, g) => sum + (g.item ? (rarityScore[g.rarity] || 10) : 0), 0);
