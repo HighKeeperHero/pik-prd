@@ -737,7 +737,7 @@ function LoadingScreen() {
 // MAIN PORTAL — ALL STATE + API INTEGRATION
 // ══════════════════════════════════════════════════════════
 
-export default function PIKPortal({ rootId, onLogout }) {
+export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
   const [tab, setTab] = useState("hero");
   const [toast, setToast] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -967,6 +967,11 @@ export default function PIKPortal({ rootId, onLogout }) {
       {/* Top bar */}
       <div style={{ padding: "16px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: `linear-gradient(180deg, ${BG} 60%, transparent)`, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {onBackToDashboard && (
+            <button onClick={onBackToDashboard} style={{ background: "none", border: "none", color: MUTED, fontSize: 13, cursor: "pointer", fontFamily: FONT_B, padding: "4px 0", marginRight: 4, display: "flex", alignItems: "center", gap: 4 }} onMouseEnter={e => e.currentTarget.style.color = "#fff"} onMouseLeave={e => e.currentTarget.style.color = MUTED}>
+              {"\u2190"}
+            </button>
+          )}
           <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{"\u25C8"}</div>
           <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FONT_B, color: DIM }}>Heroes' Veritas</span>
         </div>
