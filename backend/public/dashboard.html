@@ -283,6 +283,17 @@
   .live-session .ls-meta { font-size: 8px; color: var(--dim); }
   .live-session .ls-time { font-size: 9px; color: var(--accent2); font-variant-numeric: tabular-nums; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  /* ── Demo modal ── */
+  .demo-tabs { display:flex; gap:6px; margin-bottom:16px; }
+  .demo-tab { flex:1; padding:7px; background:rgba(255,255,255,0.04); border:1px solid var(--border);
+    border-radius:6px; color:var(--dim); font-family:inherit; font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; cursor:pointer; transition:all .15s; }
+  .demo-tab.active { background:rgba(99,102,241,.15); border-color:var(--accent); color:var(--accent); }
+  .demo-panel { display:none; }
+  .demo-panel.active { display:block; }
+  .demo-divider { border:none; border-top:1px solid var(--border); margin:16px 0 10px; }
+  .legacy-link { font-size:10px; color:var(--dim); text-decoration:none; display:block; text-align:center; }
+  .legacy-link:hover { color:var(--text); }
 </style>
 </head>
 <body>
@@ -298,7 +309,7 @@
     <div class="stat-pill">Events: <span id="hdr-events">—</span></div>
     <div class="stat-pill">Sources: <span id="hdr-sources">—</span></div>
     <div class="stat-pill" style="border-color:#3ecf8e;color:#3ecf8e">⚡ Live: <span id="hdr-live">0</span></div>
-    <a href="/demo.html" class="stat-pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent);text-decoration:none;font-family:inherit;font-size:11px">⟐ Demo</a>
+    <a href="/demo.html" class="stat-pill" style="cursor:pointer;border-color:var(--accent);color:var(--accent);text-decoration:none;font-family:inherit;font-size:11px" onclick="event.preventDefault();openDemoModal()">⟐ Demo</a>
     <div class="status-dot" title="PIK API Live"></div>
   </div>
 </div>
@@ -397,6 +408,46 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── Demo Modal ─────────────────────────────────────────── -->
+<div class="modal-overlay" id="demo-modal" onclick="if(event.target===this)closeDemoModal()">
+  <div class="modal" style="width:460px">
+    <h3>⟐ Demo Mode</h3>
+
+    <div class="demo-tabs">
+      <button class="demo-tab active" onclick="switchDemoTab('existing')">Existing User</button>
+      <button class="demo-tab" onclick="switchDemoTab('new')">New Demo User</button>
+    </div>
+
+    <!-- Existing user panel -->
+    <div class="demo-panel active" id="demo-panel-existing">
+      <div class="form-group">
+        <label>Select Player</label>
+        <select id="demo-existing-user" style="width:100%;padding:8px 12px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
+          <option value="">— loading users —</option>
+        </select>
+      </div>
+      <div id="demo-existing-preview" style="font-size:10px;color:var(--dim);min-height:18px;margin-bottom:12px"></div>
+      <button class="btn-primary" style="width:100%" onclick="launchDemoExisting()">▶ Enter Portal as This Player</button>
+    </div>
+
+    <!-- New user panel -->
+    <div class="demo-panel" id="demo-panel-new">
+      <div class="form-group">
+        <label>Hero Name</label>
+        <input type="text" id="demo-hero-name" placeholder="e.g. Aelindra Voss" style="width:100%;padding:8px 12px;background:#0a0c10;border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px">
+      </div>
+      <div id="demo-new-status" style="font-size:10px;color:var(--dim);min-height:18px;margin-bottom:12px"></div>
+      <button class="btn-primary" style="width:100%" onclick="launchDemoNew()">✦ Enroll &amp; Enter Portal</button>
+    </div>
+
+    <hr class="demo-divider">
+    <a href="/demo.html" class="legacy-link" target="_blank">↗ Open Legacy Demo Page</a>
+    <div class="modal-actions" style="margin-top:12px">
+      <button class="btn-secondary" onclick="closeDemoModal()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -1302,6 +1353,82 @@ setInterval(async () => {
   await loadLiveSessions();
   if (selectedRootId) selectUser(selectedRootId);
 }, 5000);
+
+
+// ── Demo Modal ──────────────────────────────────────────────────────────────
+
+function openDemoModal() {
+  document.getElementById('demo-modal').classList.add('open');
+  // Populate existing user dropdown with live user list
+  apiFetch('/api/users').then(r => {
+    if (r.status !== 'ok') return;
+    const sel = document.getElementById('demo-existing-user');
+    sel.innerHTML = r.data.length
+      ? r.data.map(u => `<option value="${u.root_id}" data-name="${u.hero_name||''}" data-level="${u.fate_level||1}" data-xp="${u.fate_xp||0}" data-align="${u.fate_alignment||''}">${u.hero_name || u.root_id.slice(0,20)} — Lv ${u.fate_level||1} · ${u.fate_xp||0} XP</option>`).join('')
+      : '<option value="">— no users enrolled yet —</option>';
+    sel.onchange = updateDemoPreview;
+    updateDemoPreview();
+  }).catch(() => {});
+}
+
+function closeDemoModal() {
+  document.getElementById('demo-modal').classList.remove('open');
+  document.getElementById('demo-new-status').textContent = '';
+}
+
+function switchDemoTab(tab) {
+  document.querySelectorAll('.demo-tab').forEach((t, i) => {
+    t.classList.toggle('active', (i === 0 && tab === 'existing') || (i === 1 && tab === 'new'));
+  });
+  document.getElementById('demo-panel-existing').classList.toggle('active', tab === 'existing');
+  document.getElementById('demo-panel-new').classList.toggle('active', tab === 'new');
+}
+
+function updateDemoPreview() {
+  const sel = document.getElementById('demo-existing-user');
+  const opt = sel.options[sel.selectedIndex];
+  const el  = document.getElementById('demo-existing-preview');
+  if (!opt || !opt.value) { el.textContent = ''; return; }
+  el.textContent = `${opt.dataset.align || 'Unaligned'} · Level ${opt.dataset.level} · ${opt.dataset.xp} XP`;
+}
+
+async function launchDemoExisting() {
+  const rootId = document.getElementById('demo-existing-user').value;
+  if (!rootId) { showToast('Select a player first', 'var(--red)'); return; }
+  closeDemoModal();
+  await viewAsPlayer(rootId);
+}
+
+async function launchDemoNew() {
+  const heroName = document.getElementById('demo-hero-name').value.trim();
+  const status   = document.getElementById('demo-new-status');
+
+  if (!heroName) { showToast('Hero name is required', 'var(--red)'); return; }
+  status.textContent = 'Enrolling…';
+  status.style.color = 'var(--dim)';
+
+  try {
+    const r = await apiFetch('/api/users/enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hero_name: heroName, enrolled_by: 'operator:demo' })
+    });
+    if (r.status !== 'ok') throw new Error(r.message || 'Enrollment failed');
+
+    const rootId = r.data.root_id;
+    status.textContent = `✓ ${heroName} enrolled — opening portal…`;
+    status.style.color = 'var(--accent2)';
+
+    await loadUsers();
+    await loadAnalytics();
+    closeDemoModal();
+    document.getElementById('demo-hero-name').value = '';
+    await viewAsPlayer(rootId);
+  } catch(err) {
+    status.textContent = err.message;
+    status.style.color = 'var(--red)';
+  }
+}
 
 init();
 </script>
