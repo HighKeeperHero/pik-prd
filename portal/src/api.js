@@ -142,6 +142,11 @@ export async function unequipSlot(slot, rootId = ROOT_ID) {
   return post(`/api/users/${rootId}/equipment/unequip`, { slot });
 }
 
+/** Dismantle an inventory item for Nexus */
+export async function dismantleItem(inventoryId, rootId = ROOT_ID) {
+  return post(`/api/users/${rootId}/inventory/${inventoryId}/dismantle`);
+}
+
 // ── Loot / Caches ───────────────────────────────────────
 
 /** List player's caches (optionally filtered by status) */
@@ -219,7 +224,7 @@ const api = {
   get, post, put,
   impersonate,
   getProfile, listUsers, updateProfile, enrollUser, equipTitle, getTimeline,
-  getEquipment, getInventory, getModifiers, equipItem, unequipSlot,
+  getEquipment, getInventory, getModifiers, equipItem, unequipSlot, dismantleItem,
   getCaches, openCache,
   getQuestBoard, getPlayerQuests, acceptQuest, evaluateQuests,
   getPlayerSessions, getLiveSessions, getLiveCounts,

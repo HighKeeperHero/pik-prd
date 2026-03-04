@@ -72,7 +72,7 @@ const CRAFT_RECIPES = [
   { id: 4, name: "Sealed Crate Key", desc: "Opens sealed loot from LBE sessions", time: 10, cost: { dustiron: 3 }, result: "key", icon: "\uD83D\uDD11" },
 ];
 
-const INIT_RESOURCES = { emberstone: 34, wyldroot: 12, seaglass: 8, dustiron: 21 };
+const INIT_RESOURCES = { emberstone: 34, wyldroot: 12, seaglass: 8, dustiron: 21, nexus: 0 };
 
 // ── STYLE CONSTANTS ──
 const FONT = "'Crimson Pro', 'Georgia', serif";
@@ -87,8 +87,11 @@ const rarCol = { common: "#9ca3af", uncommon: "#22c55e", rare: "#3b82f6", epic: 
 const rlmCol = { Kingvale: "#ffd700", "The Wylds": "#22c55e", Lochmaw: "#3b82f6", "Origin Sands": "#f97316", "Desolate Peaks": "#94a3b8" };
 const rlmIcn = { Kingvale: "\uD83C\uDFF0", "The Wylds": "\uD83C\uDF3F", Lochmaw: "\u2693", "Origin Sands": "\u2600\uFE0F", "Desolate Peaks": "\uD83C\uDFD4\uFE0F" };
 const typIcn = { story: "\uD83D\uDCDC", gathering: "\uD83C\uDF3F", daily: "\u2B50", exploration: "\uD83E\uDDED", dungeon_prep: "\uD83D\uDDE1\uFE0F", kill: "\uD83D\uDDE1\uFE0F", visit: "\uD83E\uDDED", collect: "\uD83C\uDF3F" };
-const resIcn = { emberstone: "\uD83D\uDD25", wyldroot: "\uD83C\uDF3F", seaglass: "\uD83C\uDF0A", dustiron: "\u2699\uFE0F" };
-const resCol = { emberstone: "#f97316", wyldroot: "#22c55e", seaglass: "#3b82f6", dustiron: "#94a3b8" };
+const resIcn = { emberstone: "\uD83D\uDD25", wyldroot: "\uD83C\uDF3F", seaglass: "\uD83C\uDF0A", dustiron: "\u2699\uFE0F", nexus: "\uD83D\uDD2E" };
+const resCol = { emberstone: "#f97316", wyldroot: "#22c55e", seaglass: "#3b82f6", dustiron: "#94a3b8", nexus: "#c084fc" };
+
+// Nexus yield per rarity when dismantling
+const NEXUS_YIELD = { common: 5, uncommon: 15, rare: 40, epic: 100, legendary: 250 };
 
 
 // ══════════════════════════════════════════════════════════
@@ -345,7 +348,7 @@ function TabBar({ active, onChange }) {
 // HERO HUB
 // ══════════════════════════════════════════════════════════
 
-function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, activeQuests, onOpenLoot, onClaimDaily, onEquipTitle, onEquipItem, onUnequipSlot }) {
+function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, activeQuests, onOpenLoot, onClaimDaily, onEquipTitle, onEquipItem, onUnequipSlot, onDismantle }) {
   const [showGear, setShowGear] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const tierIdx = TIERS.findIndex(t => t.name === player.tier);
@@ -491,13 +494,22 @@ function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, active
                             {item.is_equipped && <span style={{ color: "#22c55e", marginLeft: 6 }}>{"\u2605"} Equipped</span>}
                           </div>
                         </div>
-                        {!item.is_equipped && onEquipItem && (
-                          <button onClick={() => onEquipItem(item.inventory_id || item.id)} style={{
-                            padding: "4px 10px", borderRadius: 6, fontSize: 9, fontWeight: 600,
-                            background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)",
-                            color: "#a78bfa", cursor: "pointer", fontFamily: FONT_B,
-                          }}>Equip</button>
-                        )}
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          {!item.is_equipped && onEquipItem && (
+                            <button onClick={() => onEquipItem(item.inventory_id || item.id)} style={{
+                              padding: "4px 10px", borderRadius: 6, fontSize: 9, fontWeight: 600,
+                              background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.3)",
+                              color: "#a78bfa", cursor: "pointer", fontFamily: FONT_B,
+                            }}>Equip</button>
+                          )}
+                          {!item.is_equipped && onDismantle && (
+                            <button onClick={() => onDismantle(item.inventory_id || item.id, item.item_name || item.name, item.rarity)} style={{
+                              padding: "4px 10px", borderRadius: 6, fontSize: 9, fontWeight: 600,
+                              background: "rgba(192,132,252,0.08)", border: "1px solid rgba(192,132,252,0.25)",
+                              color: "#c084fc", cursor: "pointer", fontFamily: FONT_B,
+                            }}>{"\uD83D\uDD2E"} Dismantle</button>
+                          )}
+                        </div>
                       </Crd>
                     );
                   })}
@@ -566,8 +578,25 @@ function HeroHub({ player, gear, inventory, resources, daily, sealedLoot, active
       {/* Resources */}
       <div style={{ marginTop: 12 }}>
         <SecTitle>Resources</SecTitle>
+        {/* Nexus currency — prominent display */}
+        <div style={{
+          padding: "10px 16px", marginBottom: 10, borderRadius: 10,
+          background: "linear-gradient(135deg, rgba(192,132,252,0.08), rgba(139,92,246,0.04))",
+          border: "1px solid rgba(192,132,252,0.2)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{"\uD83D\uDD2E"}</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#c084fc", fontFamily: FONT_B }}>{resources.nexus || 0}</div>
+              <div style={{ fontSize: 9, color: MUTED, fontFamily: FONT_B, textTransform: "uppercase", letterSpacing: "0.06em" }}>Nexus</div>
+            </div>
+          </div>
+          <span style={{ fontSize: 9, color: "rgba(192,132,252,0.5)", fontFamily: FONT_B }}>Dismantle items to earn</span>
+        </div>
+        {/* Materials */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {Object.entries(resources).map(([key, ct]) => (
+          {Object.entries(resources).filter(([key]) => key !== 'nexus').map(([key, ct]) => (
             <div key={key} style={{ padding: "8px 14px", background: `${resCol[key]}08`, borderRadius: 8, border: `1px solid ${resCol[key]}18`, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontSize: 14 }}>{resIcn[key]}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: resCol[key], fontFamily: FONT_B }}>{ct}</span>
@@ -733,7 +762,7 @@ function Workshop({ resources, timers, onStartCraft, onCollectCraft }) {
       <h2 style={{ fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: FONT, margin: "0 0 4px" }}>Workshop</h2>
       <p style={{ fontSize: 12, color: MUTED, fontFamily: FONT_B, margin: "0 0 16px" }}>Craft consumables, gear mods, and session boosts between adventures.</p>
       <div style={{ display: "flex", gap: 12, marginBottom: 20, padding: "10px 14px", background: SURFACE, borderRadius: 10, border: `1px solid ${BORDER}`, flexWrap: "wrap" }}>
-        {Object.entries(resources).map(([key, ct]) => (
+        {Object.entries(resources).filter(([key]) => key !== 'nexus').map(([key, ct]) => (
           <div key={key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ fontSize: 14 }}>{resIcn[key]}</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: resCol[key], fontFamily: FONT_B }}>{ct}</span>
@@ -1078,6 +1107,30 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
     }
   };
 
+  const handleDismantle = async (inventoryId, itemName, rarity) => {
+    if (dataSource === "api") {
+      const resp = await api.dismantleItem(inventoryId, rootId);
+      if (resp.ok) {
+        // Backend returns nexus gained; fall back to client-side yield table
+        const nexusGained = resp.data?.nexus_gained || resp.data?.nexus || NEXUS_YIELD[(rarity || '').toLowerCase()] || 5;
+        // Re-fetch inventory and resources
+        const iResp = await api.getInventory(rootId);
+        if (iResp.ok) setInventory(Array.isArray(iResp.data) ? iResp.data : []);
+        // Update local nexus count (will also be refreshed from profile on next load)
+        setResources(prev => ({ ...prev, nexus: (prev.nexus || 0) + nexusGained }));
+        notify(`Dismantled ${itemName || 'item'} → +${nexusGained} Nexus`, "#c084fc");
+      } else {
+        notify(`Dismantle failed: ${resp.error}`, "#ef4444");
+      }
+    } else {
+      // Mock fallback
+      const nexusGained = NEXUS_YIELD[(rarity || '').toLowerCase()] || 5;
+      setInventory(prev => prev.filter(i => (i.inventory_id || i.id) !== inventoryId));
+      setResources(prev => ({ ...prev, nexus: (prev.nexus || 0) + nexusGained }));
+      notify(`Dismantled ${itemName || 'item'} → +${nexusGained} Nexus`, "#c084fc");
+    }
+  };
+
   const handleReadEntry = (entryId) => {
     setCodex(prev => prev.map(e => e.id === entryId ? { ...e, read: true } : e));
     setDaily(prev => {
@@ -1145,7 +1198,7 @@ export default function PIKPortal({ rootId, onLogout, onBackToDashboard }) {
       </div>
 
       <div style={{ paddingTop: 8 }}>
-        {tab === "hero" && <HeroHub player={player} gear={gear} inventory={inventory} resources={resources} daily={daily} sealedLoot={sealedLoot} activeQuests={activeQuests} onOpenLoot={handleOpenLoot} onClaimDaily={handleClaimDaily} onEquipTitle={handleEquipTitle} onEquipItem={handleEquipItem} onUnequipSlot={handleUnequipSlot} />}
+        {tab === "hero" && <HeroHub player={player} gear={gear} inventory={inventory} resources={resources} daily={daily} sealedLoot={sealedLoot} activeQuests={activeQuests} onOpenLoot={handleOpenLoot} onClaimDaily={handleClaimDaily} onEquipTitle={handleEquipTitle} onEquipItem={handleEquipItem} onUnequipSlot={handleUnequipSlot} onDismantle={handleDismantle} />}
         {tab === "quests" && <QuestBoard activeQuests={activeQuests} availableQuests={availableQuests} onAcceptQuest={handleAcceptQuest} />}
         {tab === "codex" && <LoreCodex codex={codex} daily={daily} onReadEntry={handleReadEntry} />}
         {tab === "workshop" && <Workshop resources={resources} timers={craftTimers} onStartCraft={handleStartCraft} onCollectCraft={handleCollectCraft} />}
