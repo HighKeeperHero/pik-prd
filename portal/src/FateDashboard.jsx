@@ -310,12 +310,18 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   const fateLevel = userData?.fate_level || 0;
   const fateXP = userData?.fate_xp || 0;
   const tier = getTier(Math.max(fateLevel, 1));
-  const heroName = userData?.hero_name || heroData?.heroName || null;
+  const rawHeroName = userData?.hero_name || null;
   const heroTitle = userData?.hero_title || heroData?.title || null;
   const authMethod = userData?.auth_method || "passkey";
   const alignment = userData?.fate_alignment || null;
   const quests = userData?.quests_completed || 0;
   const sessions = userData?.sessions || 0;
+
+  // Hero exists only when explicitly created (hero_name differs from Fate Name)
+  // At enrollment, hero_name = display_name (Fate Name). Hero creation changes hero_name.
+  const hasDistinctHero = heroData != null || (rawHeroName && rawHeroName !== fateName);
+  const heroName = heroData?.heroName || (hasDistinctHero ? rawHeroName : null);
+  const heroDisplayTitle = heroData?.title || userData?.hero_title || null;
 
   // Fetch taken names for hero creation
   useEffect(() => {
@@ -489,7 +495,7 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
 
         {/* ── Hero Section ── */}
         <Fade show={entered} delay={150}>
-          {heroName ? (
+          {hasDistinctHero ? (
             /* Existing hero card */
             <div style={{
               padding: 16, borderRadius: 14, marginBottom: 16,
@@ -505,7 +511,7 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>
                   {heroName}
-                  {heroTitle && <span style={{ color: "#cd7f32", fontWeight: 500, fontSize: 12, marginLeft: 4 }}>{heroTitle}</span>}
+                  {heroDisplayTitle && <span style={{ color: "#cd7f32", fontWeight: 500, fontSize: 12, marginLeft: 4 }}>{heroDisplayTitle}</span>}
                 </div>
                 <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                   Level {fateLevel || 1} • Bronze Adventurer

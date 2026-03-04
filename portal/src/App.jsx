@@ -469,13 +469,20 @@ export default function App() {
 
   useEffect(() => { api.setBaseUrl(API_BASE); }, []);
 
-  // Fetch user data when rootId is set but userData isn't (e.g. passkey login)
+  // Fetch full user data when rootId is set but userData is incomplete (e.g. passkey login)
   useEffect(() => {
-    if (!rootId || userData) return;
-    api.listUsers().then(resp => {
-      if (resp.ok && Array.isArray(resp.data)) {
-        const found = resp.data.find(u => u.root_id === rootId);
-        if (found) setUserData(found);
+    if (!rootId || (userData && userData.display_name)) return;
+    api.getProfile(rootId).then(resp => {
+      if (resp.ok && resp.data) {
+        const profile = resp.data;
+        // Extract Fate Name from persona displayName
+        const fateName = profile.personas?.[0]?.display_name || profile.hero_name;
+        setUserData(prev => ({
+          ...(prev || {}),
+          ...profile,
+          root_id: rootId,
+          display_name: fateName,
+        }));
       }
     }).catch(() => {});
   }, [rootId, userData]);
@@ -497,7 +504,11 @@ export default function App() {
         userData={userData}
         onLogout={handleLogout}
         onEnterPortal={(rid) => setScreen('portal')}
-        onUserDataRefresh={(newData) => setUserData(newData)}
+        onUserDataRefresh={(newData) => {
+          // Preserve Fate Name from persona, don't let it get overwritten by hero_name
+          const fateName = newData.personas?.[0]?.display_name || userData?.display_name || newData.hero_name;
+          setUserData(prev => ({ ...prev, ...newData, display_name: fateName }));
+        }}
       />
     );
   }
@@ -519,7 +530,7 @@ export default function App() {
             setUserData({
               root_id: newRootId,
               hero_name: resp.data.hero_name,
-              display_name: resp.data.hero_name,
+              display_name: acct.displayName, // Fate Name — permanent
               fate_alignment: resp.data.fate_alignment,
               fate_level: 1,
               fate_xp: 0,

@@ -575,17 +575,9 @@ export class IdentityService {
       updateData.heroName = dto.hero_name;
       changes.hero_name = { from: user.heroName, to: dto.hero_name };
 
-      // Also update the primary persona displayName
-      const persona = await this.prisma.persona.findFirst({
-        where: { rootId, status: 'active' },
-        orderBy: { createdAt: 'asc' },
-      });
-      if (persona) {
-        await this.prisma.persona.update({
-          where: { id: persona.id },
-          data: { displayName: dto.hero_name },
-        });
-      }
+      // NOTE: persona.displayName is NOT synced here.
+      // displayName = Fate Name (permanent account identity, set at enrollment)
+      // heroName = Hero Name (in-game character, changeable via updateProfile)
     }
 
     if (dto.fate_alignment && dto.fate_alignment !== user.fateAlignment) {
