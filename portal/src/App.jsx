@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PIKOnboarding from './PIKOnboarding.jsx';
 import PIKPortal from './PIKPortal.jsx';
+import FateDashboard from './FateDashboard.jsx';
 import api from './api.js';
 
 const API_BASE = import.meta.env.VITE_PIK_API_URL || 'https://pik-prd-production.up.railway.app';
@@ -67,7 +68,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
     setError(null);
     const resp = await api.impersonate(matchedUser.root_id);
     if (resp.ok) {
-      onLogin(matchedUser.root_id);
+      onLogin(matchedUser.root_id, matchedUser);
     } else {
       setError('Sign-in failed. Please try again.');
     }
@@ -117,7 +118,7 @@ function PlayerLogin({ onLogin, onNewUser, onAdminSwitch }) {
       if (verifyResp.ok && verifyResp.data) {
         const token = verifyResp.data.session_token || verifyResp.data.token;
         const rootId = verifyResp.data.root_id;
-        if (token && rootId) { api.setSession(token, rootId); onLogin(rootId); }
+        if (token && rootId) { api.setSession(token, rootId); onLogin(rootId, null); }
         else setError('Auth succeeded but no session returned.');
       } else {
         setError('Passkey verification failed.');
@@ -304,7 +305,7 @@ function AdminPanel({ onImpersonate, onBack }) {
   const handleImpersonate = async (user) => {
     setLoggingIn(user.root_id);
     const resp = await api.impersonate(user.root_id);
-    if (resp.ok) onImpersonate(user.root_id);
+    if (resp.ok) onImpersonate(user.root_id, user);
     else { setError(`Failed: ${resp.error}`); setLoggingIn(null); }
   };
 
@@ -464,21 +465,50 @@ const errTextStyle = { fontSize: 12, color: "#ef4444", margin: 0, fontFamily: FO
 export default function App() {
   const [screen, setScreen] = useState('login');
   const [rootId, setRootId] = useState(null);
+  const [userData, setUserData] = useState(null);
 
   useEffect(() => { api.setBaseUrl(API_BASE); }, []);
 
+  // Fetch user data when rootId is set but userData isn't (e.g. passkey login)
+  useEffect(() => {
+    if (!rootId || userData) return;
+    api.listUsers().then(resp => {
+      if (resp.ok && Array.isArray(resp.data)) {
+        const found = resp.data.find(u => u.root_id === rootId);
+        if (found) setUserData(found);
+      }
+    }).catch(() => {});
+  }, [rootId, userData]);
+
+  const handleLogout = () => {
+    api.clearSession();
+    setRootId(null);
+    setUserData(null);
+    setScreen('login');
+  };
+
   if (screen === 'portal' && rootId) {
-    return <PIKPortal rootId={rootId} onLogout={() => { api.clearSession(); setRootId(null); setScreen('login'); }} />;
+    return <PIKPortal rootId={rootId} onLogout={handleLogout} />;
+  }
+  if (screen === 'dashboard' && rootId) {
+    return (
+      <FateDashboard
+        rootId={rootId}
+        userData={userData}
+        onLogout={handleLogout}
+        onEnterPortal={(rid) => setScreen('portal')}
+      />
+    );
   }
   if (screen === 'onboarding') {
     return <PIKOnboarding onComplete={({ auth, acct }) => {
-      // TODO: Once FateDashboard is built, route there instead
-      // For now, send back to login so they can sign in with their new Fate ID
+      // After onboarding, send to login to sign in with new Fate ID
+      // TODO: Auto-login after account creation once backend supports it
       setScreen('login');
     }} onBack={() => setScreen('login')} />;
   }
   if (screen === 'admin') {
-    return <AdminPanel onImpersonate={(rid) => { setRootId(rid); setScreen('portal'); }} onBack={() => setScreen('login')} />;
+    return <AdminPanel onImpersonate={(rid, user) => { setRootId(rid); setUserData(user); setScreen('dashboard'); }} onBack={() => setScreen('login')} />;
   }
-  return <PlayerLogin onLogin={(rid) => { setRootId(rid); setScreen('portal'); }} onNewUser={() => setScreen('onboarding')} onAdminSwitch={() => setScreen('admin')} />;
+  return <PlayerLogin onLogin={(rid, user) => { setRootId(rid); setUserData(user); setScreen('dashboard'); }} onNewUser={() => setScreen('onboarding')} onAdminSwitch={() => setScreen('admin')} />;
 }
