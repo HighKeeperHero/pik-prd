@@ -1605,16 +1605,25 @@ async function runDemoStep(i) {
         demoCtx.cacheId = r.data?.cache_id || r.data?.id;
         demoLog('📦', `Fate cache added — rarity <span class="hi">uncommon</span> · source boss_kill`);
       } else {
-        demoLog('📦', `Cache grant skipped (already awarded)`);
+        // Cache already awarded — find the existing sealed one to open in step 5
+        demoLog('📦', `Cache already in vault — locating sealed cache…`);
+        try {
+          const uc = await apiFetch(`/api/users/${demoCtx.rootId}`);
+          const sealed = (uc.data?.fate_caches || []).filter(c => c.status === 'sealed');
+          if (sealed.length) {
+            demoCtx.cacheId = sealed[0].id;
+            demoLog('📦', `Found sealed cache <span class="hi">${demoCtx.cacheId.slice(0,12)}…</span> ready to open`);
+          }
+        } catch(e) { /* non-fatal */ }
       }
       break;
     }
     case 5: { // Open cache
       if (!demoCtx.cacheId) {
-        // Try fetching any unopened cache
+        // Fetch user and look in fate_caches (correct field name)
         const uc = await apiFetch(`/api/users/${demoCtx.rootId}`);
-        const caches = uc.data?.loot_caches?.filter(c => !c.opened_at);
-        if (caches && caches.length) demoCtx.cacheId = caches[0].id;
+        const caches = (uc.data?.fate_caches || []).filter(c => c.status === 'sealed');
+        if (caches.length) demoCtx.cacheId = caches[0].id;
       }
       if (demoCtx.cacheId) {
         const r = await apiFetch(`/api/loot/open`, {
@@ -1628,14 +1637,44 @@ async function runDemoStep(i) {
           demoLog('✦', 'Cache opened — loot claimed');
         }
       } else {
-        demoLog('✦', 'No sealed cache available to open');
+        demoLog('✦', 'No sealed cache in vault — skipping open step');
       }
       break;
     }
-    case 6: { // Title granted
-      const r = await demoIngest(demoCtx.rootId, 'progression.title_granted',
-        { title_id:'title_rune_master' });
-      demoLog('👑', `Title granted: <span class="hi">Rune Master</span> — equipped as active designation`);
+    case 6: { // Title granted — discover a valid title_id first
+      let titleId = null;
+      // Try to find a title from the titles registry
+      try {
+        const tr = await apiFetch('/api/titles');
+        const list = tr.data || tr;
+        if (Array.isArray(list) && list.length) {
+          // Pick first title the hero doesn't already have
+          const userR = await apiFetch(`/api/users/${demoCtx.rootId}`);
+          const owned = new Set(userR.data?.progression?.titles || []);
+          const pick  = list.find(t => !owned.has(t.title_id || t.id)) || list[0];
+          titleId = pick.title_id || pick.id;
+        }
+      } catch(e) { /* no /api/titles endpoint — fall through */ }
+
+      if (!titleId) {
+        // Fallback: try common title IDs from the ingest simulation dropdown
+        for (const candidate of ['title_rune_master', 'rune_master', 'title_veil_walker', 'title_first_blood']) {
+          try {
+            const r = await demoIngest(demoCtx.rootId, 'progression.title_granted', { title_id: candidate });
+            titleId = candidate;
+            demoLog('👑', `Title granted: <span class="hi">${candidate.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
+            break;
+          } catch(e) {
+            if (!e.message.includes('Unknown')) throw e; // real error, surface it
+          }
+        }
+        if (!titleId) {
+          demoLog('👑', `Title step skipped — no titles seeded in registry yet`);
+        }
+      } else {
+        const r = await demoIngest(demoCtx.rootId, 'progression.title_granted', { title_id: titleId });
+        demoLog('👑', `Title granted: <span class="hi">${titleId.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
+      }
       break;
     }
     case 7: { // Boss victory full clear
