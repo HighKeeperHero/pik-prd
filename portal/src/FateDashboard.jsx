@@ -520,13 +520,14 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
   const fateLevel = userData?.fate_level || 0;
   const alignment = userData?.fate_alignment || null;
   useEffect(() => {
-    if (fateLevel >= ALIGNMENT_UNLOCK_LEVEL && !alignment && !alignmentPromptedRef.current) {
+    const storageKey = `pik_alignment_prompted_${rootId}`;
+    const alreadyDismissed = localStorage.getItem(storageKey);
+    if (fateLevel >= ALIGNMENT_UNLOCK_LEVEL && !alignment && !alignmentPromptedRef.current && !alreadyDismissed) {
       alignmentPromptedRef.current = true;
-      // Small delay so the dashboard renders fully before the modal appears
       const t = setTimeout(() => setShowAlignmentModal(true), 800);
       return () => clearTimeout(t);
     }
-  }, [fateLevel, alignment]);
+  }, [fateLevel, alignment, rootId]);
 
   const handleAlignmentSubmit = async (choice) => {
     setAlignmentSubmitting(true);
@@ -534,18 +535,28 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
       const apiMod = await import('./api.js');
       const apiClient = apiMod.default;
       const resp = await apiClient.updateProfile({ fate_alignment: choice }, rootId);
-      if (resp.ok) {
+      // Accept success regardless of response shape — some backends return 200 with no body
+      const ok = resp?.ok ?? resp?.status === 'ok' ?? (resp && !resp.error);
+      if (ok) {
+        // Suppress re-prompt permanently for this user on this device
+        localStorage.setItem(`pik_alignment_prompted_${rootId}`, 'chosen');
         setShowAlignmentModal(false);
-        // Refresh userData so alignment badge and any downstream logic updates immediately
-        const profileResp = await apiClient.getProfile(rootId);
-        if (profileResp.ok && profileResp.data && onUserDataRefresh) {
-          onUserDataRefresh(profileResp.data);
+        // Refresh userData so alignment badge updates immediately
+        try {
+          const profileResp = await apiClient.getProfile(rootId);
+          const profileData = profileResp?.data || profileResp;
+          if (profileData && onUserDataRefresh) {
+            onUserDataRefresh(profileData);
+          }
+        } catch(refreshErr) {
+          // Refresh failed but save succeeded — modal is already closed, not critical
+          console.warn('Alignment refresh failed:', refreshErr);
         }
       } else {
-        console.error("Alignment update failed:", resp.error);
+        console.error('Alignment update failed:', resp?.error || resp?.message || resp);
       }
     } catch (err) {
-      console.error("Alignment update error:", err);
+      console.error('Alignment update error:', err);
     }
     setAlignmentSubmitting(false);
   };
@@ -1012,7 +1023,10 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
       {/* Realm Alignment Modal */}
       <AlignmentModal
         show={showAlignmentModal}
-        onClose={() => setShowAlignmentModal(false)}
+        onClose={() => {
+          localStorage.setItem(`pik_alignment_prompted_${rootId}`, 'dismissed');
+          setShowAlignmentModal(false);
+        }}
         onSubmit={handleAlignmentSubmit}
         submitting={alignmentSubmitting}
       />
