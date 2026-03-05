@@ -27,7 +27,6 @@ import { SessionModule } from './session/session.module';
 import { WearableModule } from './wearable/wearable.module';
 import { QuestModule } from './quest/quest.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
-import { IdentityAdminModule } from './identity/identity-admin.module';
 
 @Global()
 @Module({
@@ -77,7 +76,6 @@ import { IdentityAdminModule } from './identity/identity-admin.module';
     WearableModule,
     QuestModule,
     LeaderboardModule,
-    IdentityAdminModule,
   ],
   providers: [
     PrismaService,
