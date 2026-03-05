@@ -2,6 +2,9 @@
 // PIK — Identity Admin Controller
 // Operator-facing routes for identity management.
 //
+// Uses /api/admin/users to avoid route conflicts with the
+// existing IdentityController at /api/users.
+//
 // Place at: src/identity/identity-admin.controller.ts
 // ============================================================
 
@@ -11,33 +14,21 @@ import {
   Param,
   HttpCode,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 
-@Controller('api/users')
+@Controller('api/admin/users')
 export class IdentityAdminController {
-  private readonly logger = new Logger(IdentityAdminController.name);
-
   constructor(private readonly identityService: IdentityService) {}
 
   /**
-   * DELETE /api/users/:id
-   *
-   * Hard-deletes a root identity and all associated records:
-   * gear, sessions, wearables, quests, fate caches, markers,
-   * titles, source links, events, personas, and the root record.
-   *
-   * Operator-only — no player-facing auth guard required
-   * (dashboard sits behind Railway private networking / basic auth).
+   * DELETE /api/admin/users/:id
+   * Hard-deletes a root identity and all associated records.
    */
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async deleteIdentity(@Param('id') id: string) {
-    const result = await this.identityService.deleteIdentity(id);
-    return {
-      status: 'ok',
-      data: result,
-    };
+    const data = await this.identityService.deleteIdentity(id);
+    return { status: 'ok', data };
   }
 }
