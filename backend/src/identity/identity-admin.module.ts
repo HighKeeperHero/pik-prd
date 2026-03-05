@@ -8,12 +8,10 @@
 
 import { Module } from '@nestjs/common';
 import { IdentityAdminController } from './identity-admin.controller';
-import { IdentityService } from './identity.service';
-import { EventsModule } from '../events/events.module';
+import { IdentityModule } from './identity.module';
 
 @Module({
-  imports: [EventsModule],
+  imports: [IdentityModule],
   controllers: [IdentityAdminController],
-  providers: [IdentityService],
 })
 export class IdentityAdminModule {}
