@@ -69,7 +69,7 @@ export class IdentityService {
         const root = await tx.rootIdentity.create({
           data: {
             heroName: dto.hero_name,
-            fateAlignment: dto.fate_alignment ?? '',
+            fateAlignment: dto.fate_alignment,
             origin: dto.origin ?? null,
             enrolledBy: dto.enrolled_by,
           },
@@ -752,6 +752,57 @@ export class IdentityService {
       item_name: inv.item.name,
       rarity: inv.item.rarityTier,
       nexus_gained: nexusGained,
+    };
+  }
+
+
+  // ── DELETE IDENTITY ───────────────────────────────────────
+
+  async deleteIdentity(rootId: string) {
+    const user = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId },
+      select: { id: true, heroName: true, status: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Identity not found: ${rootId}`);
+    }
+
+    const heroName = user.heroName;
+
+    // Hard delete — remove all associated records in dependency order
+    await this.prisma.$transaction(async (tx) => {
+      // Gear
+      await tx.playerEquipment.deleteMany({ where: { rootId } }).catch(() => {});
+      await tx.playerInventory.deleteMany({ where: { rootId } }).catch(() => {});
+
+      // Sessions & wearables
+      await tx.playerSession.deleteMany({ where: { rootId } }).catch(() => {});
+      await tx.identityToken.deleteMany({ where: { rootId } }).catch(() => {});
+
+      // Quests
+      await tx.playerQuest.deleteMany({ where: { rootId } }).catch(() => {});
+
+      // Fate
+      await tx.fateCache.deleteMany({ where: { rootId } }).catch(() => {});
+      await tx.fateMarker.deleteMany({ where: { rootId } }).catch(() => {});
+      await tx.playerTitle.deleteMany({ where: { rootId } }).catch(() => {});
+
+      // Links & events
+      await tx.sourceLink.deleteMany({ where: { rootId } }).catch(() => {});
+      await tx.identityEvent.deleteMany({ where: { rootId } }).catch(() => {});
+
+      // Persona & root
+      await tx.persona.deleteMany({ where: { rootId } });
+      await tx.rootIdentity.delete({ where: { id: rootId } });
+    });
+
+    this.logger.log(`Identity deleted: ${heroName} (${rootId})`);
+
+    return {
+      deleted: true,
+      root_id: rootId,
+      hero_name: heroName,
     };
   }
 

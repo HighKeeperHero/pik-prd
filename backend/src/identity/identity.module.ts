@@ -1,23 +1,17 @@
 // ============================================================
 // PIK — Identity Module
-//
-// The core identity kernel: enrollment, lookup, profiles.
-// Imports EventsModule to log all identity state transitions
-// to the append-only ledger.
-//
 // Place at: src/identity/identity.module.ts
 // ============================================================
 
 import { Module } from '@nestjs/common';
-import { IdentityController } from './identity.controller';
 import { IdentityService } from './identity.service';
+import { IdentityAdminController } from './identity-admin.controller';
 import { EventsModule } from '../events/events.module';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [EventsModule, AuthModule],
-  controllers: [IdentityController],
+  imports: [EventsModule],
+  controllers: [IdentityAdminController],
   providers: [IdentityService],
-  exports: [IdentityService],       // IngestService will need getProgressionConfig()
+  exports: [IdentityService],
 })
 export class IdentityModule {}
