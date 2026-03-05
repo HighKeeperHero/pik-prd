@@ -47,7 +47,7 @@
   .panel-header h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); }
 
   /* ── User cards ── */
-  .user-card { position: relative; }
+  .user-card { position: relative; padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .15s; }
   .user-card-del { position:absolute; top:8px; right:8px; width:22px; height:22px; border-radius:4px;
     background:transparent; border:none; color:var(--dim); font-size:13px; cursor:pointer;
     display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s, color .15s; }
@@ -73,9 +73,6 @@
   .bulk-mode .user-card-del { display:none; }
   .bulk-mode .user-card { padding-right:32px; cursor:default; }
   .bulk-mode .user-card.selected { background:rgba(239,68,68,.06); border-left:3px solid var(--red); }
-    padding: 14px 16px; border-bottom: 1px solid var(--border);
-    cursor: pointer; transition: background .15s;
-  }
   .user-card:hover { background: var(--card-bg); }
   .user-card.active { background: #161c28; border-left: 3px solid var(--accent); }
   .user-card-name { font-size: 14px; font-weight: 700; color: #e8edf5; margin-bottom: 4px; }
@@ -1428,11 +1425,11 @@ async function init() {
 }
 
 setInterval(async () => {
-  await loadUsers();
+  if (!bulkMode) await loadUsers();
   await loadAnalytics();
   await loadLeaderboard();
   await loadLiveSessions();
-  if (selectedRootId) selectUser(selectedRootId);
+  if (selectedRootId && !bulkMode) selectUser(selectedRootId);
 }, 5000);
 
 
