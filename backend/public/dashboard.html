@@ -1628,8 +1628,8 @@ async function beginDemo() {
   await demoStep();
 }
 
-async function demoStep() {
-  if (demoRunning) return;
+async function demoStep(bypassGuard = false) {
+  if (demoRunning && !bypassGuard) return;
   const next = demoCurrent + 1;
   if (next >= DEMO_SCRIPT.length) { demoFinish(); return; }
   demoRunning = true;
@@ -1838,13 +1838,13 @@ function demoAutoPlay() {
   btn.textContent = '⏸ Pause';
   btn.classList.remove('paused');
   btn.disabled = false;
-  demoRunning = true;
 
   const delay = parseInt(document.getElementById('demo-speed').value, 10);
 
   async function tick() {
+    if (demoAutoPaused) return;
     if (demoCurrent >= DEMO_SCRIPT.length - 1) { demoFinish(); return; }
-    await demoStep();
+    await demoStep(true); // bypass the demoRunning guard — auto-play owns the loop
     if (!demoAutoPaused && demoCurrent < DEMO_SCRIPT.length - 1) {
       demoAutoTimer = setTimeout(tick, delay);
     }
