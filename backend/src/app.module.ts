@@ -28,6 +28,16 @@ import { WearableModule } from './wearable/wearable.module';
 import { QuestModule } from './quest/quest.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
+import { Controller, Get } from '@nestjs/common';
+
+@Controller('api')
+class HealthController {
+  @Get('health')
+  health() {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
+}
+
 @Global()
 @Module({
   imports: [
@@ -77,6 +87,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
     QuestModule,
     LeaderboardModule,
   ],
+  controllers: [HealthController],
   providers: [
     PrismaService,
     // Apply ThrottlerGuard globally — every route gets rate limiting
