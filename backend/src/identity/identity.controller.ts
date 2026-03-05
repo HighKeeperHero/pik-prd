@@ -143,6 +143,7 @@ export class IdentityController {
   /**
    * DELETE /api/users/:root_id
    * Hard-delete an identity and all associated records.
+   * Operator-only — dashboard use.
    */
   @Delete(':root_id')
   @HttpCode(HttpStatus.OK)
