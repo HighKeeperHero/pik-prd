@@ -764,7 +764,6 @@ export class IdentityService {
       select: { id: true, heroName: true },
     });
     if (!user) {
-      const { NotFoundException } = await import('@nestjs/common');
       throw new NotFoundException(`Identity not found: ${rootId}`);
     }
 
