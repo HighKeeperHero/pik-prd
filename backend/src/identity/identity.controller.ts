@@ -13,8 +13,11 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
+  HttpCode,
+  HttpStatus,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -135,6 +138,15 @@ export class IdentityController {
     if (req.rootId !== rootId) {
       return { status: 'error', message: 'Unauthorized' };
     }
-    return this.identityService.equipTitle(rootId, body.title_id);
+  /**
+   * DELETE /api/users/:root_id
+   *
+   * Hard-delete an identity and all associated records.
+   * Operator-only — used by dashboard bulk/single delete.
+   */
+  @Delete(':root_id')
+  @HttpCode(HttpStatus.OK)
+  async deleteIdentity(@Param('root_id') rootId: string) {
+    return this.identityService.deleteIdentity(rootId);
   }
 }

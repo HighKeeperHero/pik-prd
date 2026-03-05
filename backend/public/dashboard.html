@@ -1808,7 +1808,7 @@ function handleUserCardClick(event, rootId) {
 async function deleteUser(rootId, heroName) {
   if (!confirm(`Permanently delete "${heroName}"?\n\nThis removes all XP, gear, caches, titles, and source links. This cannot be undone.`)) return;
   try {
-    const r = await apiFetch(`/api/admin/users/${rootId}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/users/${rootId}`, { method: 'DELETE' });
     if (r.status === 'ok' || r.deleted) {
       showToast(`${heroName} deleted`);
       if (selectedRootId === rootId) {
@@ -1872,7 +1872,7 @@ async function confirmBulkDelete() {
   showToast(`Deleting ${count} heroes…`, 'var(--dim)');
   for (const rootId of ids) {
     try {
-      const r = await apiFetch(`/api/admin/users/${rootId}`, { method: 'DELETE' });
+      const r = await apiFetch(`/api/users/${rootId}`, { method: 'DELETE' });
       if (r.status === 'ok' || r.deleted) deleted++;
       else failed++;
     } catch(e) { failed++; }
