@@ -69,7 +69,7 @@ export class IdentityService {
         const root = await tx.rootIdentity.create({
           data: {
             heroName: dto.hero_name,
-            fateAlignment: dto.fate_alignment,
+            fateAlignment: dto.fate_alignment ?? '',
             origin: dto.origin ?? null,
             enrolledBy: dto.enrolled_by,
           },
@@ -786,7 +786,7 @@ export class IdentityService {
       // Fate
       await tx.fateCache.deleteMany({ where: { rootId } }).catch(() => {});
       await tx.fateMarker.deleteMany({ where: { rootId } }).catch(() => {});
-      await tx.playerTitle.deleteMany({ where: { rootId } }).catch(() => {});
+      await tx.userTitle.deleteMany({ where: { rootId } }).catch(() => {});
 
       // Links & events
       await tx.sourceLink.deleteMany({ where: { rootId } }).catch(() => {});
