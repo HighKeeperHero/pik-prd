@@ -47,7 +47,32 @@
   .panel-header h3 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); }
 
   /* ── User cards ── */
-  .user-card {
+  .user-card { position: relative; }
+  .user-card-del { position:absolute; top:8px; right:8px; width:22px; height:22px; border-radius:4px;
+    background:transparent; border:none; color:var(--dim); font-size:13px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s, color .15s; }
+  .user-card:hover .user-card-del { opacity:1; }
+  .user-card-del:hover { color:var(--red) !important; background:rgba(239,68,68,.1); }
+
+  /* ── Bulk delete panel ── */
+  .bulk-bar { display:none; align-items:center; gap:8px; padding:8px 12px;
+    background:rgba(239,68,68,.08); border-bottom:1px solid rgba(239,68,68,.2); font-size:11px; }
+  .bulk-bar.visible { display:flex; }
+  .bulk-bar-count { color:var(--red); font-weight:700; flex:1; }
+  .bulk-del-btn { padding:5px 10px; background:rgba(239,68,68,.15); border:1px solid var(--red);
+    border-radius:4px; color:var(--red); font-size:10px; letter-spacing:1px; text-transform:uppercase;
+    cursor:pointer; font-family:inherit; }
+  .bulk-del-btn:hover { background:rgba(239,68,68,.3); }
+  .bulk-cancel-btn { padding:5px 10px; background:transparent; border:1px solid var(--border);
+    border-radius:4px; color:var(--dim); font-size:10px; letter-spacing:1px; text-transform:uppercase;
+    cursor:pointer; font-family:inherit; }
+  .bulk-cancel-btn:hover { color:var(--text); border-color:var(--text); }
+  .user-card-check { position:absolute; top:10px; right:10px; width:16px; height:16px;
+    accent-color:var(--red); cursor:pointer; display:none; }
+  .bulk-mode .user-card-check { display:block; }
+  .bulk-mode .user-card-del { display:none; }
+  .bulk-mode .user-card { padding-right:32px; cursor:default; }
+  .bulk-mode .user-card.selected { background:rgba(239,68,68,.06); border-left:3px solid var(--red); }
     padding: 14px 16px; border-bottom: 1px solid var(--border);
     cursor: pointer; transition: background .15s;
   }
@@ -360,7 +385,15 @@
 
   <!-- LEFT: User list -->
   <div class="panel" id="user-list-panel">
-    <div class="panel-header"><h3>Enrolled Identities</h3></div>
+    <div class="panel-header" style="display:flex;align-items:center;gap:8px">
+      <h3 style="flex:1">Enrolled Identities</h3>
+      <button onclick="startBulkDelete()" title="Bulk delete" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--dim)'">🗑</button>
+    </div>
+    <div class="bulk-bar" id="bulk-bar">
+      <span class="bulk-bar-count" id="bulk-count">0 selected</span>
+      <button class="bulk-del-btn" onclick="confirmBulkDelete()">Delete Selected</button>
+      <button class="bulk-cancel-btn" onclick="cancelBulkDelete()">Cancel</button>
+    </div>
     <button class="enroll-btn" onclick="openEnrollModal()">+ Enroll New Identity</button>
     <div id="user-list"></div>
   </div>
@@ -683,7 +716,8 @@ async function loadUsers() {
   const ul = document.getElementById('user-list');
   ul.innerHTML = users.map(u => `
     <div class="user-card ${u.root_id === selectedRootId ? 'active' : ''}"
-         onclick="selectUser('${u.root_id}')">
+         id="ucard-${u.root_id}"
+         onclick="handleUserCardClick(event, '${u.root_id}')">
       <div class="user-card-name">${u.hero_name || '(unnamed)'}</div>
       <div class="user-card-sub">${u.root_id.slice(0,22)}…</div>
       <div class="user-card-meta">
@@ -692,6 +726,8 @@ async function loadUsers() {
         <span class="tag tag-any">${u.fate_xp || 0} XP</span>
         <span class="tag tag-any">${u.active_sources || 0} src</span>
       </div>
+      <button class="user-card-del" onclick="event.stopPropagation();deleteUser('${u.root_id}','${(u.hero_name||'this hero').replace(/'/g,"\\'")}')">✕</button>
+      <input type="checkbox" class="user-card-check" onclick="event.stopPropagation();toggleBulkSelect('${u.root_id}',this)">
     </div>
   `).join('');
 }
@@ -1752,6 +1788,106 @@ async function demoIngest(rootId, eventType, payload) {
   });
   if (r.status !== 'ok') throw new Error(r.message || `Ingest failed: ${eventType}`);
   return r.data || {};
+}
+
+// ── Delete & Bulk Delete ─────────────────────────────────────────────────────
+
+let bulkMode    = false;
+let bulkSelected = new Set();
+
+function handleUserCardClick(event, rootId) {
+  if (bulkMode) {
+    const card = document.getElementById(`ucard-${rootId}`);
+    const cb   = card?.querySelector('.user-card-check');
+    if (cb) { cb.checked = !cb.checked; toggleBulkSelect(rootId, cb); }
+  } else {
+    selectUser(rootId);
+  }
+}
+
+async function deleteUser(rootId, heroName) {
+  if (!confirm(`Permanently delete "${heroName}"?\n\nThis removes all XP, gear, caches, titles, and source links. This cannot be undone.`)) return;
+  try {
+    const r = await apiFetch(`/api/users/${rootId}`, { method: 'DELETE' });
+    if (r.status === 'ok' || r.deleted) {
+      showToast(`${heroName} deleted`);
+      if (selectedRootId === rootId) {
+        selectedRootId = null;
+        document.getElementById('detail-empty').style.display = 'flex';
+        document.getElementById('detail-content') && (document.getElementById('detail-content').innerHTML = '');
+      }
+      await loadUsers();
+      await loadAnalytics();
+    } else {
+      showToast(r.message || 'Delete failed', 'var(--red)');
+    }
+  } catch(err) {
+    showToast(err.message || 'Delete failed', 'var(--red)');
+  }
+}
+
+function startBulkDelete() {
+  bulkMode = true;
+  bulkSelected.clear();
+  document.getElementById('user-list').classList.add('bulk-mode');
+  document.getElementById('bulk-bar').classList.add('visible');
+  updateBulkCount();
+}
+
+function cancelBulkDelete() {
+  bulkMode = false;
+  bulkSelected.clear();
+  document.getElementById('user-list').classList.remove('bulk-mode');
+  document.getElementById('bulk-bar').classList.remove('visible');
+  document.querySelectorAll('.user-card-check').forEach(cb => cb.checked = false);
+  document.querySelectorAll('.user-card.selected').forEach(c => c.classList.remove('selected'));
+}
+
+function toggleBulkSelect(rootId, checkbox) {
+  const card = document.getElementById(`ucard-${rootId}`);
+  if (checkbox.checked) {
+    bulkSelected.add(rootId);
+    card?.classList.add('selected');
+  } else {
+    bulkSelected.delete(rootId);
+    card?.classList.remove('selected');
+  }
+  updateBulkCount();
+}
+
+function updateBulkCount() {
+  document.getElementById('bulk-count').textContent =
+    bulkSelected.size === 0 ? 'Select heroes to delete' : `${bulkSelected.size} selected`;
+  document.querySelector('.bulk-del-btn').disabled = bulkSelected.size === 0;
+}
+
+async function confirmBulkDelete() {
+  const count = bulkSelected.size;
+  if (!count) return;
+  if (!confirm(`Permanently delete ${count} hero${count > 1 ? 'es' : ''}?\n\nAll XP, gear, caches, and titles will be erased. This cannot be undone.`)) return;
+
+  const ids = [...bulkSelected];
+  let deleted = 0, failed = 0;
+
+  showToast(`Deleting ${count} heroes…`, 'var(--dim)');
+  for (const rootId of ids) {
+    try {
+      const r = await apiFetch(`/api/users/${rootId}`, { method: 'DELETE' });
+      if (r.status === 'ok' || r.deleted) deleted++;
+      else failed++;
+    } catch(e) { failed++; }
+  }
+
+  cancelBulkDelete();
+  if (selectedRootId && ids.includes(selectedRootId)) {
+    selectedRootId = null;
+    const dc = document.getElementById('detail-content');
+    if (dc) dc.innerHTML = '';
+    document.getElementById('detail-empty').style.display = 'flex';
+  }
+  await loadUsers();
+  await loadAnalytics();
+  showToast(`Deleted ${deleted}${failed ? ` · ${failed} failed` : ''}`);
 }
 
 init();
