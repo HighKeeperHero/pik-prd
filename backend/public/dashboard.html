@@ -350,9 +350,18 @@
   .demo-narrative-text { font-size:12px; color:#bdc3cd; line-height:1.6; }
   .demo-narrative-text.fade-in { animation:demoFadeIn .35s ease; }
 
-  .demo-xp-flash { font-size:18px; font-weight:800; color:var(--accent2); letter-spacing:1px;
-    text-align:center; padding:6px 0 2px; animation:xpBurst .5s ease; display:none; }
-  .demo-xp-flash.visible { display:block; }
+  .demo-flash-stack { display:flex; flex-direction:column; align-items:center; gap:4px;
+    min-height:0; margin-bottom:2px; }
+  .demo-flash-pill { font-size:15px; font-weight:800; letter-spacing:1px; padding:4px 14px;
+    border-radius:20px; border:1px solid currentColor; background:rgba(0,0,0,.4);
+    animation:xpBurst .45s ease; display:none; white-space:nowrap; }
+  .demo-flash-pill.visible { display:inline-block; }
+  .demo-flash-pill.flash-xp    { color:var(--accent2); }
+  .demo-flash-pill.flash-level { color:#f5c842; text-shadow:0 0 10px rgba(245,200,66,.5); }
+  .demo-flash-pill.flash-cache { color:#a78bfa; }
+  .demo-flash-pill.flash-loot  { color:#f97316; }
+  .demo-flash-pill.flash-marker{ color:#f43f5e; }
+  .demo-flash-pill.flash-title { color:#f5c842; }
 
   .demo-log { background:#04060a; border:1px solid var(--border); border-radius:8px;
     height:145px; overflow-y:auto; padding:8px 10px; margin-bottom:14px;
@@ -564,7 +573,14 @@
     </div>
 
     <!-- XP flash -->
-    <div class="demo-xp-flash" id="demo-xp-flash"></div>
+    <div class="demo-flash-stack" id="demo-flash-stack">
+      <div class="demo-flash-pill flash-xp"     id="demo-flash-xp"></div>
+      <div class="demo-flash-pill flash-level"  id="demo-flash-level"></div>
+      <div class="demo-flash-pill flash-cache"  id="demo-flash-cache"></div>
+      <div class="demo-flash-pill flash-loot"   id="demo-flash-loot"></div>
+      <div class="demo-flash-pill flash-marker" id="demo-flash-marker"></div>
+      <div class="demo-flash-pill flash-title"  id="demo-flash-title"></div>
+    </div>
 
     <!-- Finish banner -->
     <div class="demo-finish-banner" id="demo-finish-banner">
@@ -1561,8 +1577,7 @@ function resetDemo() {
   document.getElementById('demo-narrative').classList.remove('step-active');
   const banner = document.getElementById('demo-finish-banner');
   if (banner) banner.classList.remove('visible');
-  const xpFlash = document.getElementById('demo-xp-flash');
-  if (xpFlash) xpFlash.classList.remove('visible');
+  document.querySelectorAll('.demo-flash-pill').forEach(el => el.classList.remove('visible'));
   const autoBtn = document.getElementById('demo-btn-auto');
   autoBtn.textContent = '▶ Auto';
   autoBtn.classList.remove('paused');
@@ -1701,7 +1716,7 @@ async function runDemoStep(i) {
       const xp  = (c.session_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
       const lvl = c.level_up;
       demoLog('🎯', `Session complete — <span class="hi">+${xp} XP</span>${lvl ? ` <span class="lvl">⬆ LEVEL UP ${lvl.from}→${lvl.to}</span>` : ''}`, true);
-      demoFlashXP(xp);
+      demoFlashXP(xp, lvl);
       break;
     }
     case 2: { // Hard boss session
@@ -1711,10 +1726,12 @@ async function runDemoStep(i) {
       const xp  = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
       const lvl = c.level_up;
       demoLog('⚔', `Boss encounter — <span class="hi">+${xp} XP</span>${lvl ? ` <span class="lvl">⬆ LEVEL UP ${lvl.from}→${lvl.to}</span>` : ''} <span class="dim">·</span> <span class="hi">cache dropped</span>`, true);
-      demoFlashXP(xp);
+      demoFlashXP(xp, lvl);
       if (c.cache_granted || r.cache_id) {
         demoCtx.cacheId = r.cache_id || c.cache_id;
-        demoLog('📦', `Cache granted: <span class="hi">${c.cache_rarity||'uncommon'}</span>`);
+        const rarity = c.cache_rarity || 'uncommon';
+        setTimeout(() => demoFlashCache(rarity), 600);
+        demoLog('📦', `Cache granted: <span class="hi">${rarity}</span>`);
       }
       break;
     }
@@ -1722,6 +1739,7 @@ async function runDemoStep(i) {
       const r = await demoIngest(demoCtx.rootId, 'progression.fate_marker',
         { marker:'veil_witness' });
       demoLog('◈', `Fate marker <span class="hi">veil_witness</span> applied — <span class="dim">append-only · permanent · cannot be removed</span>`, true);
+      demoFlashMarker('veil_witness');
       break;
     }
     case 4: { // Grant cache
@@ -1731,6 +1749,7 @@ async function runDemoStep(i) {
       });
       if (r.status === 'ok') {
         demoCtx.cacheId = r.data?.cache_id || r.data?.id;
+        demoFlashCache('uncommon');
         demoLog('📦', `Fate cache added — rarity <span class="hi">uncommon</span> · source boss_kill`);
       } else {
         // Cache already awarded — find the existing sealed one to open in step 5
@@ -1760,8 +1779,12 @@ async function runDemoStep(i) {
         });
         if (r.status === 'ok' && r.data) {
           const item = r.data;
-          demoLog('✦', `Cache opened → <span class="hi">${item.name||item.item_name||'Unknown Relic'}</span> · ${item.rarity||''} ${item.type||''}`);
+          const lootName = item.name || item.item_name || 'Unknown Relic';
+          const lootRarity = item.rarity || '';
+          demoFlashLoot(lootName, lootRarity);
+          demoLog('✦', `Cache opened → <span class="hi">${lootName}</span> · ${lootRarity} ${item.type||''}`);
         } else {
+          demoFlash('demo-flash-loot', '✦ LOOT CLAIMED');
           demoLog('✦', 'Cache opened — loot claimed');
         }
       } else {
@@ -1791,6 +1814,7 @@ async function runDemoStep(i) {
             const r = await demoIngest(demoCtx.rootId, 'progression.title_granted', { title_id: candidate });
             const confirmed = r.changes_applied?.title_granted || candidate;
             titleId = candidate;
+            demoFlashTitle(confirmed);
             demoLog('👑', `Title granted: <span class="hi">${confirmed.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
             break;
           } catch(e) {
@@ -1803,6 +1827,7 @@ async function runDemoStep(i) {
       } else {
         const r = await demoIngest(demoCtx.rootId, 'progression.title_granted', { title_id: titleId });
         const confirmed = r.changes_applied?.title_granted || titleId;
+        demoFlashTitle(confirmed);
         demoLog('👑', `Title granted: <span class="hi">${confirmed.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
       }
       break;
@@ -1814,7 +1839,7 @@ async function runDemoStep(i) {
       const xp  = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
       const lvl = c.level_up;
       demoLog('🏆', `Full clear — <span class="hi">+${xp} XP</span>${lvl ? ` <span class="lvl">⬆ LEVEL UP ${lvl.from}→${lvl.to}</span>` : ''} — all 8 systems verified`, true);
-      demoFlashXP(xp);
+      demoFlashXP(xp, lvl);
       break;
     }
   }
@@ -1916,13 +1941,38 @@ function demoLog(icon, msg, highlight = false) {
   log.scrollTop = log.scrollHeight;
 }
 
-function demoFlashXP(amount) {
-  if (!amount || amount <= 0) return;
-  const el = document.getElementById('demo-xp-flash');
+function demoFlash(id, text, duration = 1400) {
+  const el = document.getElementById(id);
   if (!el) return;
-  el.textContent = `+${amount.toLocaleString()} XP`;
+  el.textContent = text;
+  el.classList.remove('visible');
+  void el.offsetWidth; // reflow to restart animation
   el.classList.add('visible');
-  setTimeout(() => el.classList.remove('visible'), 1200);
+  clearTimeout(el._flashTimer);
+  el._flashTimer = setTimeout(() => el.classList.remove('visible'), duration);
+}
+
+function demoFlashXP(amount, levelUp) {
+  if (amount && amount > 0) demoFlash('demo-flash-xp', `+${amount.toLocaleString()} XP`);
+  if (levelUp) setTimeout(() => demoFlash('demo-flash-level', `⬆ LEVEL ${levelUp.from} → ${levelUp.to}`, 1800), 300);
+}
+
+function demoFlashCache(rarity) {
+  demoFlash('demo-flash-cache', `📦 ${(rarity || 'uncommon').toUpperCase()} CACHE`);
+}
+
+function demoFlashLoot(name, rarity) {
+  const label = rarity ? `✦ ${name} · ${rarity.toUpperCase()}` : `✦ ${name}`;
+  demoFlash('demo-flash-loot', label, 1800);
+}
+
+function demoFlashMarker(marker) {
+  demoFlash('demo-flash-marker', `◈ ${marker.toUpperCase().replace(/_/g,' ')}`, 1800);
+}
+
+function demoFlashTitle(title) {
+  const clean = title.replace(/^title_/,'').replace(/_/g,' ').toUpperCase();
+  demoFlash('demo-flash-title', `👑 ${clean}`, 1800);
 }
 
 function demoSetNarrative(label, text) {
