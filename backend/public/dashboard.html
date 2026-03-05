@@ -1598,7 +1598,7 @@ async function runDemoStep(i) {
     }
     case 4: { // Grant cache
       const r = await apiFetch('/api/loot/grant', {
-        method:'POST', headers:{'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json', 'X-PIK-API-Key': HV_KEY},
         body: JSON.stringify({ root_id: demoCtx.rootId, rarity:'uncommon', source:'boss_kill' })
       });
       if (r.status === 'ok') {
@@ -1618,7 +1618,7 @@ async function runDemoStep(i) {
       }
       if (demoCtx.cacheId) {
         const r = await apiFetch(`/api/loot/open`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
+          method:'POST', headers:{'Content-Type':'application/json', 'X-PIK-API-Key': HV_KEY},
           body: JSON.stringify({ cache_id: demoCtx.cacheId, root_id: demoCtx.rootId })
         });
         if (r.status === 'ok' && r.data) {
@@ -1696,7 +1696,8 @@ function demoLog(icon, msg) {
 
 async function demoIngest(rootId, eventType, payload) {
   const r = await apiFetch('/api/ingest', {
-    method:'POST', headers:{'Content-Type':'application/json'},
+    method:'POST',
+    headers:{'Content-Type':'application/json', 'X-PIK-API-Key': HV_KEY},
     body: JSON.stringify({ root_id: rootId, event_type: eventType, payload })
   });
   if (r.status !== 'ok') throw new Error(r.message || `Ingest failed: ${eventType}`);
