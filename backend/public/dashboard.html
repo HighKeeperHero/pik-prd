@@ -1577,16 +1577,22 @@ async function runDemoStep(i) {
     case 1: { // First session
       const r = await demoIngest(demoCtx.rootId, 'progression.session_completed',
         { difficulty:'normal', boss_damage_pct:0, nodes_completed:4 });
-      demoLog('🎯', `Session complete — <span class="hi">+${r.xp_awarded||'?'} XP</span>${r.leveled_up ? ` <span class="lvl">⬆ LEVEL UP ${r.old_level}→${r.new_level}</span>` : ''}`);
+      const c   = r.changes_applied || {};
+      const xp  = (c.session_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
+      const lvl = c.level_up;
+      demoLog('🎯', `Session complete — <span class="hi">+${xp} XP</span>${lvl ? ` <span class="lvl">⬆ LEVEL UP ${lvl.from}→${lvl.to}</span>` : ''}`);
       break;
     }
     case 2: { // Hard boss session
       const r = await demoIngest(demoCtx.rootId, 'progression.session_completed',
         { difficulty:'hard', boss_damage_pct:80, nodes_completed:6 });
-      demoLog('⚔', `Boss encounter — <span class="hi">+${r.xp_awarded||'?'} XP</span>${r.leveled_up ? ` <span class="lvl">⬆ LEVEL UP ${r.old_level}→${r.new_level}</span>` : ''}`);
-      if (r.cache_granted) {
-        demoCtx.cacheId = r.cache_id;
-        demoLog('📦', `Cache granted: <span class="hi">${r.cache_rarity||'uncommon'}</span>`);
+      const c   = r.changes_applied || {};
+      const xp  = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
+      const lvl = c.level_up;
+      demoLog('⚔', `Boss encounter — <span class="hi">+${xp} XP</span>${lvl ? ` <span class="lvl">⬆ LEVEL UP ${lvl.from}→${lvl.to}</span>` : ''}`);
+      if (c.cache_granted || r.cache_id) {
+        demoCtx.cacheId = r.cache_id || c.cache_id;
+        demoLog('📦', `Cache granted: <span class="hi">${c.cache_rarity||'uncommon'}</span>`);
       }
       break;
     }
@@ -1661,11 +1667,12 @@ async function runDemoStep(i) {
         for (const candidate of ['title_rune_master', 'rune_master', 'title_veil_walker', 'title_first_blood']) {
           try {
             const r = await demoIngest(demoCtx.rootId, 'progression.title_granted', { title_id: candidate });
+            const confirmed = r.changes_applied?.title_granted || candidate;
             titleId = candidate;
-            demoLog('👑', `Title granted: <span class="hi">${candidate.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
+            demoLog('👑', `Title granted: <span class="hi">${confirmed.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
             break;
           } catch(e) {
-            if (!e.message.includes('Unknown')) throw e; // real error, surface it
+            if (!e.message.includes('Unknown') && !e.message.includes('not found') && !e.message.includes('invalid')) throw e;
           }
         }
         if (!titleId) {
@@ -1673,14 +1680,18 @@ async function runDemoStep(i) {
         }
       } else {
         const r = await demoIngest(demoCtx.rootId, 'progression.title_granted', { title_id: titleId });
-        demoLog('👑', `Title granted: <span class="hi">${titleId.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
+        const confirmed = r.changes_applied?.title_granted || titleId;
+        demoLog('👑', `Title granted: <span class="hi">${confirmed.replace('title_','').replace(/_/g,' ')}</span> — equipped as active designation`);
       }
       break;
     }
     case 7: { // Boss victory full clear
       const r = await demoIngest(demoCtx.rootId, 'progression.session_completed',
         { difficulty:'hard', boss_damage_pct:100, nodes_completed:8 });
-      demoLog('🏆', `Full clear! <span class="hi">+${r.xp_awarded||'?'} XP</span>${r.leveled_up ? ` <span class="lvl">⬆ LEVEL UP ${r.old_level}→${r.new_level}</span>` : ''} — Simulation complete`);
+      const c   = r.changes_applied || {};
+      const xp  = (c.session_xp||0) + (c.boss_bonus_xp||0) + (c.node_xp||0) + (c.xp_granted||0);
+      const lvl = c.level_up;
+      demoLog('🏆', `Full clear! <span class="hi">+${xp} XP</span>${lvl ? ` <span class="lvl">⬆ LEVEL UP ${lvl.from}→${lvl.to}</span>` : ''} — Simulation complete`);
       break;
     }
   }
