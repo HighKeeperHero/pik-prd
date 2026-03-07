@@ -215,6 +215,33 @@ export class QuestService {
     };
   }
 
+  // ── ABANDON QUEST ────────────────────────────────────────
+
+  async abandonQuest(rootId: string, questId: string) {
+    const pq = await this.prisma.playerQuest.findUnique({
+      where: { rootId_questId: { rootId, questId } },
+      include: { quest: true },
+    });
+    if (!pq) throw new NotFoundException(`No active quest found`);
+    if (pq.status !== 'active') throw new BadRequestException(`Quest is not active`);
+
+    await this.prisma.playerQuest.delete({
+      where: { rootId_questId: { rootId, questId } },
+    });
+
+    await this.events.log({
+      rootId,
+      eventType: 'quest.abandoned',
+      payload: {
+        quest_id: questId,
+        quest_name: pq.quest.name,
+      },
+    });
+
+    this.logger.log(`Quest abandoned: ${rootId} abandoned "${pq.quest.name}"`);
+    return { status: 'ok', message: `Abandoned: ${pq.quest.name}` };
+  }
+
   // ── AUTO-EVALUATE (called after events) ──────────────────
 
   async evaluateForPlayer(rootId: string) {

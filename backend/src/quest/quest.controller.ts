@@ -20,7 +20,7 @@ import { QuestService } from './quest.service';
 export class QuestController {
   constructor(private readonly questService: QuestService) {}
 
-  // ── Templates ──────────────────────────────────────────
+  // ── Templates ──────────────────────────────────────────────
 
   @Get('templates')
   @SkipThrottle()
@@ -49,7 +49,7 @@ export class QuestController {
     return this.questService.seedDefaultQuests();
   }
 
-  // ── Player Quests ──────────────────────────────────────
+  // ── Player Quests ──────────────────────────────────────────
 
   @Get('board/:rootId')
   @SkipThrottle()
@@ -66,6 +66,11 @@ export class QuestController {
   @Post('accept')
   acceptQuest(@Body() body: { root_id: string; quest_id: string }) {
     return this.questService.acceptQuest(body.root_id, body.quest_id);
+  }
+
+  @Post('abandon')
+  abandonQuest(@Body() body: { root_id: string; quest_id: string }) {
+    return this.questService.abandonQuest(body.root_id, body.quest_id);
   }
 
   @Post('evaluate/:rootId')
