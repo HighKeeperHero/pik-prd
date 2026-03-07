@@ -32,9 +32,9 @@ async function bootstrap() {
 const allowedOrigins = [
   'https://pik-prd-production.up.railway.app',
   'https://pik-prd.vercel.app',
+  'https://codexpwa.vercel.app',
   'http://localhost:5173',
 ];
-
 const isAllowed = (origin: string) =>
   allowedOrigins.includes(origin) ||
   origin.endsWith('-highkeeperheros-projects.vercel.app');
