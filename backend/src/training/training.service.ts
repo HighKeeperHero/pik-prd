@@ -114,7 +114,7 @@ export class TrainingService {
 
     // Calculate XP
     const alignment = rite.root.fateAlignment?.toUpperCase();
-    let xp = XP.RITE_BASE;
+    let xp: number = XP.RITE_BASE;
 
     // Alignment resonance
     const resonance = ALIGNMENT_RESONANCE[alignment] ?? null;
