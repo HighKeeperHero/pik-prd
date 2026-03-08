@@ -27,7 +27,7 @@ import { SessionModule } from './session/session.module';
 import { WearableModule } from './wearable/wearable.module';
 import { QuestModule } from './quest/quest.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
-
+import { FateAccountModule } from './fate-account/fate-account.module';
 import { Controller, Get } from '@nestjs/common';
 
 @Controller('api')
@@ -41,7 +41,7 @@ class HealthController {
 @Global()
 @Module({
   imports: [
-    // ── Rate Limiting ───────────────────────────────────
+    // ── Rate Limiting ──────────────────────────────────────────────────────────
     // Global default: 60 requests per 60 seconds per IP.
     // Individual controllers can override with @Throttle()
     // or skip with @SkipThrottle().
@@ -52,7 +52,6 @@ class HealthController {
         limit: 60,  // 60 requests per window
       },
     ]),
-
     // Serve dashboard at root URL
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
@@ -69,7 +68,6 @@ class HealthController {
         },
       },
     }),
-
     // Feature modules
     EventsModule,
     IdentityModule,
@@ -86,6 +84,7 @@ class HealthController {
     WearableModule,
     QuestModule,
     LeaderboardModule,
+    FateAccountModule,
   ],
   controllers: [HealthController],
   providers: [

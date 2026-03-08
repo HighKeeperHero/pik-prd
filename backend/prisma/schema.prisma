@@ -1,10 +1,7 @@
 // ============================================================
 // PIK — Persistent Identity Kernel
 // Prisma Schema for PostgreSQL (Railway)
-//
-// This is the foundational schema for PIK v1.
-// Run: npx prisma migrate dev --name init
-// Then: npx prisma generate
+// Sprint 6A: FateAccount layer added above RootIdentity
 // ============================================================
 
 generator client {
@@ -17,22 +14,67 @@ datasource db {
 }
 
 // ============================================================
-// IDENTITY KERNEL — Root identities and personas
+// FATE ACCOUNTS — Top-level credential layer
+// One FateAccount → many Heroes (RootIdentity, max 2)
+// Auth: email+password | google | apple
+// ============================================================
+
+model FateAccount {
+  id           String    @id @default(uuid()) @map("account_id")
+  email        String    @unique
+  provider     String    @default("email")       // email | google | apple
+  providerId   String?   @map("provider_id")     // OAuth subject ID (Google sub, Apple sub)
+  passwordHash String?   @map("password_hash")   // null for OAuth-only accounts
+  displayName  String?   @map("display_name")    // Optional account-level display name
+  status       String    @default("active")       // active | suspended | deleted
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  heroes       RootIdentity[]
+  sessions     AccountSession[]
+
+  @@index([email])
+  @@index([provider, providerId])
+  @@map("fate_accounts")
+}
+
+model AccountSession {
+  id              String    @id @default(uuid()) @map("session_id")
+  accountId       String    @map("account_id")
+  tokenHash       String    @unique @map("token_hash")     // SHA-256 of raw token
+  selectedHeroId  String?   @map("selected_hero_id")       // null = at hero select, set after hero chosen
+  expiresAt       DateTime  @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  account         FateAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  hero            RootIdentity? @relation(fields: [selectedHeroId], references: [id], onDelete: SetNull)
+
+  @@index([tokenHash])
+  @@index([accountId])
+  @@map("account_sessions")
+}
+
+// ============================================================
+// IDENTITY KERNEL — Hero records (one per character slot)
+// Now owned by a FateAccount. Max 2 per account enforced in service.
 // ============================================================
 
 model RootIdentity {
   id            String    @id @default(uuid()) @map("root_id")
+  fateAccountId String?   @map("fate_account_id")   // FK to FateAccount (nullable for legacy)
   heroName      String    @unique @map("hero_name")
-  fateAlignment String    @map("fate_alignment")
+  fateAlignment String    @default("NONE") @map("fate_alignment")
   origin        String?
   fateXp        Int       @default(0) @map("fate_xp")
   fateLevel     Int       @default(1) @map("fate_level")
-  enrolledBy    String    @map("enrolled_by")       // "self" | "operator:<id>"
+  enrolledBy    String    @default("self") @map("enrolled_by")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
-  status        String    @default("active")        // active | suspended | deleted
-  equippedTitle String?   @map("equipped_title")    // title_id of equipped/displayed title
+  status        String    @default("active")
+  equippedTitle String?   @map("equipped_title")
 
   // Relations
+  fateAccount   FateAccount?    @relation(fields: [fateAccountId], references: [id], onDelete: Cascade)
+  activeSessions AccountSession[]
   personas      Persona[]
   keys          AuthKey[]
   sourceLinks   SourceLink[]
@@ -47,6 +89,7 @@ model RootIdentity {
   wearables     IdentityToken[]
   quests        PlayerQuest[]
 
+  @@index([fateAccountId])
   @@map("root_identities")
 }
 
@@ -54,8 +97,8 @@ model Persona {
   id            String    @id @default(uuid()) @map("persona_id")
   rootId        String    @map("root_id")
   displayName   String    @map("display_name")
-  metadata      Json?                                // Class, realm, oath state, etc.
-  status        String    @default("active")         // active | deactivated
+  metadata      Json?
+  status        String    @default("active")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   root          RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
@@ -65,20 +108,20 @@ model Persona {
 }
 
 // ============================================================
-// AUTHENTICATION — WebAuthn keys and session tokens
+// AUTHENTICATION — Legacy WebAuthn (retained, not used by Codex PWA)
 // ============================================================
 
 model AuthKey {
   id              String    @id @default(uuid()) @map("key_id")
   rootId          String    @map("root_id")
-  credentialId    String    @unique @map("credential_id")   // WebAuthn credential ID (base64url)
-  publicKey       Bytes     @map("public_key")               // COSE public key bytes
-  counter         BigInt    @default(0)                      // WebAuthn signature counter
-  deviceType      String?   @map("device_type")              // "singleDevice" | "multiDevice"
-  backedUp        Boolean   @default(false)                  // Passkey backup eligible
-  transports      String[]  @default([])                     // ["internal", "usb", "ble", "nfc"]
-  friendlyName    String?   @map("friendly_name")            // "iPhone 15", "YubiKey", etc.
-  status          String    @default("active")               // active | revoked | retired
+  credentialId    String    @unique @map("credential_id")
+  publicKey       Bytes     @map("public_key")
+  counter         BigInt    @default(0)
+  deviceType      String?   @map("device_type")
+  backedUp        Boolean   @default(false)
+  transports      String[]  @default([])
+  friendlyName    String?   @map("friendly_name")
+  status          String    @default("active")
   createdAt       DateTime  @default(now()) @map("created_at")
   revokedAt       DateTime? @map("revoked_at")
   lastUsedAt      DateTime? @map("last_used_at")
@@ -91,10 +134,10 @@ model AuthKey {
 
 model WebAuthnChallenge {
   id          String    @id @default(uuid())
-  rootId      String?   @map("root_id")              // null during initial registration
-  challenge   String    @unique                       // base64url encoded challenge
-  type        String                                  // "registration" | "authentication"
-  metadata    Json?                                   // Stash heroName/alignment during registration
+  rootId      String?   @map("root_id")
+  challenge   String    @unique
+  type        String
+  metadata    Json?
   expiresAt   DateTime  @map("expires_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -105,10 +148,11 @@ model WebAuthnChallenge {
   @@map("webauthn_challenges")
 }
 
+// Legacy session tokens — kept for operator impersonation compatibility
 model SessionToken {
   id          String    @id @default(uuid()) @map("token_id")
   rootId      String    @map("root_id")
-  tokenHash   String    @unique @map("token_hash")    // SHA-256 hash — raw token never stored
+  tokenHash   String    @unique @map("token_hash")
   expiresAt   DateTime  @map("expires_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -118,23 +162,21 @@ model SessionToken {
 }
 
 // ============================================================
-// WEARABLE BRIDGE — Physical token identity resolution
-// Maps wristbands, RFID cards, NFC tags to root identities.
-// Tap flow: token_uid → resolve → root_id → authorize session.
+// WEARABLE BRIDGE
 // ============================================================
 
 model IdentityToken {
   id          String    @id @default(uuid()) @map("token_id")
   rootId      String    @map("root_id")
-  tokenType   String    @map("token_type")            // wristband | rfid_card | nfc_tag | qr_badge
-  tokenUid    String    @unique @map("token_uid")     // Physical token UID (serial, RFID UID, etc.)
-  friendlyName String? @map("friendly_name")           // "PIK Wristband #A7F3"
-  status      String    @default("active")             // active | suspended | expired | revoked
+  tokenType   String    @map("token_type")
+  tokenUid    String    @unique @map("token_uid")
+  friendlyName String?  @map("friendly_name")
+  status      String    @default("active")
   issuedAt    DateTime  @default(now()) @map("issued_at")
   expiresAt   DateTime? @map("expires_at")
   lastTapAt   DateTime? @map("last_tap_at")
   tapCount    Int       @default(0) @map("tap_count")
-  metadata    Json?                                    // Extra data: zone_restrictions, access_level, etc.
+  metadata    Json?
 
   root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
@@ -144,14 +186,14 @@ model IdentityToken {
 }
 
 // ============================================================
-// CONSENT — Sources, source links, and consent receipts
+// CONSENT — Sources and source links
 // ============================================================
 
 model Source {
-  id          String    @id @map("source_id")         // e.g. "src-heroes-veritas-01"
+  id          String    @id @map("source_id")
   name        String    @map("source_name")
-  apiKeyHash  String    @map("api_key_hash")           // SHA-256 of the API key
-  status      String    @default("active")             // active | suspended | deactivated
+  apiKeyHash  String    @map("api_key_hash")
+  status      String    @default("active")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   sourceLinks SourceLink[]
@@ -164,12 +206,12 @@ model SourceLink {
   id          String    @id @default(uuid()) @map("link_id")
   rootId      String    @map("root_id")
   sourceId    String    @map("source_id")
-  scope       String    @default("xp fate_markers titles")  // Space-separated permission tokens
-  grantedBy   String    @map("granted_by")             // "self" | "operator:<id>"
+  scope       String    @default("xp fate_markers titles")
+  grantedBy   String    @map("granted_by")
   grantedAt   DateTime  @default(now()) @map("granted_at")
   revokedAt   DateTime? @map("revoked_at")
   revokedBy   String?   @map("revoked_by")
-  status      String    @default("active")             // active | revoked
+  status      String    @default("active")
 
   root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
   source      Source       @relation(fields: [sourceId], references: [id])
@@ -179,31 +221,16 @@ model SourceLink {
 }
 
 // ============================================================
-// EVENT LEDGER — Append-only identity event log
-//
-// INVARIANT: Events are INSERT-ONLY. No UPDATE, no DELETE.
-// Enforce at application layer (EventsService) and with a
-// Postgres trigger after first migration:
-//
-//   CREATE OR REPLACE FUNCTION prevent_event_modification()
-//   RETURNS TRIGGER AS $$
-//   BEGIN
-//     RAISE EXCEPTION 'identity_events is append-only';
-//   END;
-//   $$ LANGUAGE plpgsql;
-//
-//   CREATE TRIGGER enforce_append_only
-//     BEFORE UPDATE OR DELETE ON identity_events
-//     FOR EACH ROW EXECUTE FUNCTION prevent_event_modification();
+// EVENT LEDGER — Append-only
 // ============================================================
 
 model IdentityEvent {
   id          String    @id @default(uuid()) @map("event_id")
   rootId      String    @map("root_id")
-  eventType   String    @map("event_type")             // e.g. "identity.enrolled", "progression.session_completed"
-  sourceId    String?   @map("source_id")              // null for system/auth events
-  payload     Json      @default("{}")                  // Raw event data
-  changes     Json?     @map("changes_applied")        // Computed deltas: XP granted, level-ups, titles
+  eventType   String    @map("event_type")
+  sourceId    String?   @map("source_id")
+  payload     Json      @default("{}")
+  changes     Json?     @map("changes_applied")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
@@ -215,14 +242,14 @@ model IdentityEvent {
 }
 
 // ============================================================
-// PROGRESSION — Titles, fate markers
+// PROGRESSION
 // ============================================================
 
 model Title {
-  id            String    @id @map("title_id")         // e.g. "title_fate_awakened"
-  displayName   String    @map("display_name")          // e.g. "FATE AWAKENED"
+  id            String    @id @map("title_id")
+  displayName   String    @map("display_name")
   description   String?
-  category      String?                                 // "fate" | "boss" | "session" | "meta"
+  category      String?
 
   userTitles    UserTitle[]
 
@@ -234,19 +261,19 @@ model UserTitle {
   rootId      String    @map("root_id")
   titleId     String    @map("title_id")
   grantedAt   DateTime  @default(now()) @map("granted_at")
-  sourceId    String?   @map("source_id")              // Which source granted this title
+  sourceId    String?   @map("source_id")
 
   root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
   title       Title        @relation(fields: [titleId], references: [id])
 
-  @@unique([rootId, titleId])                           // A user can only hold each title once
+  @@unique([rootId, titleId])
   @@map("user_titles")
 }
 
 model FateMarker {
   id          String    @id @default(uuid())
   rootId      String    @map("root_id")
-  marker      String                                    // Freeform narrative breadcrumb string
+  marker      String
   sourceId    String?   @map("source_id")
   createdAt   DateTime  @default(now()) @map("created_at")
 
@@ -257,35 +284,31 @@ model FateMarker {
 }
 
 // ============================================================
-// LOOT SYSTEM — Fate Caches & Loot Tables
+// LOOT SYSTEM
 // ============================================================
 
-/// Defines reward pools for each cache type.
-/// Weighted random roll selects from entries matching cache_type.
 model LootTable {
   id          String  @id @default(uuid()) @map("loot_table_id")
-  cacheType   String  @map("cache_type")        // "level_up" | "boss_kill" | "milestone"
-  rewardType  String  @map("reward_type")        // "title" | "marker" | "xp_boost"
-  rewardValue String  @map("reward_value")       // title_id, marker text, xp amount
-  displayName String  @map("display_name")       // human-readable reward name
-  weight      Int     @default(100)              // higher = more common
-  rarityTier  String  @default("common") @map("rarity_tier")  // common | uncommon | rare | epic | legendary
+  cacheType   String  @map("cache_type")
+  rewardType  String  @map("reward_type")
+  rewardValue String  @map("reward_value")
+  displayName String  @map("display_name")
+  weight      Int     @default(100)
+  rarityTier  String  @default("common") @map("rarity_tier")
   minLevel    Int     @default(1) @map("min_level")
 
   @@index([cacheType])
   @@map("loot_table")
 }
 
-/// A Fate Cache instance granted to a player.
-/// Sealed on grant; opening rolls against LootTable.
 model FateCache {
   id           String    @id @default(uuid()) @map("cache_id")
   rootId       String    @map("root_id")
   cacheType    String    @map("cache_type")
   rarity       String    @default("common")
   sourceId     String?   @map("source_id")
-  trigger      String?                           // "level_up:5", "boss_kill:100"
-  status       String    @default("sealed")      // sealed | opened
+  trigger      String?
+  status       String    @default("sealed")
   grantedAt    DateTime  @default(now()) @map("granted_at")
   openedAt     DateTime? @map("opened_at")
   rewardType   String?   @map("reward_type")
@@ -302,21 +325,19 @@ model FateCache {
 }
 
 // ============================================================
-// GEAR SYSTEM — Items, Inventory & Equipment
+// GEAR SYSTEM
 // ============================================================
 
-/// Reference catalog of all gear items.
-/// Each item belongs to a slot and carries stat modifiers.
 model GearItem {
-  id          String  @id @map("item_id")            // e.g. "weapon_veilcleaver"
+  id          String  @id @map("item_id")
   name        String  @map("display_name")
-  slot        String                                  // weapon | helm | chest | arms | legs | rune
+  slot        String
   rarityTier  String  @default("common") @map("rarity_tier")
   description String?
   loreText    String? @map("lore_text")
-  icon        String  @default("⚔")                  // emoji/token for frontend
+  icon        String  @default("⚔")
   minLevel    Int     @default(1) @map("min_level")
-  modifiers   Json    @default("{}")                  // { xp_bonus_pct, boss_damage_pct, luck_pct, defense, crit_pct, cooldown_pct, fate_affinity }
+  modifiers   Json    @default("{}")
 
   inventory   PlayerInventory[]
 
@@ -325,12 +346,11 @@ model GearItem {
   @@map("gear_items")
 }
 
-/// Soulbound item instance owned by a player.
 model PlayerInventory {
   id          String    @id @default(uuid()) @map("inventory_id")
   rootId      String    @map("root_id")
   itemId      String    @map("item_id")
-  acquiredVia String    @default("cache") @map("acquired_via")  // cache | grant | quest | milestone
+  acquiredVia String    @default("cache") @map("acquired_via")
   acquiredAt  DateTime  @default(now()) @map("acquired_at")
 
   root        RootIdentity   @relation(fields: [rootId], references: [id], onDelete: Cascade)
@@ -341,11 +361,10 @@ model PlayerInventory {
   @@map("player_inventory")
 }
 
-/// Currently equipped gear (max 6 slots per player).
 model PlayerEquipment {
   id          String    @id @default(uuid()) @map("equipment_id")
   rootId      String    @map("root_id")
-  slot        String                                  // weapon | helm | chest | arms | legs | rune
+  slot        String
   inventoryId String    @unique @map("inventory_id")
   equippedAt  DateTime  @default(now()) @map("equipped_at")
 
@@ -357,22 +376,20 @@ model PlayerEquipment {
 }
 
 // ============================================================
-// CONFIG — Live-tunable system configuration
+// SESSIONS
 // ============================================================
 
-/// A live session tracks a player's real-time presence at a venue.
-/// Check-in → heartbeat → check-out lifecycle.
 model PlayerSession {
-  id           String    @id @default(uuid()) @map("session_id")
-  rootId       String    @map("root_id")
-  sourceId     String    @map("source_id")
-  zone         String?                           // Attraction / area within the venue
-  status       String    @default("active")      // active | completed | abandoned | expired
-  checkedInAt  DateTime  @default(now()) @map("checked_in_at")
-  lastHeartbeat DateTime @default(now()) @map("last_heartbeat")
-  checkedOutAt DateTime? @map("checked_out_at")
-  durationSec  Int?      @map("duration_sec")    // Computed on check-out
-  summary      Json?                             // Post-session stats: nodes, boss%, xp earned
+  id            String    @id @default(uuid()) @map("session_id")
+  rootId        String    @map("root_id")
+  sourceId      String    @map("source_id")
+  zone          String?
+  status        String    @default("active")
+  checkedInAt   DateTime  @default(now()) @map("checked_in_at")
+  lastHeartbeat DateTime  @default(now()) @map("last_heartbeat")
+  checkedOutAt  DateTime? @map("checked_out_at")
+  durationSec   Int?      @map("duration_sec")
+  summary       Json?
 
   root   RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
@@ -384,24 +401,21 @@ model PlayerSession {
 }
 
 // ============================================================
-// QUESTS — Cross-venue quest chains with auto-completion
-// Templates define objectives; PlayerQuest tracks progress.
-// Events auto-trigger objective evaluation.
+// QUESTS
 // ============================================================
 
-/// Operator-defined quest template.
 model QuestTemplate {
   id          String    @id @default(uuid()) @map("quest_id")
-  name        String                                  // "Veil Walker's Trial"
-  description String?                                 // Flavor text
-  questType   String    @map("quest_type")            // cross_venue | single_venue | daily | achievement
-  objectives  Json                                    // Array of objective definitions
-  rewards     Json                                    // { xp, title_id, cache_tier, gear_template_id }
-  minLevel    Int       @default(1) @map("min_level") // Minimum fate level to accept
-  maxLevel    Int?      @map("max_level")             // Maximum fate level (null = no cap)
-  sourceId    String?   @map("source_id")             // null = cross-venue, specific = venue-locked
+  name        String
+  description String?
+  questType   String    @map("quest_type")
+  objectives  Json
+  rewards     Json
+  minLevel    Int       @default(1) @map("min_level")
+  maxLevel    Int?      @map("max_level")
+  sourceId    String?   @map("source_id")
   sortOrder   Int       @default(0) @map("sort_order")
-  status      String    @default("active")            // active | archived
+  status      String    @default("active")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   playerQuests PlayerQuest[]
@@ -411,13 +425,12 @@ model QuestTemplate {
   @@map("quest_templates")
 }
 
-/// A player's active or completed quest instance.
 model PlayerQuest {
   id          String    @id @default(uuid()) @map("player_quest_id")
   rootId      String    @map("root_id")
   questId     String    @map("quest_id")
-  status      String    @default("active")            // active | completed | abandoned | expired
-  progress    Json      @default("[]")                // Array of { objective_id, completed, completed_at }
+  status      String    @default("active")
+  progress    Json      @default("[]")
   startedAt   DateTime  @default(now()) @map("started_at")
   completedAt DateTime? @map("completed_at")
 
@@ -430,9 +443,13 @@ model PlayerQuest {
   @@map("player_quests")
 }
 
+// ============================================================
+// CONFIG
+// ============================================================
+
 model Config {
-  key         String    @id @map("config_key")          // e.g. "fate.xp_per_session_hard"
-  value       String    @map("config_value")             // Stored as string, parsed by consumers
+  key         String    @id @map("config_key")
+  value       String    @map("config_value")
   description String?
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
 
