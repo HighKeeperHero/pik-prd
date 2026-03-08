@@ -206,9 +206,13 @@ export class FateAccountService {
         },
       });
 
-      await tx.persona.create({
-        data: { rootId: root.id, displayName: dto.hero_name },
-      });
+    await tx.sourceLink.create({
+      data: {
+       rootId: root.id,
+       sourceId: 'src-heroes-veritas-01',
+       grantedBy: 'self:codex-pwa',
+      },
+    });
 
       await tx.identityEvent.create({
         data: {
