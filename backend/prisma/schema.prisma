@@ -88,6 +88,10 @@ model RootIdentity {
   sessions      PlayerSession[]
   wearables     IdentityToken[]
   quests        PlayerQuest[]
+  dailyRites    DailyRite[]
+  trainingEntries TrainingEntry[]
+  pillarProgress  PillarProgress[]
+  oaths           Oath[]
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -454,4 +458,100 @@ model Config {
   updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
 
   @@map("config")
+}
+
+// ============================================================
+// TRAINING SYSTEM
+// ============================================================
+// Pool of rite templates drawn from when generating daily rites.
+// Seeded once — operator can add more over time.
+model RiteTemplate {
+  id          String  @id @default(uuid()) @map("rite_template_id")
+  pillar      String                        // forge | lore | veil
+  title       String                        // "Complete 20 min of cardio"
+  description String?                       // Flavour text
+  loreText    String? @map("lore_text")     // In-world framing
+  xpBase      Int     @default(50) @map("xp_base")
+  difficulty  String  @default("standard")  // easy | standard | hard
+  status      String  @default("active")    // active | retired
+
+  dailyRites  DailyRite[]
+
+  @@index([pillar, status])
+  @@map("rite_templates")
+}
+
+// A hero's generated daily rites for a specific date.
+// Created on first GET /api/training/daily/:rootId for that day.
+model DailyRite {
+  id           String    @id @default(uuid()) @map("daily_rite_id")
+  rootId       String    @map("root_id")
+  templateId   String    @map("template_id")
+  dateKey      String    @map("date_key")      // "2026-03-08" UTC date string
+  pillar       String                           // forge | lore | veil (denorm for query speed)
+  status       String    @default("pending")   // pending | completed | skipped
+  completedAt  DateTime? @map("completed_at")
+  xpGranted    Int?      @map("xp_granted")    // Set on completion
+
+  root         RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  template     RiteTemplate  @relation(fields: [templateId], references: [id])
+
+  @@unique([rootId, dateKey, pillar])           // One rite per pillar per day
+  @@index([rootId, dateKey])
+  @@map("daily_rites")
+}
+
+// Individual training log entries (the Chronicle).
+model TrainingEntry {
+  id           String    @id @default(uuid()) @map("entry_id")
+  rootId       String    @map("root_id")
+  pillar       String                           // forge | lore | veil
+  activityType String    @map("activity_type")  // workout | cardio | sport | reading | writing | meditation | prayer | service | other
+  durationMin  Int?      @map("duration_min")
+  notes        String?
+  xpGranted    Int       @default(0) @map("xp_granted")
+  dailyRiteId  String?   @map("daily_rite_id")  // Linked rite if this was a rite completion
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId, createdAt])
+  @@index([rootId, pillar])
+  @@map("training_entries")
+}
+
+// Per-hero pillar XP tracking (separate from fate_xp).
+model PillarProgress {
+  id           String    @id @default(uuid()) @map("pillar_progress_id")
+  rootId       String    @map("root_id")
+  pillar       String                           // forge | lore | veil
+  xp           Int       @default(0)
+  level        Int       @default(1)
+  streak       Int       @default(0)            // Current day streak
+  longestStreak Int      @default(0) @map("longest_streak")
+  lastActivityAt DateTime? @map("last_activity_at")
+
+  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, pillar])
+  @@index([rootId])
+  @@map("pillar_progress")
+}
+
+// Weekly oath declarations.
+model Oath {
+  id           String    @id @default(uuid()) @map("oath_id")
+  rootId       String    @map("root_id")
+  pillar       String                           // forge | lore | veil
+  declaration  String                           // Free text — what they commit to
+  weekOf       String    @map("week_of")        // ISO week start "2026-03-04"
+  status       String    @default("pending")   // pending | kept | broken
+  resolvedAt   DateTime? @map("resolved_at")
+  xpGranted    Int?      @map("xp_granted")
+
+  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, weekOf])                    // One oath per hero per week
+  @@index([rootId, status])
+  @@map("oaths")
 }

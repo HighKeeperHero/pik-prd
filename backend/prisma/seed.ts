@@ -278,6 +278,228 @@ async function main() {
   }
   console.log(`  ✓ ${gearLoot.length} gear loot entries`);
 
+  // ── Rite Templates ──────────────────────────────────────────────────────────
+
+  console.log('');
+  console.log('  Seeding rite templates...');
+
+  const riteTemplates = [
+    // ── FORGE (Physical) ───────────────────────────────────────────────────────
+    {
+      id: 'rite-forge-001', pillar: 'forge',
+      title: 'Complete 20 minutes of cardio',
+      description: 'Run, cycle, swim — move with intent.',
+      loreText: 'The body that endures is the body that survives.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-forge-002', pillar: 'forge',
+      title: 'Complete a strength training session',
+      description: 'Push, pull, lift — forge the body.',
+      loreText: 'Iron sharpens iron. The weak do not last.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-forge-003', pillar: 'forge',
+      title: 'Play a sport or physical game',
+      description: 'Compete, cooperate, or challenge yourself.',
+      loreText: 'Combat is not always war. Sometimes it is play.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-forge-004', pillar: 'forge',
+      title: 'Take a 30-minute walk with purpose',
+      description: 'No screens. Walk as if the path matters.',
+      loreText: 'Every road walked is a road remembered by the Veil.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-forge-005', pillar: 'forge',
+      title: 'Complete 100 bodyweight repetitions',
+      description: 'Push-ups, squats, lunges — any combination.',
+      loreText: 'The Forge does not count reps. It counts resolve.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-forge-006', pillar: 'forge',
+      title: 'Train for 45 minutes without stopping',
+      description: 'Any physical discipline. Endurance is the lesson.',
+      loreText: 'Duration reveals character. Anyone can start.',
+      xpBase: 50, difficulty: 'hard',
+    },
+    {
+      id: 'rite-forge-007', pillar: 'forge',
+      title: 'Stretch and recover for 20 minutes',
+      description: 'Restoration is part of the discipline.',
+      loreText: 'The blade that is never sharpened will break.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-forge-008', pillar: 'forge',
+      title: 'Complete a physical challenge you have been avoiding',
+      description: 'The hard thing. You know what it is.',
+      loreText: 'What you avoid owns you. What you face, you own.',
+      xpBase: 50, difficulty: 'hard',
+    },
+
+    // ── LORE (Mental) ──────────────────────────────────────────────────────────
+    {
+      id: 'rite-lore-001', pillar: 'lore',
+      title: 'Read for 30 minutes',
+      description: 'A book, long-form article, or study material.',
+      loreText: 'Every page turned is a door opened.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-lore-002', pillar: 'lore',
+      title: 'Write freely for 20 minutes',
+      description: 'Journal, story, ideas — just write.',
+      loreText: 'The mind that cannot be expressed cannot be understood.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-lore-003', pillar: 'lore',
+      title: 'Learn something completely new today',
+      description: 'A skill, a concept, a language phrase.',
+      loreText: 'The map of knowledge has no edge. Seek the boundary.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-lore-004', pillar: 'lore',
+      title: 'Solve a puzzle or mental challenge',
+      description: 'Chess, logic, crossword — engage the mind in combat.',
+      loreText: 'The greatest battlefield is the one behind your eyes.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-lore-005', pillar: 'lore',
+      title: 'Listen to an educational podcast or lecture',
+      description: 'Learn from someone who has walked further.',
+      loreText: 'A wise voice in the dark is worth ten swords.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-lore-006', pillar: 'lore',
+      title: 'Study your craft for 45 minutes',
+      description: 'Whatever you are building — go deeper.',
+      loreText: 'Mastery is not claimed. It is excavated, slowly.',
+      xpBase: 50, difficulty: 'hard',
+    },
+    {
+      id: 'rite-lore-007', pillar: 'lore',
+      title: 'Teach something to another person',
+      description: 'The lesson that cements understanding.',
+      loreText: 'What you can teach, you truly know.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-lore-008', pillar: 'lore',
+      title: 'Review and reflect on past notes or writing',
+      description: 'Mining the past for what you missed.',
+      loreText: 'The Codex does not forget. Neither should you.',
+      xpBase: 50, difficulty: 'easy',
+    },
+
+    // ── VEIL (Spiritual) ───────────────────────────────────────────────────────
+    {
+      id: 'rite-veil-001', pillar: 'veil',
+      title: 'Meditate or sit in silence for 10 minutes',
+      description: 'No distractions. Just presence.',
+      loreText: 'The Veil is loudest in silence. Listen.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-veil-002', pillar: 'veil',
+      title: 'Perform an act of service for another person',
+      description: 'Give time, help, or support without expectation.',
+      loreText: 'The hand that gives without taking opens the Veil.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-veil-003', pillar: 'veil',
+      title: 'Spend 20 minutes in prayer or personal reflection',
+      description: 'Speak to what you believe in. Or listen.',
+      loreText: 'Every prayer is a thread cast into the unknown.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-veil-004', pillar: 'veil',
+      title: 'Spend time in nature without a screen',
+      description: 'Walk, sit, observe. Let the world speak.',
+      loreText: 'The world beyond the walls has not forgotten you.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-veil-005', pillar: 'veil',
+      title: 'Practice gratitude — write 5 things you are grateful for',
+      description: 'Specificity matters. No generic answers.',
+      loreText: 'What is named is held. What is held is not lost.',
+      xpBase: 50, difficulty: 'easy',
+    },
+    {
+      id: 'rite-veil-006', pillar: 'veil',
+      title: 'Have a meaningful conversation with someone you trust',
+      description: 'Not small talk. Real contact.',
+      loreText: 'The bond between people is the oldest seal against the dark.',
+      xpBase: 50, difficulty: 'standard',
+    },
+    {
+      id: 'rite-veil-007', pillar: 'veil',
+      title: 'Disconnect from all screens for 2 hours',
+      description: 'The hardest rite for many. Sit with yourself.',
+      loreText: 'The Veil cannot reach through the noise. Step outside it.',
+      xpBase: 50, difficulty: 'hard',
+    },
+    {
+      id: 'rite-veil-008', pillar: 'veil',
+      title: 'Do something creative with no goal or audience',
+      description: 'Draw, play music, build — for the act itself.',
+      loreText: 'Creation without purpose is the purest form of attunement.',
+      xpBase: 50, difficulty: 'standard',
+    },
+  ];
+
+  for (const rt of riteTemplates) {
+    await prisma.riteTemplate.upsert({
+      where: { id: rt.id },
+      update: {},
+      create: rt,
+    });
+  }
+  console.log(`  ✓ ${riteTemplates.length} rite templates`);
+
+  // ── Pillar titles for title registry ──────────────────────────────────────
+
+  const pillarTitles = [
+    // Forge
+    { id: 'title_forge_1', displayName: 'Forge Initiate',  category: 'training' },
+    { id: 'title_forge_2', displayName: 'Forge Adept',     category: 'training' },
+    { id: 'title_forge_3', displayName: 'Forge Hardened',  category: 'training' },
+    { id: 'title_forge_4', displayName: 'Forge Master',    category: 'training' },
+    { id: 'title_forge_5', displayName: 'Iron-Sworn',      category: 'training' },
+    // Lore
+    { id: 'title_lore_1',  displayName: 'Lore Seeker',     category: 'training' },
+    { id: 'title_lore_2',  displayName: 'Lore Keeper',     category: 'training' },
+    { id: 'title_lore_3',  displayName: 'Lore Warden',     category: 'training' },
+    { id: 'title_lore_4',  displayName: 'Lore Sage',       category: 'training' },
+    { id: 'title_lore_5',  displayName: 'Veil Scholar',    category: 'training' },
+    // Veil
+    { id: 'title_veil_1',  displayName: 'Veil Touched',    category: 'training' },
+    { id: 'title_veil_2',  displayName: 'Veil Walker',     category: 'training' },
+    { id: 'title_veil_3',  displayName: 'Veil Warden',     category: 'training' },
+    { id: 'title_veil_4',  displayName: 'Veil Bound',      category: 'training' },
+    { id: 'title_veil_5',  displayName: 'The Still Point', category: 'training' },
+  ];
+
+  for (const t of pillarTitles) {
+    await prisma.title.upsert({
+      where: { id: t.id },
+      update: {},
+      create: t,
+    });
+  }
+  console.log(`  ✓ ${pillarTitles.length} pillar titles`);
+
   console.log('');
   console.log('=== SEED COMPLETE ===');
   console.log('');
