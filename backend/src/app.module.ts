@@ -30,6 +30,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { FateAccountModule } from './fate-account/fate-account.module';
 import { Controller, Get } from '@nestjs/common';
 import { TrainingModule } from './training/training.module';
+import { TitlesModule } from './titles/titles.module';
 
 @Controller('api')
 class HealthController {
@@ -71,6 +72,7 @@ class HealthController {
     }),
     // Feature modules
     TrainingModule,
+    TitlesModule,
     EventsModule,
     IdentityModule,
     ConsentModule,
