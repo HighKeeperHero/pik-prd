@@ -29,7 +29,7 @@ import { QuestModule } from './quest/quest.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { FateAccountModule } from './fate-account/fate-account.module';
 import { Controller, Get } from '@nestjs/common';
-import { TrainingModule } from './training/training.module'; 
+import { TrainingModule } from './training/training.module';
 
 @Controller('api')
 class HealthController {
@@ -70,6 +70,7 @@ class HealthController {
       },
     }),
     // Feature modules
+    TrainingModule,
     EventsModule,
     IdentityModule,
     ConsentModule,
