@@ -59,6 +59,12 @@ function weekKey() {
   d.setUTCDate(d.getUTCDate() - d.getUTCDay()); // Start of week (Sunday)
   return d.toISOString().split('T')[0];
 }
+function lastWeekKey() {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay() - 7); // Start of previous week (Sunday)
+  return d.toISOString().split('T')[0];
+}
 
 @Injectable()
 export class TrainingService {
@@ -381,6 +387,48 @@ export class TrainingService {
     });
 
     return { message, status: dto.status, xp_delta: xpGranted ?? XP.OATH_BROKEN_DEBT };
+  }
+
+  // ── OATH ACCOUNTABILITY FEED ──────────────────────────────────────────────────
+  // Public feed of a given week's oath activity (declared, kept, broken).
+  // Called by GET /api/training/oaths/feed?limit=30&week=current|last
+
+  async getOathFeed(limit = 30, period: 'current' | 'last' = 'current') {
+    const week = period === 'last' ? lastWeekKey() : weekKey();
+
+    const oaths = await this.prisma.oath.findMany({
+      where: { weekOf: week },
+      include: {
+        root: {
+          select: {
+            displayName:   true,
+            heroName:      true,
+            fateAlignment: true,
+            fateLevel:     true,
+          },
+        },
+      },
+      orderBy: [
+        { status: 'asc' },       // resolved oaths (kept/broken) first
+        { createdAt: 'desc' },
+      ],
+      take: limit,
+    });
+
+    return oaths.map(o => ({
+      oath_id:     o.id,
+      pillar:      o.pillar,
+      // Pending oath declarations are hidden until resolved (suspense mechanic)
+      declaration: o.status !== 'pending' ? o.declaration : null,
+      week_of:     o.weekOf,
+      status:      o.status,   // 'pending' | 'kept' | 'broken'
+      alignment:   (o.root?.fateAlignment?.toUpperCase()) ?? 'NONE',
+      hero_name:   o.root?.displayName ?? o.root?.heroName ?? 'Unknown Hero',
+      fate_level:  o.root?.fateLevel ?? 1,
+      resolved_at: o.resolvedAt?.toISOString() ?? null,
+      xp_delta:    o.xpGranted ?? null,
+      created_at:  (o as any).createdAt?.toISOString() ?? null,
+    }));
   }
 
   // ── PRIVATE HELPERS ───────────────────────────────────────────────────────────
