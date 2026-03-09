@@ -31,6 +31,7 @@ import { FateAccountModule } from './fate-account/fate-account.module';
 import { Controller, Get } from '@nestjs/common';
 import { TrainingModule } from './training/training.module';
 import { TitlesModule } from './titles/titles.module';
+import { WorkshopModule } from './workshop/workshop.module';
 
 @Controller('api')
 class HealthController {
@@ -89,6 +90,8 @@ class HealthController {
     QuestModule,
     LeaderboardModule,
     FateAccountModule,
+    WorkshopModule,
+
   ],
   controllers: [HealthController],
   providers: [
