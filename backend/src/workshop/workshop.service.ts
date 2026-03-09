@@ -10,7 +10,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma.service';
 import { GearService } from '../gear/gear.service';
 
-interface RecipeCost {
+export interface RecipeCost {
   component_id: string;
   quantity:     number;
 }

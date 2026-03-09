@@ -14,7 +14,7 @@ export class WorkshopController {
   constructor(private readonly workshop: WorkshopService) {}
 
   @Get('workshop/recipes')
-  getRecipes() {
+  getRecipes(): any {
     return this.workshop.getRecipes();
   }
 
@@ -24,7 +24,7 @@ export class WorkshopController {
     @Param('root_id') rootId: string,
     @Body() body: { recipe_id: string },
     @Req() req: any,
-  ) {
+  ): Promise<any> {
     if (req.heroId !== rootId) {
       return { status: 'error', message: 'Unauthorized' };
     }
