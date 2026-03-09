@@ -5,15 +5,16 @@
 //         POST /api/users/:rootId/titles/:titleId/equip
 // ============================================================
 
-import { Controller, Get, Post, Param, Headers, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Param, UseGuards, Req } from '@nestjs/common';
 import { TitlesService } from './titles.service';
+import { AccountGuard } from '../auth/guards/account.guard';
 
 @Controller('api/users/:rootId')
 export class TitlesController {
   constructor(private readonly titles: TitlesService) {}
 
   // GET /api/users/:rootId/titles
-  // Public — no auth required (same pattern as /caches)
+  // Public — no auth required
   @Get('titles')
   async getTitles(@Param('rootId') rootId: string) {
     const data = await this.titles.getTitles(rootId);
@@ -21,15 +22,16 @@ export class TitlesController {
   }
 
   // POST /api/users/:rootId/titles/:titleId/equip
-  // Requires Bearer token header
+  // Requires AccountSession Bearer token
   @Post('titles/:titleId/equip')
+  @UseGuards(AccountGuard)
   async equipTitle(
     @Param('rootId') rootId: string,
     @Param('titleId') titleId: string,
-    @Headers('authorization') auth: string,
+    @Req() req: Request & { heroId: string },
   ) {
-    if (!auth?.startsWith('Bearer ')) {
-      throw new ForbiddenException('Missing or invalid Authorization header. Expected: Bearer ');
+    if (req.heroId !== rootId) {
+      return { status: 'error', message: 'Unauthorized' };
     }
     const data = await this.titles.equipTitle(rootId, titleId);
     return { status: 'ok', data };

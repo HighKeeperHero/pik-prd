@@ -14,22 +14,26 @@ import { AuthService } from './auth.service';
 import { KeyService } from './key.service';
 import { SessionGuard } from './guards/session.guard';
 import { ApiKeyGuard } from './guards/api-key.guard';
+import { AccountGuard } from './guards/account.guard';
 import { EventsModule } from '../events/events.module';
+import { FateAccountModule } from '../fate-account/fate-account.module';
 
 @Module({
-  imports: [EventsModule],
+  imports: [EventsModule, FateAccountModule],
   controllers: [AuthController],
   providers: [
     AuthService,
     KeyService,
     SessionGuard,
     ApiKeyGuard,
+    AccountGuard,
   ],
   exports: [
     AuthService,     // SessionGuard and other modules need token validation
     KeyService,
     SessionGuard,
     ApiKeyGuard,     // IngestModule uses this guard
+    AccountGuard,    // LootModule, GearModule, TitlesController need this
   ],
 })
 export class AuthModule {}

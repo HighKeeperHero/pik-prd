@@ -18,7 +18,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { LootService } from './loot.service';
-import { SessionGuard } from '../auth/guards/session.guard';
+import { AccountGuard } from '../auth/guards/account.guard';
 
 @Controller('api')
 export class LootController {
@@ -41,13 +41,13 @@ export class LootController {
    * POST /api/users/:root_id/caches/:cache_id/open
    */
   @Post('users/:root_id/caches/:cache_id/open')
-  @UseGuards(SessionGuard)
+  @UseGuards(AccountGuard)
   async openCache(
     @Param('root_id') rootId: string,
     @Param('cache_id') cacheId: string,
-    @Req() req: Request & { rootId: string },
+    @Req() req: Request & { heroId: string },
   ) {
-    if (req.rootId !== rootId) {
+    if (req.heroId !== rootId) {
       return { status: 'error', message: 'Unauthorized' };
     }
     return this.loot.openCache(rootId, cacheId);
@@ -57,8 +57,6 @@ export class LootController {
 
   /**
    * GET /api/loot/table
-   *
-   * View the full loot table (operator / dashboard).
    */
   @Get('loot/table')
   async getLootTable() {
@@ -67,8 +65,6 @@ export class LootController {
 
   /**
    * POST /api/loot/grant
-   *
-   * Manually grant a cache to a player (operator action).
    * Body: { root_id, cache_type, rarity? }
    */
   @Post('loot/grant')

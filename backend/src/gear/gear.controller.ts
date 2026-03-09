@@ -22,13 +22,13 @@ import {
   Req,
 } from '@nestjs/common';
 import { GearService } from './gear.service';
-import { SessionGuard } from '../auth/guards/session.guard';
+import { AccountGuard } from '../auth/guards/account.guard';
 
 @Controller('api')
 export class GearController {
   constructor(private readonly gear: GearService) {}
 
-  // ── Player endpoints (session-protected) ──────────────────
+  // ── Player endpoints (account-protected) ──────────────────
 
   @Get('users/:root_id/inventory')
   async getInventory(@Param('root_id') rootId: string) {
@@ -46,26 +46,26 @@ export class GearController {
   }
 
   @Post('users/:root_id/equipment/equip')
-  @UseGuards(SessionGuard)
+  @UseGuards(AccountGuard)
   async equipItem(
     @Param('root_id') rootId: string,
     @Body() body: { inventory_id: string },
-    @Req() req: Request & { rootId: string },
+    @Req() req: Request & { heroId: string },
   ) {
-    if (req.rootId !== rootId) {
+    if (req.heroId !== rootId) {
       return { status: 'error', message: 'Unauthorized' };
     }
     return this.gear.equipItem(rootId, body.inventory_id);
   }
 
   @Post('users/:root_id/equipment/unequip')
-  @UseGuards(SessionGuard)
+  @UseGuards(AccountGuard)
   async unequipSlot(
     @Param('root_id') rootId: string,
     @Body() body: { slot: string },
-    @Req() req: Request & { rootId: string },
+    @Req() req: Request & { heroId: string },
   ) {
-    if (req.rootId !== rootId) {
+    if (req.heroId !== rootId) {
       return { status: 'error', message: 'Unauthorized' };
     }
     return this.gear.unequipSlot(rootId, body.slot);
