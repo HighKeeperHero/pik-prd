@@ -397,37 +397,24 @@ export class TrainingService {
     const week = period === 'last' ? lastWeekKey() : weekKey();
 
     const oaths = await this.prisma.oath.findMany({
-      where: { weekOf: week },
-      include: {
-        root: {
-          select: {
-            displayName:   true,
-            heroName:      true,
-            fateAlignment: true,
-            fateLevel:     true,
-          },
-        },
-      },
-      orderBy: [
-        { status: 'asc' },       // resolved oaths (kept/broken) first
-        { createdAt: 'desc' },
-      ],
-      take: limit,
+      where:    { weekOf: week },
+      include:  { root: true },          // full include avoids select field-name guessing
+      orderBy:  { status: 'asc' },       // resolved oaths (broken/kept) sort before pending
+      take:     limit,
     });
 
     return oaths.map(o => ({
       oath_id:     o.id,
       pillar:      o.pillar,
-      // Pending oath declarations are hidden until resolved (suspense mechanic)
+      // Pending declarations hidden until resolved (suspense mechanic)
       declaration: o.status !== 'pending' ? o.declaration : null,
       week_of:     o.weekOf,
-      status:      o.status,   // 'pending' | 'kept' | 'broken'
+      status:      o.status,            // 'pending' | 'kept' | 'broken'
       alignment:   (o.root?.fateAlignment?.toUpperCase()) ?? 'NONE',
-      hero_name:   o.root?.displayName ?? o.root?.heroName ?? 'Unknown Hero',
+      hero_name:   o.root?.heroName ?? 'Unknown Hero',
       fate_level:  o.root?.fateLevel ?? 1,
       resolved_at: o.resolvedAt?.toISOString() ?? null,
       xp_delta:    o.xpGranted ?? null,
-      created_at:  (o as any).createdAt?.toISOString() ?? null,
     }));
   }
 
