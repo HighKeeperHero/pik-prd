@@ -92,6 +92,8 @@ model RootIdentity {
   trainingEntries TrainingEntry[]
   pillarProgress  PillarProgress[]
   oaths           Oath[]
+  nexus           PlayerNexus?
+  components      PlayerComponents[]
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -554,4 +556,33 @@ model Oath {
   @@unique([rootId, weekOf])                    // One oath per hero per week
   @@index([rootId, status])
   @@map("oaths")
+}
+
+// ============================================================
+// ECONOMY SYSTEM — Nexus currency + crafting components
+// ============================================================
+model PlayerNexus {
+  id        String   @id @default(uuid()) @map("nexus_id")
+  rootId    String   @unique @map("root_id")
+  balance   Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId])
+  @@map("player_nexus")
+}
+
+model PlayerComponents {
+  id            String   @id @default(uuid()) @map("component_id")
+  rootId        String   @map("root_id")
+  componentType String   @map("component_type")
+  quantity      Int      @default(0)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, componentType])
+  @@index([rootId])
+  @@map("player_components")
 }
