@@ -37,11 +37,10 @@ export class SessionService {
     setInterval(() => this.expireStaleSessions(), 60_000);
   }
 
-  // ── CHECK IN ───────────────────────────────────────────────────────────────
-
+  // ── CHECK IN ──────────────────────────────────────────────────────────────
   async checkIn(params: { rootId: string; sourceId: string; zone?: string }) {
     const user = await this.prisma.rootIdentity.findUnique({
-      where:  { id: params.rootId },
+      where: { id: params.rootId },
       select: { id: true, heroName: true, fateLevel: true, status: true },
     });
     if (!user) throw new NotFoundException(`Identity not found: ${params.rootId}`);
@@ -66,9 +65,9 @@ export class SessionService {
       sourceId: params.sourceId,
       payload: {
         session_id: session.id,
-        hero_name:  user.heroName,
+        hero_name: user.heroName,
         fate_level: user.fateLevel,
-        zone:       params.zone || null,
+        zone: params.zone || null,
       },
     });
 
@@ -77,17 +76,16 @@ export class SessionService {
     );
 
     return {
-      session_id:     session.id,
-      root_id:        params.rootId,
-      source_id:      params.sourceId,
-      zone:           params.zone || null,
-      status:         'active',
-      checked_in_at:  session.checkedInAt.toISOString(),
+      session_id: session.id,
+      root_id: params.rootId,
+      source_id: params.sourceId,
+      zone: params.zone || null,
+      status: 'active',
+      checked_in_at: session.checkedInAt.toISOString(),
     };
   }
 
-  // ── HEARTBEAT ──────────────────────────────────────────────────────────────
-
+  // ── HEARTBEAT ────────────────────────────────────────────────────────────
   async heartbeat(sessionId: string, zone?: string) {
     const session = await this.prisma.playerSession.findUnique({ where: { id: sessionId } });
     if (!session) throw new NotFoundException(`Session not found: ${sessionId}`);
@@ -97,27 +95,25 @@ export class SessionService {
 
     const data: any = { lastHeartbeat: new Date() };
     if (zone !== undefined) data.zone = zone;
-
     await this.prisma.playerSession.update({ where: { id: sessionId }, data });
 
     if (zone && zone !== session.zone) {
       this.sse.emit('session.zone_changed', {
-        session_id:    sessionId,
-        root_id:       session.rootId,
-        source_id:     session.sourceId,
+        session_id: sessionId,
+        root_id: session.rootId,
+        source_id: session.sourceId,
         previous_zone: session.zone,
-        new_zone:      zone,
+        new_zone: zone,
       });
     }
 
     return { session_id: sessionId, status: 'active', last_heartbeat: new Date().toISOString() };
   }
 
-  // ── CHECK OUT ──────────────────────────────────────────────────────────────
-
+  // ── CHECK OUT ────────────────────────────────────────────────────────────
   async checkOut(sessionId: string, summary?: Record<string, unknown>) {
     const session = await this.prisma.playerSession.findUnique({
-      where:   { id: sessionId },
+      where: { id: sessionId },
       include: { root: { select: { heroName: true, fateLevel: true } } },
     });
     if (!session) throw new NotFoundException(`Session not found: ${sessionId}`);
@@ -125,30 +121,30 @@ export class SessionService {
       throw new BadRequestException(`Session is ${session.status}, cannot check out`);
     }
 
-    const now         = new Date();
+    const now = new Date();
     const durationSec = Math.round((now.getTime() - session.checkedInAt.getTime()) / 1000);
 
     await this.prisma.playerSession.update({
       where: { id: sessionId },
-      data:  {
-        status:       'completed',
+      data: {
+        status: 'completed',
         checkedOutAt: now,
         durationSec,
-        summary:      summary ? (summary as Prisma.InputJsonValue) : Prisma.JsonNull,
+        summary: summary ? (summary as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     });
 
     await this.events.log({
       rootId: session.rootId,
       eventType: 'session.check_out',
-      sourceId:  session.sourceId,
+      sourceId: session.sourceId,
       payload: {
-        session_id:   sessionId,
-        hero_name:    session.root.heroName,
-        fate_level:   session.root.fateLevel,
-        zone:         session.zone,
+        session_id: sessionId,
+        hero_name: session.root.heroName,
+        fate_level: session.root.fateLevel,
+        zone: session.zone,
         duration_sec: durationSec,
-        summary:      summary || null,
+        summary: summary || null,
       },
     });
 
@@ -157,11 +153,11 @@ export class SessionService {
     );
 
     return {
-      session_id:     sessionId,
-      status:         'completed',
-      checked_in_at:  session.checkedInAt.toISOString(),
+      session_id: sessionId,
+      status: 'completed',
+      checked_in_at: session.checkedInAt.toISOString(),
       checked_out_at: now.toISOString(),
-      duration_sec:   durationSec,
+      duration_sec: durationSec,
     };
   }
 
@@ -169,16 +165,20 @@ export class SessionService {
   // GET /api/sessions/active/:rootId
   // Returns the player's current active session + co-located party members.
   // Returns null if no active session exists.
-
   async getActiveSession(rootId: string) {
     const session = await this.prisma.playerSession.findFirst({
-      where:   { rootId, status: 'active' },
-      include: {
-        source: { select: { id: true, name: true } },
-      },
+      where: { rootId, status: 'active' },
     });
 
     if (!session) return null;
+
+    // Source has no @relation on PlayerSession — query separately
+    const src = session.sourceId
+      ? await this.prisma.source.findUnique({
+          where: { id: session.sourceId },
+          select: { name: true },
+        })
+      : null;
 
     const durationSec = Math.round((Date.now() - session.checkedInAt.getTime()) / 1000);
 
@@ -187,7 +187,7 @@ export class SessionService {
       where: {
         sourceId: session.sourceId,
         status:   'active',
-        rootId:   { not: rootId },   // exclude self
+        rootId:   { not: rootId }, // exclude self
       },
       include: {
         root: {
@@ -203,12 +203,12 @@ export class SessionService {
     });
 
     return {
-      session_id:    session.id,
-      source_id:     session.sourceId,
-      source_name:   session.source?.name ?? 'Heroes Veritas',
-      zone:          session.zone,
-      started_at:    session.checkedInAt.toISOString(),
-      duration_sec:  durationSec,
+      session_id:   session.id,
+      source_id:    session.sourceId,
+      source_name:  src?.name ?? 'Heroes Veritas',
+      zone:         session.zone,
+      started_at:   session.checkedInAt.toISOString(),
+      duration_sec: durationSec,
       party: partySessions.map(p => ({
         root_id:      p.root.id,
         display_name: p.root.heroName,
@@ -218,7 +218,7 @@ export class SessionService {
     };
   }
 
-  // ── LIVE QUERIES ───────────────────────────────────────────────────────────
+  // ── LIVE QUERIES ──────────────────────────────────────────────────────────
 
   async getActiveSessions() {
     const sessions = await this.prisma.playerSession.findMany({
@@ -320,29 +320,25 @@ export class SessionService {
 
     return {
       total_active: totalActive,
-      by_source:    bySource.map(g => ({ source_id: g.sourceId, active_count: g._count })),
+      by_source: bySource.map(g => ({ source_id: g.sourceId, active_count: g._count })),
     };
   }
 
-  // ── STALE SESSION CLEANUP ──────────────────────────────────────────────────
-
+  // ── STALE SESSION CLEANUP ─────────────────────────────────────────────────
   async expireStaleSessions() {
     const cutoff = new Date(Date.now() - HEARTBEAT_TIMEOUT_MS);
-
     const stale = await this.prisma.playerSession.findMany({
       where:   { status: 'active', lastHeartbeat: { lt: cutoff } },
       include: { root: { select: { heroName: true } } },
     });
 
     for (const session of stale) {
-      const now         = new Date();
+      const now = new Date();
       const durationSec = Math.round((now.getTime() - session.checkedInAt.getTime()) / 1000);
-
       await this.prisma.playerSession.update({
         where: { id: session.id },
         data:  { status: 'expired', checkedOutAt: now, durationSec },
       });
-
       await this.events.log({
         rootId:    session.rootId,
         eventType: 'session.expired',
@@ -354,7 +350,6 @@ export class SessionService {
           duration_sec: durationSec,
         },
       });
-
       this.logger.warn(
         `Session expired (no heartbeat): ${session.root.heroName} at ${session.sourceId}`,
       );
