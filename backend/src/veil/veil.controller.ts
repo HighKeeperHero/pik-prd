@@ -6,10 +6,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { VeilService, RecordEncounterDto } from './veil.service';
+import { VeilService } from './veil.service';
 
-interface RecordEncounterBody extends RecordEncounterDto {
+interface RecordEncounterBody {
   root_id: string;
+  tear_type: string;
+  tear_name: string;
+  outcome: 'won' | 'fled';
+  shards: number;
+  lat?: number;
+  lon?: number;
 }
 
 @Controller('api/veil')
