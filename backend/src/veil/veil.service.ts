@@ -129,7 +129,7 @@ export class VeilService {
     const completed: Array<{ quest_id: string; name: string; cache: object | null }> = [];
 
     for (const pq of veilQuests) {
-      const objectives = pq.quest.objectives as QuestObjective[];
+      const objectives = pq.quest.objectives as unknown as QuestObjective[];
       const progress   = (pq.progress as any[]) ?? [];
 
       const updatedProgress = objectives.map((obj, i) => {
@@ -154,7 +154,7 @@ export class VeilService {
       });
 
       if (nowComplete) {
-        const rewards = pq.quest.rewards as QuestRewards;
+        const rewards = pq.quest.rewards as unknown as QuestRewards;
         let rewardCache: object | null = null;
 
         if (rewards.cache) {
@@ -230,9 +230,9 @@ export class VeilService {
     return playerQuests
       .filter(pq => (pq.quest.questType as string).startsWith('veil'))
       .map(pq => {
-        const objectives = pq.quest.objectives as QuestObjective[];
+        const objectives = pq.quest.objectives as unknown as QuestObjective[];
         const progress   = (pq.progress as any[]) ?? [];
-        const rewards    = pq.quest.rewards as QuestRewards;
+        const rewards    = pq.quest.rewards as unknown as QuestRewards;
         return {
           quest_id:     pq.questId,
           name:         pq.quest.name,
