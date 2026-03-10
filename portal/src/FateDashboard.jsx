@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import VeilTearsScreen from "./VeilTearsScreen.jsx";
 
 // ── Data (shared with onboarding) ──
 const TIERS = [
@@ -500,6 +501,7 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [], 
 
 export default function FateDashboard({ rootId, userData, onLogout, onEnterPortal, onUserDataRefresh }) {
   const [entered, setEntered] = useState(false);
+  const [activeTab, setActiveTab] = useState("home"); // "home" | "veil"
   const [showHeroModal, setShowHeroModal] = useState(false);
   const [heroModalMode, setHeroModalMode] = useState("create"); // "create" | "rename"
   const [showAlignmentModal, setShowAlignmentModal] = useState(false);
@@ -662,6 +664,16 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
       background: BG, fontFamily: FONT_B, color: "#fff", position: "relative",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+      {/* ── Veil Tears Tab ── */}
+      {activeTab === "veil" && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 40, maxWidth: 480, margin: "0 auto" }}>
+          <VeilTearsScreen userData={userData} />
+        </div>
+      )}
+
+      {/* ── Home Tab (existing dashboard content) ── */}
+      {activeTab === "home" && (<>
 
       {/* ── Header ── */}
       <div style={{
@@ -1030,6 +1042,71 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
         onSubmit={handleAlignmentSubmit}
         submitting={alignmentSubmitting}
       />
+
+      </>)} {/* end activeTab === "home" */}
+
+      {/* ── Bottom Tab Bar ── */}
+      <div style={{
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        width: "100%", maxWidth: 480, zIndex: 200,
+        display: "flex", alignItems: "stretch",
+        background: "rgba(8,8,15,0.97)",
+        borderTop: "1px solid rgba(255,255,255,0.07)",
+        backdropFilter: "blur(12px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}>
+        {[
+          { id: "home", icon: "◈", label: "Fate ID" },
+          { id: "veil", icon: "⚡", label: "Veil Tears" },
+        ].map(tab => {
+          const isActive = activeTab === tab.id;
+          const isVeil = tab.id === "veil";
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                flex: 1, padding: "10px 8px 8px",
+                background: "none", border: "none", cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                position: "relative", overflow: "hidden",
+              }}
+            >
+              {/* Active indicator line */}
+              {isActive && (
+                <div style={{
+                  position: "absolute", top: 0, left: "25%", right: "25%",
+                  height: 2, borderRadius: "0 0 2px 2px",
+                  background: isVeil
+                    ? "linear-gradient(90deg, #8040C8, #CC1020)"
+                    : "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                }} />
+              )}
+              <span style={{
+                fontSize: 18, lineHeight: 1,
+                color: isActive
+                  ? (isVeil ? "#A060E0" : "#a78bfa")
+                  : "rgba(255,255,255,0.3)",
+                transition: "color 0.2s",
+                filter: isActive && isVeil ? "drop-shadow(0 0 6px rgba(128,64,200,0.7))" : "none",
+              }}>
+                {tab.icon}
+              </span>
+              <span style={{
+                fontSize: 9, fontWeight: 600, letterSpacing: "0.05em",
+                fontFamily: FONT_B,
+                color: isActive
+                  ? (isVeil ? "#A060E0" : "#a78bfa")
+                  : "rgba(255,255,255,0.25)",
+                transition: "color 0.2s",
+              }}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
     </div>
   );
 }
