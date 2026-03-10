@@ -541,27 +541,57 @@ export class TrainingService {
   }
 
   private async checkLevelUp(rootId: string) {
-    // Use existing progression service logic via raw update
-    // Level thresholds from existing system (config table)
-    const hero = await this.prisma.rootIdentity.findUnique({ where: { id: rootId } });
+    // ── Hero level-up check ───────────────────────────────────────────────────
+    // Uses flat formula: level = Math.floor(heroXp / xpPerHeroLevel) + 1
+    // heroXp tracks this character's XP; fateXp is kept for legacy ingest compat.
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId },
+      select: { id: true, fateXp: true, fateLevel: true, heroXp: true, heroLevel: true, fateAccountId: true },
+    });
     if (!hero) return;
 
-    const config = await this.prisma.config.findUnique({
-      where: { key: 'fate.xp_per_level' },
-    });
-    const xpPerLevel = parseInt(config?.value ?? '500', 10);
-    const newLevel = Math.floor(hero.fateXp / xpPerLevel) + 1;
+    const heroCfg = await this.prisma.config.findUnique({ where: { key: 'fate.xp_per_level' } });
+    const xpPerHeroLevel = parseInt(heroCfg?.value ?? '250', 10);
 
-    if (newLevel > hero.fateLevel) {
+    // Derive hero level from heroXp (fall back to fateXp for pre-Sprint-15 rows)
+    const currentHeroXp = (hero as any).heroXp ?? hero.fateXp;
+    const newHeroLevel  = Math.floor(currentHeroXp / xpPerHeroLevel) + 1;
+
+    if (newHeroLevel > ((hero as any).heroLevel ?? hero.fateLevel)) {
       await this.prisma.rootIdentity.update({
         where: { id: rootId },
-        data: { fateLevel: newLevel },
+        data: { heroLevel: newHeroLevel } as any,
       });
       await this.events.log({
         rootId,
         eventType: 'progression.level_up',
-        payload: { old_level: hero.fateLevel, new_level: newLevel, source: 'training' },
+        payload: { old_level: (hero as any).heroLevel ?? hero.fateLevel, new_level: newHeroLevel, source: 'training' },
       });
+    }
+
+    // ── Account Fate level sync ───────────────────────────────────────────────
+    // Recalculate fate_accounts.fate_xp = SUM of all heroes' heroXp in account.
+    // fate_accounts uses a steeper XP curve (fate.account_xp_per_level) so that
+    // multi-hero accounts don't Fate-level disproportionately fast.
+    if (hero.fateAccountId) {
+      try {
+        const fateCfg = await this.prisma.config.findUnique({ where: { key: 'fate.account_xp_per_level' } });
+        const xpPerFateLevel = parseInt(fateCfg?.value ?? '375', 10);
+
+        const allHeroes = await this.prisma.rootIdentity.findMany({
+          where: { fateAccountId: hero.fateAccountId },
+          select: { heroXp: true, fateXp: true },
+        });
+        const totalFateXp  = allHeroes.reduce((sum, h) => sum + ((h as any).heroXp ?? h.fateXp ?? 0), 0);
+        const newFateLevel = Math.floor(totalFateXp / xpPerFateLevel) + 1;
+
+        await (this.prisma.fateAccount as any).update({
+          where: { id: hero.fateAccountId },
+          data: { fateXp: totalFateXp, fateLevel: newFateLevel },
+        });
+      } catch (err) {
+        this.logger.warn(`Account fate sync failed for ${rootId}: ${err.message}`);
+      }
     }
   }
 

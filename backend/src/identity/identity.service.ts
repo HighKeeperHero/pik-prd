@@ -195,6 +195,10 @@ export class IdentityService {
         },
         fateMarkers: { orderBy: { createdAt: 'desc' } },
         fateCaches: { orderBy: { grantedAt: 'desc' } },
+        // Sprint 16: join FateAccount for account-wide fate progression
+        fateAccount: {
+          select: { id: true, fateXp: true, fateLevel: true },
+        },
       },
     });
 
@@ -261,19 +265,31 @@ export class IdentityService {
 
     // Get progression config for XP calculations
     const config = await this.getProgressionConfig();
-    const nextLevelThreshold = Math.floor(
-      config.xpBaseThreshold *
-        Math.pow(config.xpLevelMultiplier, user.fateLevel - 1),
-    );
 
-    // Calculate XP within current level
-    let xpSpentOnPreviousLevels = 0;
-    for (let i = 1; i < user.fateLevel; i++) {
-      xpSpentOnPreviousLevels += Math.floor(
-        config.xpBaseThreshold * Math.pow(config.xpLevelMultiplier, i - 1),
-      );
-    }
-    const xpInCurrentLevel = user.fateXp - xpSpentOnPreviousLevels;
+    // ── Flat XP level helpers ──────────────────────────────────────────────────
+    // Both Hero and Fate use flat XP-per-level thresholds (different values).
+    // level(xp, perLevel) = Math.floor(xp / perLevel) + 1  — same as training.service
+    // xpInLevel(xp, level, perLevel) = xp since current level started
+    const computeLevel     = (xp: number, perLevel: number) =>
+      Math.floor(xp / perLevel) + 1;
+    const computeXpInLevel = (xp: number, level: number, perLevel: number) =>
+      Math.max(0, xp - (level - 1) * perLevel);
+
+    // ── Account-wide Fate progression (from fate_accounts, steeper curve) ──────
+    // fate.account_xp_per_level > fate.xp_per_level so that multi-hero accounts
+    // (which accumulate Fate XP faster) don't Fate-level disproportionately fast.
+    const accountFateXp    = (user as any).fateAccount?.fateXp ?? user.fateXp;
+    const accountFateLevel = computeLevel(accountFateXp, config.xpPerFateLevel);
+    const fateXpInCurrentLevel = computeXpInLevel(accountFateXp, accountFateLevel, config.xpPerFateLevel);
+    const fateNextThreshold    = config.xpPerFateLevel;
+
+    // ── Character-specific Hero progression (from root_identities, normal curve) ─
+    // heroXp / heroLevel added Sprint 15. Falls back to fateXp/fateLevel for
+    // heroes that predate the migration (values were seeded equal at that point).
+    const heroXp           = (user as any).heroXp ?? user.fateXp;
+    const heroLevel        = computeLevel(heroXp, config.xpPerHeroLevel);
+    const heroXpInCurrentLevel = computeXpInLevel(heroXp, heroLevel, config.xpPerHeroLevel);
+    const heroNextThreshold    = config.xpPerHeroLevel;
 
     // Count sessions from events
     const totalSessions = await this.prisma.identityEvent.count({
@@ -389,10 +405,16 @@ export class IdentityService {
         hero_rename: renameStatus,
       },
       progression: {
-        fate_xp: user.fateXp,
-        fate_level: user.fateLevel,
-        xp_in_current_level: Math.max(0, xpInCurrentLevel),
-        xp_needed_for_next: nextLevelThreshold,
+        // Account-wide Fate progression (sum of all heroes, steeper XP curve)
+        fate_xp:             accountFateXp,
+        fate_level:          accountFateLevel,
+        xp_in_current_level: fateXpInCurrentLevel,
+        xp_needed_for_next:  fateNextThreshold,
+        // Character-specific Hero progression (this hero only, normal XP curve)
+        hero_xp:             heroXp,
+        hero_level:          heroLevel,
+        hero_xp_in_level:    heroXpInCurrentLevel,
+        hero_xp_to_next:     heroNextThreshold,
         total_sessions: totalSessions,
         titles: user.titles.map((t) => t.titleId),
         titles_detail: user.titles.map((t) => ({
@@ -856,6 +878,8 @@ export class IdentityService {
           in: [
             'fate.xp_base_threshold',
             'fate.xp_level_multiplier',
+            'fate.xp_per_level',
+            'fate.account_xp_per_level',
             'fate.xp_per_session_normal',
             'fate.xp_per_session_hard',
             'fate.xp_node_completion',
@@ -869,13 +893,21 @@ export class IdentityService {
     const map = new Map(configs.map((c) => [c.key, c.value]));
 
     return {
-      xpBaseThreshold: parseFloat(map.get('fate.xp_base_threshold') ?? '200'),
+      // ── Flat per-level thresholds (authoritative for display & level-ups) ──
+      // Hero level:  XP earned by this specific character
+      xpPerHeroLevel:    parseInt(map.get('fate.xp_per_level')         ?? '250', 10),
+      // Fate level:  XP earned account-wide (sum of all heroes)
+      // Deliberately steeper so that multi-hero accounts don't Fate-level
+      // significantly faster than focused single-hero accounts.
+      xpPerFateLevel:    parseInt(map.get('fate.account_xp_per_level') ?? '375', 10),
+      // ── Legacy geometric config (kept for ingest/session XP scaling) ──
+      xpBaseThreshold:   parseFloat(map.get('fate.xp_base_threshold')  ?? '200'),
       xpLevelMultiplier: parseFloat(map.get('fate.xp_level_multiplier') ?? '1.2'),
       xpPerSessionNormal: parseFloat(map.get('fate.xp_per_session_normal') ?? '100'),
-      xpPerSessionHard: parseFloat(map.get('fate.xp_per_session_hard') ?? '150'),
-      xpNodeCompletion: parseFloat(map.get('fate.xp_node_completion') ?? '15'),
-      xpBossTierPct: parseFloat(map.get('fate.xp_boss_tier_pct') ?? '0.5'),
-      eventXpMultiplier: parseFloat(map.get('fate.event_xp_multiplier') ?? '1.0'),
+      xpPerSessionHard:  parseFloat(map.get('fate.xp_per_session_hard')  ?? '150'),
+      xpNodeCompletion:  parseFloat(map.get('fate.xp_node_completion')   ?? '15'),
+      xpBossTierPct:     parseFloat(map.get('fate.xp_boss_tier_pct')     ?? '0.5'),
+      eventXpMultiplier: parseFloat(map.get('fate.event_xp_multiplier')  ?? '1.0'),
     };
   }
 }
