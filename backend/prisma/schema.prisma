@@ -29,6 +29,9 @@ model FateAccount {
   status       String    @default("active")       // active | suspended | deleted
   createdAt    DateTime  @default(now()) @map("created_at")
   lastLoginAt  DateTime? @map("last_login_at")
+  // Sprint 15 — account-wide fate progression (shared across all heroes)
+  fateXp       Int       @default(0) @map("fate_xp")
+  fateLevel    Int       @default(1) @map("fate_level")
 
   heroes       RootIdentity[]
   sessions     AccountSession[]
@@ -67,6 +70,9 @@ model RootIdentity {
   origin        String?
   fateXp        Int       @default(0) @map("fate_xp")
   fateLevel     Int       @default(1) @map("fate_level")
+  // Sprint 15 — character-specific progression (per hero, not account-wide)
+  heroXp        Int       @default(0) @map("hero_xp")
+  heroLevel     Int       @default(1) @map("hero_level")
   enrolledBy    String    @default("self") @map("enrolled_by")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")

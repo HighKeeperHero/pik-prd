@@ -2,35 +2,33 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-// Sprint 13 — Veil Tears migration
-// File lives at: E:\pik_prd\backend\run_migration.js
-// SQL lives at:  C:\Users\Tim\Downloads\sprint14_phase2_migration.sql
+// Dedupe — removes duplicate quest_templates + convergence_events
+// from migration running twice.
+// SQL lives at: E:\pik_prd\sprint14_dedupe.sql
 
-const sql = fs.readFileSync(path.join(__dirname, '..', 'sprint13_veil_migration.sql'), 'utf8');
+const sql = fs.readFileSync(path.join(__dirname, '..', 'sprint14_dedupe.sql'), 'utf8');
 
 const client = new Client({
-  connectionString: 'postgresql://postgres:xndEXPLVCQSpOXSiJEroPTzGlEcsiwOH@nozomi.proxy.rlwy.net:20321/railway',
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
 client.connect()
   .then(() => {
-    console.log('Connected. Running Sprint 13 migration...');
+    console.log('Connected. Running dedupe...');
     return client.query(sql);
   })
-  .then(() => {
-    console.log('Migration OK — tables created.');
-    return client.query(
-      "SELECT table_name FROM information_schema.tables WHERE table_name IN ('veil_shards','tear_encounters') ORDER BY table_name"
-    );
-  })
-  .then(r => {
-    const found = r.rows.map(x => x.table_name);
-    console.log('Verified tables:', found);
-    if (found.length === 2) {
-      console.log('✅ Both tables confirmed: veil_shards + tear_encounters');
+  .then(results => {
+    // Last query is the verification SELECT
+    const rows = Array.isArray(results) ? results[results.length - 1].rows : results.rows;
+    console.log('Remaining rows after dedupe:');
+    rows.forEach(r => console.log(` - ${r.tbl}: ${r.count}`));
+    const qt = rows.find(r => r.tbl === 'quest_templates');
+    const ce = rows.find(r => r.tbl === 'convergence_events');
+    if (qt?.count == 8 && ce?.count == 1) {
+      console.log('✅ Dedupe complete — 8 quest templates, 1 convergence event');
     } else {
-      console.warn('⚠️  Expected 2 tables, found:', found.length);
+      console.log('⚠️  Unexpected counts — check manually');
     }
     client.end();
   })
