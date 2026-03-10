@@ -624,3 +624,26 @@ model TearEncounter {
   @@index([rootId, outcome])
   @@map("tear_encounters")
 }
+
+// ============================================================
+// PHASE 2 — Convergence Events
+// ============================================================
+
+// Active time-limited world events that boost rewards or alter spawns.
+// Checked on every encounter — applied automatically by veil.service.
+model ConvergenceEvent {
+  id               String   @id @default(uuid()) @map("event_id")
+  name             String
+  description      String?
+  flavorText       String?  @map("flavor_text")
+  affectedTiers    String[] @map("affected_tiers")   // ['minor','wander','dormant','double'] or subset
+  shardMultiplier  Float    @default(1.0) @map("shard_multiplier")
+  cacheBonus       Boolean  @default(false) @map("cache_bonus")  // guaranteed cache drop during event
+  startsAt         DateTime @map("starts_at")
+  endsAt           DateTime @map("ends_at")
+  status           String   @default("active")        // active | expired | cancelled
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([status, endsAt])
+  @@map("convergence_events")
+}

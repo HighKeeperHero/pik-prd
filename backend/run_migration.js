@@ -4,7 +4,7 @@ const path = require('path');
 
 // Sprint 13 — Veil Tears migration
 // File lives at: E:\pik_prd\backend\run_migration.js
-// SQL lives at:  E:\pik_prd\sprint13_veil_migration.sql
+// SQL lives at:  C:\Users\Tim\Downloads\sprint14_phase2_migration.sql
 
 const sql = fs.readFileSync(path.join(__dirname, '..', 'sprint13_veil_migration.sql'), 'utf8');
 
