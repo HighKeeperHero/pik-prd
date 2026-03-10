@@ -636,12 +636,12 @@ model ConvergenceEvent {
   name             String
   description      String?
   flavorText       String?  @map("flavor_text")
-  affectedTiers    String[] @map("affected_tiers")   // ['minor','wander','dormant','double'] or subset
+  affectedTiers    String[] @map("affected_tiers")
   shardMultiplier  Float    @default(1.0) @map("shard_multiplier")
-  cacheBonus       Boolean  @default(false) @map("cache_bonus")  // guaranteed cache drop during event
+  cacheBonus       Boolean  @default(false) @map("cache_bonus")
   startsAt         DateTime @map("starts_at")
   endsAt           DateTime @map("ends_at")
-  status           String   @default("active")        // active | expired | cancelled
+  status           String   @default("active")
   createdAt        DateTime @default(now()) @map("created_at")
 
   @@index([status, endsAt])
