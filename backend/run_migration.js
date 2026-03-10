@@ -2,7 +2,11 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const sql = fs.readFileSync(path.join(__dirname, '..', 'migration_nexus_components.sql'), 'utf8');
+// Sprint 13 — Veil Tears migration
+// File lives at: E:\pik_prd\backend\run_migration.js
+// SQL lives at:  E:\pik_prd\sprint13_veil_migration.sql
+
+const sql = fs.readFileSync(path.join(__dirname, '..', 'sprint13_veil_migration.sql'), 'utf8');
 
 const client = new Client({
   connectionString: 'postgresql://postgres:xndEXPLVCQSpOXSiJEroPTzGlEcsiwOH@nozomi.proxy.rlwy.net:20321/railway',
@@ -11,17 +15,23 @@ const client = new Client({
 
 client.connect()
   .then(() => {
-    console.log('Connected. Running migration...');
+    console.log('Connected. Running Sprint 13 migration...');
     return client.query(sql);
   })
   .then(() => {
     console.log('Migration OK — tables created.');
     return client.query(
-      "SELECT table_name FROM information_schema.tables WHERE table_name IN ('player_nexus','player_components') ORDER BY table_name"
+      "SELECT table_name FROM information_schema.tables WHERE table_name IN ('veil_shards','tear_encounters') ORDER BY table_name"
     );
   })
   .then(r => {
-    console.log('Verified tables:', r.rows.map(x => x.table_name));
+    const found = r.rows.map(x => x.table_name);
+    console.log('Verified tables:', found);
+    if (found.length === 2) {
+      console.log('✅ Both tables confirmed: veil_shards + tear_encounters');
+    } else {
+      console.warn('⚠️  Expected 2 tables, found:', found.length);
+    }
     client.end();
   })
   .catch(e => {

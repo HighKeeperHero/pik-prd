@@ -1,68 +1,59 @@
 // ============================================================
 // PIK — Persistent Identity Kernel
-// Root Application Module (Sprint 3 — Hardened)
-//
-// Added: ThrottlerModule for rate limiting
-//
-// Place at: src/app.module.ts
+// Root Application Module
+// Sprint 13: VeilModule added
 // ============================================================
 import { Module, Global } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
-import { PrismaService } from './prisma.service';
-import { EventsModule } from './events/events.module';
-import { IdentityModule } from './identity/identity.module';
-import { ConsentModule } from './consent/consent.module';
-import { IngestModule } from './ingest/ingest.module';
-import { ConfigModule } from './config/config.module';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { AuthModule } from './auth/auth.module';
-import { SseModule } from './sse/sse.module';
-import { DemoModule } from './demo/demo.module';
-import { LootModule } from './loot/loot.module';
-import { GearModule } from './gear/gear.module';
-import { SessionModule } from './session/session.module';
-import { WearableModule } from './wearable/wearable.module';
-import { QuestModule } from './quest/quest.module';
+
+import { PrismaService }     from './prisma.service';
+import { EventsModule }      from './events/events.module';
+import { IdentityModule }    from './identity/identity.module';
+import { ConsentModule }     from './consent/consent.module';
+import { IngestModule }      from './ingest/ingest.module';
+import { ConfigModule }      from './config/config.module';
+import { AnalyticsModule }   from './analytics/analytics.module';
+import { AuthModule }        from './auth/auth.module';
+import { SseModule }         from './sse/sse.module';
+import { DemoModule }        from './demo/demo.module';
+import { LootModule }        from './loot/loot.module';
+import { GearModule }        from './gear/gear.module';
+import { SessionModule }     from './session/session.module';
+import { WearableModule }    from './wearable/wearable.module';
+import { QuestModule }       from './quest/quest.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { FateAccountModule } from './fate-account/fate-account.module';
+import { TrainingModule }    from './training/training.module';
+import { TitlesModule }      from './titles/titles.module';
+import { WorkshopModule }    from './workshop/workshop.module';
+import { VeilModule }        from './veil/veil.module';       // ← Sprint 13
+
 import { Controller, Get } from '@nestjs/common';
-import { TrainingModule } from './training/training.module';
-import { TitlesModule } from './titles/titles.module';
-import { WorkshopModule } from './workshop/workshop.module';
 
 @Controller('api')
 class HealthController {
   @Get('health')
-  health() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
-  }
+  health() { return { status: 'ok', timestamp: new Date().toISOString() }; }
 }
 
 @Global()
 @Module({
   imports: [
     // ── Rate Limiting ──────────────────────────────────────────────────────────
-    // Global default: 60 requests per 60 seconds per IP.
-    // Individual controllers can override with @Throttle()
-    // or skip with @SkipThrottle().
     ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000, // 60 seconds
-        limit: 60,  // 60 requests per window
-      },
+      { name: 'default', ttl: 60000, limit: 60 },
     ]),
-    // Serve dashboard at root URL
+
+    // ── Static Dashboard ───────────────────────────────────────────────────────
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'public'),
       serveRoot: '/',
       exclude: ['/api/(.*)'],
       serveStaticOptions: {
         setHeaders: (res, path) => {
-          // Never cache HTML files — always serve fresh
           if (path.endsWith('.html')) {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.setHeader('Pragma', 'no-cache');
@@ -71,7 +62,8 @@ class HealthController {
         },
       },
     }),
-    // Feature modules
+
+    // ── Feature Modules ────────────────────────────────────────────────────────
     TrainingModule,
     TitlesModule,
     EventsModule,
@@ -91,16 +83,12 @@ class HealthController {
     LeaderboardModule,
     FateAccountModule,
     WorkshopModule,
-
+    VeilModule,           // ← Sprint 13
   ],
   controllers: [HealthController],
   providers: [
     PrismaService,
-    // Apply ThrottlerGuard globally — every route gets rate limiting
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
   exports: [PrismaService],
 })

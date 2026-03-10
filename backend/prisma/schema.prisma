@@ -94,6 +94,8 @@ model RootIdentity {
   oaths           Oath[]
   nexus           PlayerNexus?
   components      PlayerComponents[]
+  veilShards      VeilShard?
+  tearEncounters  TearEncounter[]
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -585,4 +587,40 @@ model PlayerComponents {
   @@unique([rootId, componentType])
   @@index([rootId])
   @@map("player_components")
+}
+
+// ============================================================
+// VEIL TEARS — Sprint 13
+// ──────────────────────────────────────────────
+
+// Per-hero Veil Shard currency balance.
+// One row per hero, upserted on each victory.
+model VeilShard {
+  id        String       @id @default(uuid()) @map("shard_id")
+  rootId    String       @unique @map("root_id")
+  balance   Int          @default(0)
+  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@map("veil_shards")
+}
+
+// Individual battle record — one row per encounter outcome.
+model TearEncounter {
+  id        String    @id @default(uuid()) @map("encounter_id")
+  rootId    String    @map("root_id")
+  tearType  String    @map("tear_type")   // minor | wander | dormant | double
+  tearName  String    @map("tear_name")
+  outcome   String                        // won | fled
+  shards    Int       @default(0)
+  lat       Float?                        // GPS coords for future map features
+  lon       Float?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId, createdAt])
+  @@index([rootId, outcome])
+  @@map("tear_encounters")
 }
