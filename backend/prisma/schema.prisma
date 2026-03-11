@@ -208,6 +208,7 @@ model Source {
   name        String    @map("source_name")
   apiKeyHash  String    @map("api_key_hash")
   status      String    @default("active")
+  sourceType  String    @default("venue") @map("source_type")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   sourceLinks SourceLink[]

@@ -186,7 +186,7 @@ export class IdentityService {
           select: { id: true, displayName: true, status: true, createdAt: true },
         },
         sourceLinks: {
-          include: { source: { select: { name: true } } },
+          include: { source: { select: { name: true, sourceType: true } } },
           orderBy: { grantedAt: 'desc' },
         },
         titles: {
@@ -311,15 +311,18 @@ export class IdentityService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // Build source name lookup from links
+    // Build source name + type lookup from links
     const sourceNameMap: Record<string, string> = {};
+    const sourceTypeMap: Record<string, string> = {};
     for (const l of user.sourceLinks) {
       sourceNameMap[l.sourceId] = l.source.name;
+      sourceTypeMap[l.sourceId] = (l.source as any).sourceType ?? 'venue';
     }
 
     const sourceStatsMap: Record<string, {
       source_id: string;
       source_name: string;
+      source_type: string;
       sessions: number;
       xp_contributed: number;
       boss_kills: number;
@@ -333,11 +336,13 @@ export class IdentityService {
     }> = {};
 
     for (const evt of allEvents) {
-      const sid = evt.sourceId!;
+      const sid = evt.sourceId;
+      if (!sid) continue;  // skip platform-internal events with no source (null sourceId)
       if (!sourceStatsMap[sid]) {
         sourceStatsMap[sid] = {
           source_id: sid,
           source_name: sourceNameMap[sid] || sid.slice(0, 20),
+          source_type: sourceTypeMap[sid] ?? 'venue',
           sessions: 0,
           xp_contributed: 0,
           boss_kills: 0,

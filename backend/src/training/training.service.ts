@@ -197,6 +197,7 @@ export class TrainingService {
     // Log event
     await this.events.log({
       rootId,
+      sourceId: 'codex-platform',
       eventType: 'training.rite_completed',
       payload: {
         rite_id:    rite.id,
@@ -250,6 +251,7 @@ export class TrainingService {
 
     await this.events.log({
       rootId,
+      sourceId: 'codex-platform',
       eventType: 'training.logged',
       payload: {
         pillar:        dto.pillar,
@@ -313,6 +315,7 @@ export class TrainingService {
 
     await this.events.log({
       rootId,
+      sourceId: 'codex-platform',
       eventType: 'training.oath_declared',
       payload: { pillar: dto.pillar, declaration: dto.declaration, week_of: week },
     });
@@ -382,6 +385,7 @@ export class TrainingService {
 
     await this.events.log({
       rootId,
+      sourceId: 'codex-platform',
       eventType: 'training.oath_resolved',
       payload: { oath_id: oathId, status: dto.status, xp: xpGranted ?? XP.OATH_BROKEN_DEBT },
     });
@@ -564,6 +568,7 @@ export class TrainingService {
       });
       await this.events.log({
         rootId,
+        sourceId: 'codex-platform',
         eventType: 'progression.level_up',
         payload: { old_level: (hero as any).heroLevel ?? hero.fateLevel, new_level: newHeroLevel, source: 'training' },
       });
