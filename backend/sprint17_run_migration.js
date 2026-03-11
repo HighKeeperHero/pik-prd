@@ -1,14 +1,18 @@
 // Sprint 17 — source_type: differentiate venue vs platform sources
 // Run from E:\pik_prd\backend\
-// $env:DATABASE_URL="postgresql://..."; node sprint17_run_migration.js
+// NOTE: Use DATABASE_PUBLIC_URL value from Railway when running locally
+//$env:DATABASE_URL="postgresql://postgres:uLbqNhXYdaEvjhksHBFDQlXthABaJnTR@centerbeam.proxy.rlwy.net:20371/railway"; node sprint17_run_migration.js
 
 const { Client } = require('pg');
 const fs = require('fs');
 
 async function run() {
+  const connectionString = process.env.DATABASE_URL;
+  // Use SSL for internal Railway URLs, disable for public proxy connections
+  const useSSL = !connectionString?.includes('nozomi.proxy');
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    connectionString,
+    ssl: useSSL ? { rejectUnauthorized: false } : false,
   });
   await client.connect();
   console.log('Connected.\n');
