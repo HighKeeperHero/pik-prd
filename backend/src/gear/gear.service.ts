@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
+import { HuntTrackerService } from '../quest/hunt-tracker.service';
 
 export interface GearModifiers {
   xp_bonus_pct: number; boss_damage_pct: number; luck_pct: number;
@@ -44,6 +45,7 @@ export class GearService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
+    private readonly huntTracker: HuntTrackerService,
   ) {}
 
   // ── ADD TO INVENTORY ──────────────────────────────────────
@@ -181,6 +183,16 @@ export class GearService {
       payload: { inventory_id: inventoryId, item_id: invItem.item.id, item_name: invItem.item.name, rarity, nexus_gained: yieldDef.nexus, components_gained: yieldDef.components },
     });
     this.logger.log(`Dismantled: ${invItem.item.name} (${rarity}) for ${rootId} → +${yieldDef.nexus}◈`);
+
+    // ── Hunt tracker: each component drop fires a qualifying event ────────
+    // Advances any accepted component hunt server-side — no client input needed.
+    const totalComponentsDropped = yieldDef.components.reduce((sum, c) => sum + c.qty, 0);
+    for (let i = 0; i < totalComponentsDropped; i++) {
+      this.huntTracker.recordEvent(rootId, 'component_collected', {
+        item_id: invItem.item.id,
+        rarity,
+      });
+    }
 
     return {
       nexus_gained:      yieldDef.nexus,

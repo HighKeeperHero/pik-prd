@@ -1,18 +1,25 @@
-// ventures.controller.ts — Sprint 20.3 (rev 4)
+// ventures.controller.ts — Sprint 20.3 (rev 5)
 // Drop at: src/quest/ventures.controller.ts
-// No PVP objectives anywhere in this file.
-// Reward structure:
-//   Quests / Recon → xp_reward + nexus_reward + loot_cache
-//   Hunts          → xp_reward + nexus_reward + alignment_material_qty
+//
+// Hunt progress is SERVER-DRIVEN only.
+// Clients call:
+//   POST /api/ventures/hunts/:root_id/:hunt_id/accept   → registers hunt server-side
+//   POST /api/ventures/hunts/:root_id/:hunt_id/abandon  → removes active hunt
+//   GET  /api/ventures/hunts/:root_id/active            → returns live progress (polled on tab focus)
+//
+// Progress advances via HuntTrackerService.recordEvent() called internally by:
+//   GearService.dismantleItem()  → 'component_collected'   ← WIRED (see gear.service.ts patch)
+//   VeilTearService.sealRift()   → 'veil_tear_sealed'      ← FUTURE (Veil map sprint)
+//   EnemyService.resolveDefeat() → 'enemy_defeated'        ← FUTURE (enemy spawn sprint)
+//
+// No PVP objectives. No client-initiated progress increments.
 
 import {
   Controller, Get, Post, Param, Body, HttpCode, HttpStatus,
 } from '@nestjs/common';
+import { HuntTrackerService } from './hunt-tracker.service';
 
 // ── Quest pool ────────────────────────────────────────────────────────────────
-// Standalone daily challenges — no pillar rites, no PVP.
-// completion_hint: shown in the UI when progress === max_progress (ready to claim).
-// loot_cache difficulty scales with Adventure Tier on the frontend.
 const QUEST_POOL = [
   {
     quest_id: 'q_explore_001',
@@ -190,10 +197,8 @@ const INTEL_CARDS = [
   },
 ];
 
-// ── Hunt pool — Veil Tears, Components, Enemies ───────────────────────────────
-// Locked at Level 20 upon alignment selection.
-// Rewards: xp_reward + nexus_reward + alignment_material_qty (faction-specific material).
-const HUNT_POOL: Record<string, any[]> = {
+// ── Hunt pool ─────────────────────────────────────────────────────────────────
+export const HUNT_POOL: Record<string, any[]> = {
   ORDER: [
     {
       hunt_id: 'hunt_ord_vt_001',
@@ -360,12 +365,19 @@ const HUNT_POOL: Record<string, any[]> = {
   ],
 };
 
+function findHunt(huntId: string): { type: string; max_progress: number } | null {
+  for (const pool of Object.values(HUNT_POOL)) {
+    const h = (pool as any[]).find(h => h.hunt_id === huntId);
+    if (h) return { type: h.type, max_progress: h.max_progress };
+  }
+  return null;
+}
+
 @Controller('api/ventures')
 export class VenturesController {
+  constructor(private readonly huntTracker: HuntTrackerService) {}
 
   // ── GET /api/ventures/quests/:root_id/daily ──────────────────────────────
-  // Returns 3 daily quests determined by day-of-year (deterministic stub).
-  // Real implementation: Anthropic-generated quests per hero + Adventure Tier.
   @Get('quests/:root_id/daily')
   getDailyQuests(@Param('root_id') rootId: string) {
     const dayOfYear = Math.floor(
@@ -396,7 +408,6 @@ export class VenturesController {
     @Param('root_id') rootId: string,
     @Param('quest_id') questId: string,
   ) {
-    // Stub: logs completion intent. Real impl: awards XP + Nexus + Loot Cache.
     return { status: 'ok', data: { quest_id: questId, completed: true } };
   }
 
@@ -415,18 +426,47 @@ export class VenturesController {
   getRecon(@Param('root_id') rootId: string) {
     return {
       status: 'ok',
-      data: {
-        scouting_missions: SCOUTING_MISSIONS,
-        intel_cards: INTEL_CARDS,
-      },
+      data: { scouting_missions: SCOUTING_MISSIONS, intel_cards: INTEL_CARDS },
     };
   }
 
   // ── GET /api/ventures/hunts/:root_id ────────────────────────────────────
-  // Stub returns all alignment pools. Real impl: queries root_identities.fateAlignment
-  // and returns only the matching alignment pool. Also gates on hero_level >= 20.
   @Get('hunts/:root_id')
   getHunts(@Param('root_id') rootId: string) {
     return { status: 'ok', data: HUNT_POOL };
+  }
+
+  // ── GET /api/ventures/hunts/:root_id/active ─────────────────────────────
+  // Returns server-authoritative progress for all accepted hunts.
+  // Frontend polls this on tab focus to sync display. Shape:
+  //   { [hunt_id]: { type, max_progress, progress, status } }
+  @Get('hunts/:root_id/active')
+  getActiveHunts(@Param('root_id') rootId: string) {
+    return { status: 'ok', data: this.huntTracker.getActiveHunts(rootId) };
+  }
+
+  // ── POST /api/ventures/hunts/:root_id/:hunt_id/accept ───────────────────
+  // Registers the hunt server-side so qualifying events can advance it.
+  @Post('hunts/:root_id/:hunt_id/accept')
+  @HttpCode(HttpStatus.OK)
+  acceptHunt(
+    @Param('root_id') rootId: string,
+    @Param('hunt_id') huntId: string,
+  ) {
+    const def = findHunt(huntId);
+    if (!def) return { status: 'error', data: { message: 'Unknown hunt ID' } };
+    this.huntTracker.acceptHunt(rootId, huntId, def.type, def.max_progress);
+    return { status: 'ok', data: { hunt_id: huntId, accepted: true } };
+  }
+
+  // ── POST /api/ventures/hunts/:root_id/:hunt_id/abandon ──────────────────
+  @Post('hunts/:root_id/:hunt_id/abandon')
+  @HttpCode(HttpStatus.OK)
+  abandonHunt(
+    @Param('root_id') rootId: string,
+    @Param('hunt_id') huntId: string,
+  ) {
+    this.huntTracker.abandonHunt(rootId, huntId);
+    return { status: 'ok', data: { hunt_id: huntId, abandoned: true } };
   }
 }
