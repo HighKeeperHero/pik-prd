@@ -57,11 +57,20 @@ export class LootController {
 
   /**
    * GET /api/loot/debug
-   * Temporary: returns loot table summary and gear item count for diagnosis
+   * Temporary: returns loot table summary and gear item coverage
    */
   @Get('loot/debug')
   async debugLoot() {
     return this.loot.debugLootTable();
+  }
+
+  /**
+   * POST /api/loot/seed-veil
+   * One-shot: seeds gear entries for veil cache pools + missing items
+   */
+  @Post('loot/seed-veil')
+  async seedVeilLoot() {
+    return this.loot.seedVeilLoot();
   }
 
   /**
