@@ -2,6 +2,7 @@
 // Phase 2: loot cache drops, quest progress tracking, convergence events
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { HuntTrackerService } from '../quest/hunt-tracker.service';
 
 export interface RecordEncounterDto {
   tearType: string;   // minor | wander | dormant | double
@@ -35,7 +36,10 @@ interface QuestRewards {
 
 @Injectable()
 export class VeilService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly huntTracker: HuntTrackerService,
+  ) {}
 
   // ── Record a battle outcome ───────────────────────────────────────────────
   async recordEncounter(rootId: string, dto: RecordEncounterDto) {
@@ -94,6 +98,11 @@ export class VeilService {
 
     // 5. Quest progress
     const questsCompleted = await this._updateQuestProgress(rootId, tearType, outcome);
+
+    // 6. Hunt tracker — veil_tear_sealed event (fires for every won encounter)
+    if (outcome === 'won') {
+      this.huntTracker.recordEvent(rootId, 'veil_tear_sealed', { tear_type: tearType, tear_name: tearName });
+    }
 
     return {
       encounter_id:      encounter.id,
