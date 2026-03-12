@@ -57,7 +57,6 @@ export class LootController {
 
   /**
    * GET /api/loot/debug
-   * Temporary: returns loot table summary and gear item coverage
    */
   @Get('loot/debug')
   async debugLoot() {
@@ -65,8 +64,17 @@ export class LootController {
   }
 
   /**
+   * POST /api/loot/patch-minlevels
+   * One-shot: corrects minLevel values to match actual tier thresholds
+   * Bronze(1) Copper(7) Silver(14) Gold(22) Platinum(30)
+   */
+  @Post('loot/patch-minlevels')
+  async patchMinLevels() {
+    return this.loot.patchMinLevels();
+  }
+
+  /**
    * POST /api/loot/seed-veil
-   * One-shot: seeds gear entries for veil cache pools + missing items
    */
   @Post('loot/seed-veil')
   async seedVeilLoot() {
