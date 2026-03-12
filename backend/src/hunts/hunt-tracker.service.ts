@@ -16,7 +16,7 @@
 //   EnemyService.resolveDefeat()      → 'enemy_defeated'        (future: enemy spawn system)
 
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma.service';
 
 // Hunt type → qualifying event mapping
 const HUNT_EVENT_MAP: Record<string, string> = {
