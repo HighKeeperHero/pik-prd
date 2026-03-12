@@ -30,6 +30,7 @@ import { TrainingModule }    from './training/training.module';
 import { TitlesModule }      from './titles/titles.module';
 import { WorkshopModule }    from './workshop/workshop.module';
 import { VeilModule }        from './veil/veil.module';       // ← Sprint 13
+import { VenturesModule }    from './quest/ventures.module';   // ← Sprint 20.3
 
 import { Controller, Get } from '@nestjs/common';
 
@@ -84,6 +85,7 @@ class HealthController {
     FateAccountModule,
     WorkshopModule,
     VeilModule,           // ← Sprint 13
+    VenturesModule,       // ← Sprint 20.3
   ],
   controllers: [HealthController],
   providers: [
