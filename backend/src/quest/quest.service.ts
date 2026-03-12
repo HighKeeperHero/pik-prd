@@ -30,6 +30,17 @@ import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 
+
+// ── Tier reward multipliers (Bronze→Adamantium) ───────────────────────────────
+function getTierMultiplier(heroLevel: number): number {
+  if (heroLevel >= 40) return 3.0;   // Adamantium
+  if (heroLevel >= 30) return 2.5;   // Platinum
+  if (heroLevel >= 22) return 2.0;   // Gold
+  if (heroLevel >= 14) return 1.6;   // Silver
+  if (heroLevel >= 7)  return 1.3;   // Copper
+  return 1.0;                         // Bronze
+}
+
 export interface Objective {
   id: string;
   type: string;
@@ -461,11 +472,21 @@ export class QuestService {
 
   private async grantRewards(rootId: string, rewards: QuestRewards, questName: string) {
     if (rewards.xp && rewards.xp > 0) {
+      // Fetch hero level to apply tier multiplier
+      const identity = await this.prisma.rootIdentity.findUnique({
+        where: { id: rootId },
+        select: { heroLevel: true },
+      });
+      const multiplier  = getTierMultiplier(identity?.heroLevel ?? 1);
+      const scaledXp    = Math.round(rewards.xp * multiplier);
+
       await this.prisma.rootIdentity.update({
         where: { id: rootId },
-        data: { fateXp: { increment: rewards.xp } },
+        data: { fateXp: { increment: scaledXp } },
       });
-      this.logger.log(`Quest reward: +${rewards.xp} XP for completing "${questName}"`);
+      this.logger.log(
+        `Quest reward: +${scaledXp} XP (base ${rewards.xp} × ${multiplier} tier) for completing "${questName}"`,
+      );
     }
 
     if (rewards.title_id) {
