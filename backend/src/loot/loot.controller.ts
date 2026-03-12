@@ -56,6 +56,15 @@ export class LootController {
   // ── Operator endpoints ────────────────────────────────────
 
   /**
+   * GET /api/loot/debug
+   * Temporary: returns loot table summary and gear item count for diagnosis
+   */
+  @Get('loot/debug')
+  async debugLoot() {
+    return this.loot.debugLootTable();
+  }
+
+  /**
    * GET /api/loot/table
    */
   @Get('loot/table')

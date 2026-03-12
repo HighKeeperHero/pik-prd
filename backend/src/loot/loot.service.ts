@@ -55,6 +55,39 @@ export class LootService {
     private readonly gear: GearService,
   ) {}
 
+  // ── DEBUG (temporary) ─────────────────────────────────────
+
+  async debugLootTable() {
+    const [lootRows, gearItems] = await Promise.all([
+      this.prisma.lootTable.findMany({
+        select: { cacheType: true, rewardType: true, rewardValue: true, displayName: true, rarityTier: true, weight: true },
+        orderBy: [{ cacheType: 'asc' }, { rewardType: 'asc' }],
+      }),
+      this.prisma.gearItem.findMany({
+        select: { id: true, name: true, slot: true, rarityTier: true, minLevel: true },
+        orderBy: [{ rarityTier: 'asc' }, { slot: 'asc' }],
+      }),
+    ]);
+
+    const byRewardType: Record<string, number> = {};
+    for (const r of lootRows) {
+      byRewardType[r.rewardType] = (byRewardType[r.rewardType] ?? 0) + 1;
+    }
+
+    const gearInLootTable = lootRows.filter(r => r.rewardType === 'gear');
+    const gearIdsInTable  = new Set(gearInLootTable.map(r => r.rewardValue));
+    const gearNotInTable  = gearItems.filter(g => !gearIdsInTable.has(g.id));
+
+    return {
+      loot_table_total_rows:   lootRows.length,
+      by_reward_type:          byRewardType,
+      gear_items_in_db:        gearItems.length,
+      gear_entries_in_loot_table: gearInLootTable.length,
+      gear_items_NOT_in_loot_table: gearNotInTable,
+      gear_loot_entries:       gearInLootTable,
+    };
+  }
+
   // ── GRANT A CACHE ─────────────────────────────────────────
 
   /**
