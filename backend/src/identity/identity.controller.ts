@@ -141,6 +141,30 @@ export class IdentityController {
     return this.identityService.equipTitle(rootId, body.title_id);
   }
   /**
+   * PUT /api/users/:root_id/alignment
+   *
+   * One-time alignment selection triggered by the level 20 ceremony.
+   * Accepts { alignment: 'ORDER' | 'CHAOS' | 'LIGHT' | 'DARK' }
+   * Delegates to updateProfile with fate_alignment mapping.
+   */
+  @Put(':root_id/alignment')
+  async setAlignment(
+    @Param('root_id') rootId: string,
+    @Body() body: { alignment: string },
+  ) {
+    if (!body.alignment) {
+      return { status: 'error', message: 'alignment is required' };
+    }
+    const valid = ['ORDER', 'CHAOS', 'LIGHT', 'DARK'];
+    if (!valid.includes(body.alignment.toUpperCase())) {
+      return { status: 'error', message: `Invalid alignment. Must be one of: ${valid.join(', ')}` };
+    }
+    return this.identityService.updateProfile(rootId, {
+      fate_alignment: body.alignment.toUpperCase(),
+    });
+  }
+
+  /**
    * DELETE /api/users/:root_id
    * Hard-delete an identity and all associated records.
    * Operator-only — dashboard use.
