@@ -5,8 +5,6 @@
 import {
   Controller, Get, Post, Param, Body, HttpCode, HttpStatus,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
 
 // ── Stub quest pool — will be replaced by Anthropic-generated quests ──────────
 const QUEST_POOL = [
