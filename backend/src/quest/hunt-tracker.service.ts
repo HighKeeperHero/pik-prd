@@ -1,100 +1,183 @@
-// hunt-tracker.service.ts
-// Drop at: src/quest/hunt-tracker.service.ts
+// ============================================================
+// HuntTrackerService — Sprint 20.3 + 20.6
 //
-// Receives qualifying events from other services and advances active hunt progress.
-// All hunts progress server-side — no client-initiated progress increments accepted.
+// In-memory hunt progress tracker.
+// Progress advances via recordEvent() called by:
+//   GearService.dismantleItem()    → 'component_collected'
+//   VeilService.recordEncounter()  → 'veil_tear_sealed'
+//   EnemyService.resolveDefeat()   → 'enemy_defeated'  (future)
 //
-// Event types map to hunt types:
-//   'veil_tear_sealed'    → type: 'veil_tear'
-//   'component_collected' → type: 'component'
-//   'enemy_defeated'      → type: 'enemy'
+// On completion: grants XP, Nexus, and alignment material
+// via PrismaService automatically — no client call needed.
 //
-// Call HuntTrackerService.recordEvent() from:
-//   GearService.dismantleItem()       → 'component_collected'   (components drop on dismantle)
-//   GearService.equipItem()           → wired via quest tracker, not hunts
-//   VeilTearService.sealRift()        → 'veil_tear_sealed'      (future: Veil map interaction)
-//   EnemyService.resolveDefeat()      → 'enemy_defeated'        (future: enemy spawn system)
+// IMPORTANT: VenturesModule must be @Global() so all modules
+// share the same singleton instance of this service.
+//
+// Place at: src/quest/hunt-tracker.service.ts
+// ============================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { HuntDef } from './ventures.controller';
 
-// Hunt type → qualifying event mapping
-const HUNT_EVENT_MAP: Record<string, string> = {
-  veil_tear: 'veil_tear_sealed',
-  component: 'component_collected',
-  enemy:     'enemy_defeated',
+// ── Alignment material type map ───────────────────────────────────────────────
+const ALIGNMENT_MATERIAL: Record<string, string> = {
+  ORDER: 'iron_mandate',
+  CHAOS: 'fracture_shard',
+  LIGHT: 'radiant_core',
+  DARK:  'shadow_residue',
 };
 
-// In-memory active hunt store (replace with DB table in production sprint)
-// Shape: { [rootId]: { [huntId]: { type, max_progress, progress, status } } }
-const ACTIVE_HUNTS: Record<string, Record<string, {
-  type: string;
-  max_progress: number;
-  progress: number;
-  status: 'active' | 'completed';
-}>> = {};
+// ── In-memory state ───────────────────────────────────────────────────────────
+interface ActiveHunt {
+  type:                  string;
+  max_progress:          number;
+  progress:              number;
+  status:                'active' | 'completed';
+  xp_reward:             number;
+  nexus_reward:          number;
+  alignment_material_qty: number;
+  alignment:             string;
+}
+
+const EVENT_MAP: Record<string, string> = {
+  veil_tear_sealed:    'veil_tear',
+  component_collected: 'component',
+  enemy_defeated:      'enemy',
+};
 
 @Injectable()
 export class HuntTrackerService {
   private readonly logger = new Logger(HuntTrackerService.name);
+  private readonly ACTIVE_HUNTS = new Map<string, Map<string, ActiveHunt>>();
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── Called by the controller when a hero accepts a hunt ─────────────────
-  acceptHunt(rootId: string, huntId: string, type: string, maxProgress: number): void {
-    if (!ACTIVE_HUNTS[rootId]) ACTIVE_HUNTS[rootId] = {};
-    // Idempotent — don't reset progress if already accepted
-    if (!ACTIVE_HUNTS[rootId][huntId]) {
-      ACTIVE_HUNTS[rootId][huntId] = { type, max_progress: maxProgress, progress: 0, status: 'active' };
-      this.logger.log(`Hunt accepted: ${huntId} for ${rootId}`);
+  acceptHunt(rootId: string, huntId: string, def: HuntDef) {
+    if (!this.ACTIVE_HUNTS.has(rootId)) {
+      this.ACTIVE_HUNTS.set(rootId, new Map());
     }
+    this.ACTIVE_HUNTS.get(rootId)!.set(huntId, {
+      type:                   def.type,
+      max_progress:           def.max_progress,
+      progress:               0,
+      status:                 'active',
+      xp_reward:              def.xp_reward,
+      nexus_reward:           def.nexus_reward,
+      alignment_material_qty: def.alignment_material_qty,
+      alignment:              def.alignment,
+    });
+    this.logger.log(`Hunt accepted: ${rootId} → ${huntId} (${def.type} x${def.max_progress})`);
   }
 
-  // ── Called by the controller when a hero abandons a hunt ────────────────
-  abandonHunt(rootId: string, huntId: string): void {
-    if (ACTIVE_HUNTS[rootId]?.[huntId]) {
-      delete ACTIVE_HUNTS[rootId][huntId];
-      this.logger.log(`Hunt abandoned: ${huntId} for ${rootId}`);
+  abandonHunt(rootId: string, huntId: string) {
+    this.ACTIVE_HUNTS.get(rootId)?.delete(huntId);
+    this.logger.log(`Hunt abandoned: ${rootId} → ${huntId}`);
+  }
+
+  getActiveHunts(rootId: string): Record<string, any> {
+    const hunts = this.ACTIVE_HUNTS.get(rootId);
+    if (!hunts) return {};
+    const result: Record<string, any> = {};
+    for (const [huntId, hunt] of hunts.entries()) {
+      result[huntId] = {
+        type:         hunt.type,
+        max_progress: hunt.max_progress,
+        progress:     hunt.progress,
+        status:       hunt.status,
+      };
     }
+    return result;
   }
 
-  // ── Returns the active hunt state for a hero (for polling/display) ──────
-  getActiveHunts(rootId: string): Record<string, { type: string; max_progress: number; progress: number; status: string }> {
-    return ACTIVE_HUNTS[rootId] ?? {};
-  }
+  async recordEvent(
+    rootId: string,
+    eventType: 'veil_tear_sealed' | 'component_collected' | 'enemy_defeated',
+    metadata?: Record<string, unknown>,
+  ) {
+    const hunts = this.ACTIVE_HUNTS.get(rootId);
+    if (!hunts || hunts.size === 0) return;
 
-  // ── Core method — called by other services when qualifying events occur ──
-  // eventType: 'veil_tear_sealed' | 'component_collected' | 'enemy_defeated'
-  // metadata: optional payload (e.g. component rarity, enemy type) for future filtering
-  recordEvent(rootId: string, eventType: string, metadata?: Record<string, any>): {
-    huntId: string;
-    newProgress: number;
-    completed: boolean;
-  }[] {
-    const heroHunts = ACTIVE_HUNTS[rootId];
-    if (!heroHunts) return [];
+    const huntType = EVENT_MAP[eventType];
+    if (!huntType) return;
 
-    const advanced: { huntId: string; newProgress: number; completed: boolean }[] = [];
-
-    for (const [huntId, hunt] of Object.entries(heroHunts)) {
+    for (const [huntId, hunt] of hunts.entries()) {
+      if (hunt.type !== huntType) continue;
       if (hunt.status !== 'active') continue;
 
-      // Check if this event qualifies for this hunt type
-      const requiredEvent = HUNT_EVENT_MAP[hunt.type];
-      if (requiredEvent !== eventType) continue;
+      hunt.progress = Math.min(hunt.progress + 1, hunt.max_progress);
+      this.logger.log(`Hunt progress: ${rootId} → ${huntId} (${hunt.progress}/${hunt.max_progress})`);
 
-      // Advance progress
-      const next = Math.min(hunt.progress + 1, hunt.max_progress);
-      hunt.progress = next;
-      if (next >= hunt.max_progress) {
+      if (hunt.progress >= hunt.max_progress) {
         hunt.status = 'completed';
-        this.logger.log(`Hunt completed: ${huntId} for ${rootId}`);
-        // TODO: award XP + Nexus + alignment material via rewards service
+        this.logger.log(`Hunt completed: ${rootId} → ${huntId}`);
+        await this.grantHuntRewards(rootId, huntId, hunt);
+        hunts.delete(huntId);
       }
+    }
+  }
 
-      advanced.push({ huntId, newProgress: next, completed: hunt.status === 'completed' });
+  private async grantHuntRewards(rootId: string, huntId: string, hunt: ActiveHunt) {
+    const materialType = ALIGNMENT_MATERIAL[hunt.alignment];
+
+    try {
+      await this.prisma.$transaction([
+        this.prisma.rootIdentity.update({
+          where: { id: rootId },
+          data:  { heroXp: { increment: hunt.xp_reward } },
+        }),
+        this.prisma.playerNexus.upsert({
+          where:  { rootId },
+          create: { rootId, balance: hunt.nexus_reward },
+          update: { balance: { increment: hunt.nexus_reward } },
+        }),
+        ...(materialType ? [
+          this.prisma.playerComponents.upsert({
+            where:  { rootId_componentType: { rootId, componentType: materialType } },
+            create: { rootId, componentType: materialType, quantity: hunt.alignment_material_qty },
+            update: { quantity: { increment: hunt.alignment_material_qty } },
+          }),
+        ] : []),
+      ]);
+
+      this.logger.log(
+        `Hunt rewards: ${rootId} +${hunt.xp_reward} XP, +${hunt.nexus_reward} Nexus, ` +
+        `+${hunt.alignment_material_qty} ${materialType ?? 'none'} (${huntId})`
+      );
+    } catch (err) {
+      this.logger.error(`Hunt reward grant failed ${rootId}/${huntId}: ${err}`);
+    }
+  }
+
+  async getMaterials(rootId: string) {
+    const rows = await this.prisma.playerComponents.findMany({
+      where: {
+        rootId,
+        componentType: { in: Object.values(ALIGNMENT_MATERIAL) },
+      },
+    });
+
+    const balances: Record<string, number> = {
+      iron_mandate:   0,
+      fracture_shard: 0,
+      radiant_core:   0,
+      shadow_residue: 0,
+    };
+    for (const row of rows) {
+      if (row.componentType in balances) balances[row.componentType] = row.quantity;
     }
 
-    return advanced;
+    return {
+      status: 'ok',
+      data: {
+        materials: balances,
+        labelled: {
+          iron_mandate:   { label: 'Iron Mandate',   qty: balances.iron_mandate,   alignment: 'ORDER' },
+          fracture_shard: { label: 'Fracture Shard', qty: balances.fracture_shard, alignment: 'CHAOS' },
+          radiant_core:   { label: 'Radiant Core',   qty: balances.radiant_core,   alignment: 'LIGHT' },
+          shadow_residue: { label: 'Shadow Residue', qty: balances.shadow_residue, alignment: 'DARK'  },
+        },
+      },
+    };
   }
 }

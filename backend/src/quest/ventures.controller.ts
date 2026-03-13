@@ -365,10 +365,26 @@ export const HUNT_POOL: Record<string, any[]> = {
   ],
 };
 
-function findHunt(huntId: string): { type: string; max_progress: number } | null {
-  for (const pool of Object.values(HUNT_POOL)) {
+export interface HuntDef {
+  type:                  string;
+  max_progress:          number;
+  xp_reward:             number;
+  nexus_reward:          number;
+  alignment_material_qty: number;
+  alignment:             string;
+}
+
+export function findHunt(huntId: string): HuntDef | null {
+  for (const [alignment, pool] of Object.entries(HUNT_POOL)) {
     const h = (pool as any[]).find(h => h.hunt_id === huntId);
-    if (h) return { type: h.type, max_progress: h.max_progress };
+    if (h) return {
+      type:                   h.type,
+      max_progress:           h.max_progress,
+      xp_reward:              h.xp_reward,
+      nexus_reward:           h.nexus_reward,
+      alignment_material_qty: h.alignment_material_qty,
+      alignment,
+    };
   }
   return null;
 }
@@ -455,7 +471,7 @@ export class VenturesController {
   ) {
     const def = findHunt(huntId);
     if (!def) return { status: 'error', data: { message: 'Unknown hunt ID' } };
-    this.huntTracker.acceptHunt(rootId, huntId, def.type, def.max_progress);
+    this.huntTracker.acceptHunt(rootId, huntId, def);
     return { status: 'ok', data: { hunt_id: huntId, accepted: true } };
   }
 
@@ -468,5 +484,12 @@ export class VenturesController {
   ) {
     this.huntTracker.abandonHunt(rootId, huntId);
     return { status: 'ok', data: { hunt_id: huntId, abandoned: true } };
+  }
+
+  // ── GET /api/ventures/hunts/:root_id/materials ──────────────────────────
+  // Returns all alignment material balances for the player.
+  @Get('hunts/:root_id/materials')
+  async getMaterials(@Param('root_id') rootId: string) {
+    return this.huntTracker.getMaterials(rootId);
   }
 }
