@@ -55,6 +55,102 @@ export class LootService {
     private readonly gear: GearService,
   ) {}
 
+  // ── DEBUG ────────────────────────────────────────────────────────────────────
+
+  async debugLootTable() {
+    const [lootRows, gearItems] = await Promise.all([
+      this.prisma.lootTable.findMany({
+        select: { cacheType: true, rewardType: true, rewardValue: true, displayName: true, rarityTier: true, weight: true },
+        orderBy: [{ cacheType: 'asc' }, { rewardType: 'asc' }],
+      }),
+      this.prisma.gearItem.findMany({
+        select: { id: true, name: true, slot: true, rarityTier: true, minLevel: true },
+        orderBy: [{ rarityTier: 'asc' }, { slot: 'asc' }],
+      }),
+    ]);
+    const byRewardType: Record<string, number> = {};
+    for (const r of lootRows) {
+      byRewardType[r.rewardType] = (byRewardType[r.rewardType] ?? 0) + 1;
+    }
+    const gearInLootTable = lootRows.filter(r => r.rewardType === 'gear');
+    const gearIdsInTable  = new Set(gearInLootTable.map(r => r.rewardValue));
+    const gearNotInTable  = gearItems.filter(g => !gearIdsInTable.has(g.id));
+    return {
+      loot_table_total_rows:        lootRows.length,
+      by_reward_type:               byRewardType,
+      gear_items_in_db:             gearItems.length,
+      gear_entries_in_loot_table:   gearInLootTable.length,
+      gear_items_NOT_in_loot_table: gearNotInTable,
+      gear_loot_entries:            gearInLootTable,
+    };
+  }
+
+  async patchMinLevels() {
+    const RARITY_MIN: Record<string, number> = {
+      common: 1, uncommon: 7, rare: 14, epic: 22, legendary: 30,
+    };
+    const results: Record<string, number> = {};
+    for (const [rarityTier, minLevel] of Object.entries(RARITY_MIN)) {
+      const updated = await this.prisma.lootTable.updateMany({
+        where: { rarityTier },
+        data:  { minLevel },
+      });
+      results[rarityTier] = updated.count;
+    }
+    this.logger.log(`MinLevel patch: ${JSON.stringify(results)}`);
+    return { patched: results };
+  }
+
+  async seedVeilLoot() {
+    const entries = [
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'weapon_rusted_blade',      displayName: 'Rusted Blade',           rarityTier: 'common',   weight: 40, minLevel: 1 },
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'helm_leather_cap',         displayName: 'Leather Cap',            rarityTier: 'common',   weight: 40, minLevel: 1 },
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'helm_iron_visor',          displayName: 'Iron Visor',             rarityTier: 'common',   weight: 35, minLevel: 1 },
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'chest_hide_vest',          displayName: 'Hide Vest',              rarityTier: 'common',   weight: 40, minLevel: 1 },
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'arms_leather_wraps',       displayName: 'Leather Wraps',          rarityTier: 'common',   weight: 40, minLevel: 1 },
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'legs_travel_boots',        displayName: 'Travel Boots',           rarityTier: 'common',   weight: 40, minLevel: 1 },
+      { cacheType: 'veil_minor', rewardType: 'gear', rewardValue: 'rune_faded_glyph',         displayName: 'Faded Glyph',            rarityTier: 'common',   weight: 40, minLevel: 1 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'weapon_rusted_blade',      displayName: 'Rusted Blade',           rarityTier: 'common',   weight: 30, minLevel: 1 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'helm_iron_visor',          displayName: 'Iron Visor',             rarityTier: 'common',   weight: 25, minLevel: 1 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'chest_hide_vest',          displayName: 'Hide Vest',              rarityTier: 'common',   weight: 30, minLevel: 1 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'weapon_ashbrand',          displayName: 'Ashbrand',               rarityTier: 'uncommon', weight: 25, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'helm_seekers_circlet',     displayName: "Seeker's Circlet",       rarityTier: 'uncommon', weight: 25, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'rune_ember_sigil',         displayName: 'Ember Sigil',            rarityTier: 'uncommon', weight: 25, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'legs_windstride_greaves',  displayName: 'Windstride Greaves',     rarityTier: 'uncommon', weight: 25, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'arms_singing_stone_wraps', displayName: 'Singing Stone Wraps',    rarityTier: 'uncommon', weight: 20, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'chest_ashcloak',           displayName: 'Ashcloak',               rarityTier: 'uncommon', weight: 20, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'legs_wasteland_wrappings', displayName: 'Wasteland Wrappings',    rarityTier: 'uncommon', weight: 20, minLevel: 7 },
+      { cacheType: 'veil_shade', rewardType: 'gear', rewardValue: 'rune_echo_stone',          displayName: 'Echo Stone',             rarityTier: 'uncommon', weight: 20, minLevel: 7 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'weapon_ashbrand',           displayName: 'Ashbrand',               rarityTier: 'uncommon', weight: 20, minLevel: 7 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'arms_singing_stone_wraps',  displayName: 'Singing Stone Wraps',    rarityTier: 'uncommon', weight: 18, minLevel: 7 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'chest_ashcloak',            displayName: 'Ashcloak',               rarityTier: 'uncommon', weight: 18, minLevel: 7 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'weapon_bonereaper',         displayName: 'Bonereaper',             rarityTier: 'rare',     weight: 15, minLevel: 14 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'arms_bone_garden_bracers',  displayName: 'Bone Garden Bracers',    rarityTier: 'rare',     weight: 15, minLevel: 14 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'chest_stormguard',          displayName: 'Stormguard Cuirass',     rarityTier: 'rare',     weight: 15, minLevel: 14 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'helm_wardens_gaze',         displayName: "Warden's Gaze",          rarityTier: 'rare',     weight: 15, minLevel: 14 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'legs_deeproad_sabatons',    displayName: 'Deep Road Sabatons',     rarityTier: 'rare',     weight: 15, minLevel: 14 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'rune_threshold_mark',       displayName: 'Threshold Mark',         rarityTier: 'rare',     weight: 12, minLevel: 14 },
+      { cacheType: 'veil_dormant', rewardType: 'gear', rewardValue: 'rune_shattered_stars',      displayName: 'Rune of Shattered Stars', rarityTier: 'rare',    weight: 10, minLevel: 14 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'weapon_bonereaper',         displayName: 'Bonereaper',             rarityTier: 'rare',     weight: 20, minLevel: 14 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'chest_stormguard',          displayName: 'Stormguard Cuirass',     rarityTier: 'rare',     weight: 20, minLevel: 14 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'helm_wardens_gaze',         displayName: "Warden's Gaze",          rarityTier: 'rare',     weight: 20, minLevel: 14 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'legs_deeproad_sabatons',    displayName: 'Deep Road Sabatons',     rarityTier: 'rare',     weight: 20, minLevel: 14 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'rune_threshold_mark',       displayName: 'Threshold Mark',         rarityTier: 'rare',     weight: 18, minLevel: 14 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'chest_veilshroud',          displayName: 'Veilshroud Mantle',      rarityTier: 'epic',     weight: 8,  minLevel: 22 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'legs_greaves_first_war',    displayName: 'Greaves of the First War', rarityTier: 'epic',   weight: 8,  minLevel: 22 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'arms_shade_captains_grip',  displayName: "Shade Captain's Grip",   rarityTier: 'epic',     weight: 8,  minLevel: 22 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'weapon_veilcleaver',        displayName: 'Veilcleaver',            rarityTier: 'epic',     weight: 8,  minLevel: 22 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'arms_hands_of_the_weave',   displayName: 'Hands of the Weave',     rarityTier: 'legendary', weight: 2, minLevel: 30 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'helm_visage_of_aethon',     displayName: 'Visage of Aethon',       rarityTier: 'legendary', weight: 2, minLevel: 30 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'legs_stride_of_eternity',   displayName: 'Stride of Eternity',     rarityTier: 'legendary', weight: 2, minLevel: 30 },
+      { cacheType: 'veil_double',  rewardType: 'gear', rewardValue: 'weapon_fateforged_blade',   displayName: 'Fate-Forged Blade',      rarityTier: 'legendary', weight: 1, minLevel: 30 },
+    ];
+    const result = await this.prisma.lootTable.createMany({ data: entries, skipDuplicates: true });
+    this.logger.log(`Loot seed: inserted ${result.count} new entries`);
+    return { inserted: result.count, attempted: entries.length };
+  }
+
+  // ── GRANT A CACHE ─────────────────────────────────────────────────────────────
   // ── GRANT A CACHE ─────────────────────────────────────────
 
   /**
