@@ -173,7 +173,7 @@ export class TrainingService {
       // Grant Fate XP to hero
       const updated = await tx.rootIdentity.update({
         where: { id: rootId },
-        data: { fateXp: { increment: xp } },
+        data: { heroXp: { increment: xp } },
       });
 
       // Update pillar progress
@@ -356,7 +356,7 @@ export class TrainingService {
         });
         await tx.rootIdentity.update({
           where: { id: rootId },
-          data: { fateXp: { increment: xpGranted! } },
+          data: { heroXp: { increment: xpGranted! } },
         });
         // Add a fate marker for the Chronicle
         await tx.fateMarker.create({
@@ -374,7 +374,7 @@ export class TrainingService {
         });
         await tx.rootIdentity.update({
           where: { id: rootId },
-          data: { fateXp: { increment: XP.OATH_BROKEN_DEBT } },
+          data: { heroXp: { increment: XP.OATH_BROKEN_DEBT } },
         });
         await tx.fateMarker.create({
           data: { rootId, marker: `Failed the ${oath.pillar} oath: "${oath.declaration}" — a Veil Debt recorded.` },
