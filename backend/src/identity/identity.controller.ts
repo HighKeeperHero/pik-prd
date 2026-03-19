@@ -166,7 +166,7 @@ export class IdentityController {
       completed_battle?:  boolean;
     },
   ) {
-    return this.identity.recordAwakening(rootId, {
+    return this.identityService.recordAwakening(rootId, {
       skipped_backstory: body.skipped_backstory ?? false,
       rerolls_used:      body.rerolls_used      ?? 0,
       completed_battle:  body.completed_battle  ?? false,
