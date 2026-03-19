@@ -204,6 +204,99 @@ export class GearService {
     };
   }
 
+
+  // ── ADD ENGINE ITEM TO INVENTORY (Loot Sprint B) ──────────
+  // Called by openCache() when the LootEngine produces a result.
+  // Creates a dynamic GearItem row from the engine output, then
+  // adds it to inventory. Unlike addToInventory(), this does NOT
+  // require a pre-existing GearItem record.
+  async addEngineItemToInventory(params: {
+    rootId:      string;
+    engineResult: {
+      base_item_id:   string;
+      base_item_name: string;
+      slot:           string;
+      rarity:         string;
+      region_theme:   string;
+      level_band:     string;
+      item_power:     number;
+      slot_budget:    number;
+    };
+    acquiredVia: string;
+    sourceId?:   string;
+  }) {
+    const { rootId, engineResult, acquiredVia, sourceId } = params;
+
+    // Slot icon map
+    const SLOT_ICON: Record<string, string> = {
+      Helm: '⛑', Chest: '🥋', Hands: '🧤',
+      Legs: '👢', Weapon: '⚔', Rune: '🔮',
+    };
+
+    // Unique ID: base_item_id + timestamp + random suffix
+    // Ensures every cache open produces a distinct GearItem row
+    const itemId = `${engineResult.base_item_id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const slotLower = engineResult.slot.toLowerCase();
+
+    // Create the instanced GearItem row
+    const item = await this.prisma.gearItem.create({
+      data: {
+        id:          itemId,
+        name:        engineResult.base_item_name,
+        slot:        slotLower,
+        rarityTier:  engineResult.rarity,
+        icon:        SLOT_ICON[engineResult.slot] ?? '⚔',
+        minLevel:    1,
+        modifiers:   {},
+        levelBand:   engineResult.level_band,
+        regionTheme: engineResult.region_theme,
+        itemPower:   engineResult.item_power,
+        slotBudget:  engineResult.slot_budget,
+        baseItemId:  engineResult.base_item_id,
+      },
+    });
+
+    // Add to inventory
+    const inv = await this.prisma.playerInventory.create({
+      data: { rootId, itemId: item.id, acquiredVia },
+    });
+
+    await this.events.log({
+      rootId,
+      eventType: 'gear.item_acquired',
+      sourceId,
+      payload: {
+        inventory_id: inv.id,
+        item_id:      item.id,
+        item_name:    item.name,
+        slot:         item.slot,
+        rarity:       item.rarityTier,
+        region_theme: item.regionTheme,
+        level_band:   item.levelBand,
+        item_power:   item.itemPower,
+        acquired_via: acquiredVia,
+        source:       'loot_engine',
+      },
+    });
+
+    this.logger.log(
+      `Engine gear acquired: ${item.name} (${item.rarityTier} ${item.slot} ${item.levelBand} IP:${item.itemPower}) → ${rootId}`
+    );
+
+    return {
+      inventory_id: inv.id,
+      item_id:      item.id,
+      item_name:    item.name,
+      slot:         item.slot,
+      rarity:       item.rarityTier,
+      icon:         item.icon,
+      region_theme: item.regionTheme,
+      level_band:   item.levelBand,
+      item_power:   item.itemPower,
+      modifiers:    item.modifiers,
+    };
+  }
+
   // ── NEXUS BALANCE ──────────────────────────────────────────
   async getNexusBalance(rootId: string) {
     const row = await this.prisma.playerNexus.findUnique({ where: { rootId } });

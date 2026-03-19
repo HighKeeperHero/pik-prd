@@ -102,6 +102,7 @@ model RootIdentity {
   components      PlayerComponents[]
   veilShards      VeilShard?
   tearEncounters  TearEncounter[]
+  pityCounters    PityCounter[]
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -344,20 +345,30 @@ model FateCache {
 // ============================================================
 
 model GearItem {
-  id          String  @id @map("item_id")
-  name        String  @map("display_name")
+  id          String   @id @map("item_id")
+  name        String   @map("display_name")
   slot        String
-  rarityTier  String  @default("common") @map("rarity_tier")
+  rarityTier  String   @default("common") @map("rarity_tier")
   description String?
-  loreText    String? @map("lore_text")
-  icon        String  @default("⚔")
-  minLevel    Int     @default(1) @map("min_level")
-  modifiers   Json    @default("{}")
+  loreText    String?  @map("lore_text")
+  icon        String   @default("⚔")
+  minLevel    Int      @default(1) @map("min_level")
+  modifiers   Json     @default("{}")
+  // Loot Sprint B — Phase 1 + 2A fields
+  levelBand   String?  @map("level_band")
+  regionTheme String?  @map("region_theme")
+  itemFamily  String?  @map("item_family")
+  loreTags    String[] @default([]) @map("lore_tags")
+  itemPower   Int?     @map("item_power")
+  slotBudget  Int?     @map("slot_budget")
+  baseItemId  String?  @map("base_item_id")
 
   inventory   PlayerInventory[]
 
   @@index([slot])
   @@index([rarityTier])
+  @@index([levelBand])
+  @@index([regionTheme])
   @@map("gear_items")
 }
 
@@ -653,4 +664,37 @@ model ConvergenceEvent {
 
   @@index([status, endsAt])
   @@map("convergence_events")
+}
+
+model BaseItem {
+  id            String   @id
+  name          String
+  slot          String
+  levelMin      Int      @map("level_min")
+  levelMax      Int      @map("level_max")
+  levelBand     String   @map("level_band")
+  regionTheme   String   @map("region_theme")
+  itemFamily    String   @map("item_family")
+  rarityAllowed String[] @map("rarity_allowed")
+  pre40Only     Boolean  @default(true) @map("pre40_only")
+  loreTags      String[] @default([]) @map("lore_tags")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([slot, levelBand])
+  @@index([regionTheme])
+  @@map("base_items")
+}
+
+model PityCounter {
+  id        String   @id @default(uuid())
+  rootId    String   @map("root_id")
+  pityType  String   @map("pity_type")
+  counter   Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  root      RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, pityType])
+  @@index([rootId])
+  @@map("pity_counters")
 }

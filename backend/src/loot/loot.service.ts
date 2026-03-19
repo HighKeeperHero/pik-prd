@@ -129,117 +129,218 @@ export class LootService {
     const cache = await this.prisma.fateCache.findUnique({
       where: { id: cacheId },
     });
+    if (!cache) throw new NotFoundException(`Cache not found: ${cacheId}`);
+    if (cache.rootId !== rootId) throw new BadRequestException('This cache does not belong to you');
+    if (cache.status !== 'sealed') throw new BadRequestException('This cache has already been opened');
 
-    if (!cache) {
-      throw new NotFoundException(`Cache not found: ${cacheId}`);
-    }
-    if (cache.rootId !== rootId) {
-      throw new BadRequestException('This cache does not belong to you');
-    }
-    if (cache.status !== 'sealed') {
-      throw new BadRequestException('This cache has already been opened');
-    }
-
-    // 2. Get player level — use heroLevel (character-specific), fallback to fateLevel
+    // 2. Get player level — heroLevel is character-specific
     const user = await this.prisma.rootIdentity.findUnique({
-      where: { id: rootId },
-      select: { fateLevel: true, fateXp: true, heroLevel: true, heroXp: true },
+      where:  { id: rootId },
+      select: { fateLevel: true, heroLevel: true, heroXp: true },
     });
     if (!user) throw new NotFoundException('Identity not found');
     const effectiveLevel = (user as any).heroLevel ?? user.fateLevel ?? 1;
 
-    // 3. Load eligible loot table entries — filter by heroLevel
-    //    If no entries match (hero level too low for cache tier), fall back
-    //    to the lowest available entries for this cache type so the cache
-    //    always yields something rather than throwing.
+    // 3. Route to engine or legacy table based on cache type
+    const ENGINE_CACHE_TYPES = ['veil_minor', 'veil_shade', 'veil_dormant', 'veil_double'];
+    const useEngine = ENGINE_CACHE_TYPES.includes(cache.cacheType);
+
+    if (useEngine) {
+      return this._openCacheViaEngine(rootId, cache, effectiveLevel);
+    }
+    return this._openCacheViaTable(rootId, cache, effectiveLevel);
+  }
+
+  // ── Engine path (veil caches) ─────────────────────────────────────────────
+  private async _openCacheViaEngine(rootId: string, cache: any, heroLevel: number) {
+    // Roll from Phase 4 family engine
+    const engineResult = await this.lootEngine.rollFromFamily({
+      rootId,
+      cacheType: cache.cacheType,
+      heroLevel,
+    });
+
+    let rewardType:  string;
+    let rewardValue: string;
+    let rewardName:  string;
+    let rewardRarity: string;
+    let inventoryResult: any = null;
+
+    if (engineResult) {
+      // Gear drop — create instanced GearItem via engine
+      inventoryResult = await this.gear.addEngineItemToInventory({
+        rootId,
+        engineResult,
+        acquiredVia: 'cache',
+        sourceId:    cache.sourceId ?? undefined,
+      });
+      rewardType   = 'gear';
+      rewardValue  = inventoryResult.item_id;
+      rewardName   = inventoryResult.item_name;
+      rewardRarity = inventoryResult.rarity;
+    } else {
+      // Currency roll — grant Veil Shards as consolation
+      const shardAmount = this._currencyAmountForCacheType(cache.cacheType);
+      await this.prisma.veilShard.upsert({
+        where:  { rootId },
+        create: { rootId, balance: shardAmount },
+        update: { balance: { increment: shardAmount } },
+      });
+      rewardType   = 'veil_shards';
+      rewardValue  = String(shardAmount);
+      rewardName   = `${shardAmount} Veil Shards`;
+      rewardRarity = 'common';
+    }
+
+    // Update cache record
+    const opened = await this.prisma.fateCache.update({
+      where: { id: cache.id },
+      data: {
+        status:       'opened',
+        openedAt:     new Date(),
+        rewardType,
+        rewardValue,
+        rewardName,
+        rewardRarity,
+      },
+    });
+
+    await this.events.log({
+      rootId,
+      eventType: 'loot.cache_opened',
+      sourceId:  cache.sourceId || undefined,
+      payload: {
+        cache_id:     cache.id,
+        cache_type:   cache.cacheType,
+        cache_rarity: cache.rarity,
+        engine:       true,
+      },
+      changes: {
+        reward_type:   rewardType,
+        reward_value:  rewardValue,
+        reward_name:   rewardName,
+        reward_rarity: rewardRarity,
+        hero_level:    heroLevel,
+        region_theme:  engineResult?.region_theme,
+        level_band:    engineResult?.level_band,
+        item_power:    engineResult?.item_power,
+      },
+    });
+
+    this.logger.log(
+      `[Engine] Cache opened: ${cache.rarity} ${cache.cacheType} → ${rewardRarity} ${rewardName} (${rootId})`
+    );
+
+    return {
+      cache_id:     cache.id,
+      cache_type:   cache.cacheType,
+      cache_rarity: cache.rarity,
+      reward: {
+        type:         rewardType,
+        value:        rewardValue,
+        name:         rewardName,
+        rarity:       rewardRarity,
+        inventory_id: inventoryResult?.inventory_id ?? null,
+        region_theme: engineResult?.region_theme ?? null,
+        level_band:   engineResult?.level_band ?? null,
+        item_power:   engineResult?.item_power ?? null,
+      },
+    };
+  }
+
+  // ── Legacy table path (non-veil caches) ──────────────────────────────────
+  private async _openCacheViaTable(rootId: string, cache: any, effectiveLevel: number) {
+    // Load eligible loot table entries
     let entries = await this.prisma.lootTable.findMany({
       where: {
         cacheType: cache.cacheType,
-        minLevel: { lte: effectiveLevel },
+        minLevel:  { lte: effectiveLevel },
       },
     });
 
     if (entries.length === 0) {
-      // Fallback: ignore minLevel restriction — use any entry for this cache type
-      // This prevents dormant/double caches earned at low level from being unopenable
       entries = await this.prisma.lootTable.findMany({
-        where: { cacheType: cache.cacheType },
+        where:   { cacheType: cache.cacheType },
         orderBy: { minLevel: 'asc' },
       });
     }
 
     if (entries.length === 0) {
-      // Cache type genuinely has no loot table entries — seed data missing
-      this.logger.error(`No loot table entries found for cache type: ${cache.cacheType} — seed data may be missing`);
-      throw new BadRequestException(
-        `No loot configured for cache type: ${cache.cacheType}. Contact support.`,
-      );
+      this.logger.error(`No loot table entries for cache type: ${cache.cacheType}`);
+      throw new BadRequestException(`No loot configured for cache type: ${cache.cacheType}`);
     }
 
-    // 4. Weighted random roll
+    // Weighted random roll
     const totalWeight = entries.reduce((sum, e) => sum + e.weight, 0);
     let roll = Math.random() * totalWeight;
     let selected = entries[0];
     for (const entry of entries) {
       roll -= entry.weight;
-      if (roll <= 0) {
-        selected = entry;
-        break;
-      }
+      if (roll <= 0) { selected = entry; break; }
     }
 
-    // 5. Apply the reward
     await this.applyReward(rootId, selected, cache.sourceId);
 
-    // 6. Update cache record
     const opened = await this.prisma.fateCache.update({
-      where: { id: cacheId },
+      where: { id: cache.id },
       data: {
-        status: 'opened',
-        openedAt: new Date(),
-        rewardType: selected.rewardType,
-        rewardValue: selected.rewardValue,
-        rewardName: selected.displayName,
+        status:       'opened',
+        openedAt:     new Date(),
+        rewardType:   selected.rewardType,
+        rewardValue:  selected.rewardValue,
+        rewardName:   selected.displayName,
         rewardRarity: selected.rarityTier,
       },
     });
 
-    // 7. Log event
     await this.events.log({
       rootId,
       eventType: 'loot.cache_opened',
-      sourceId: cache.sourceId || undefined,
+      sourceId:  cache.sourceId || undefined,
       payload: {
-        cache_id: cacheId,
-        cache_type: cache.cacheType,
+        cache_id:     cache.id,
+        cache_type:   cache.cacheType,
         cache_rarity: cache.rarity,
+        engine:       false,
       },
       changes: {
-        reward_type: selected.rewardType,
-        reward_value: selected.rewardValue,
-        reward_name: selected.displayName,
+        reward_type:   selected.rewardType,
+        reward_value:  selected.rewardValue,
+        reward_name:   selected.displayName,
         reward_rarity: selected.rarityTier,
-        roll_weight: selected.weight,
-        total_weight: totalWeight,
+        roll_weight:   selected.weight,
+        total_weight:  totalWeight,
       },
     });
 
     this.logger.log(
-      `Cache opened: ${cache.rarity} ${cache.cacheType} → ${selected.rarityTier} ${selected.displayName} (${rootId})`,
+      `[Legacy] Cache opened: ${cache.rarity} ${cache.cacheType} → ${selected.rarityTier} ${selected.displayName} (${rootId})`
     );
 
     return {
-      cache_id: cacheId,
-      cache_type: cache.cacheType,
+      cache_id:     cache.id,
+      cache_type:   cache.cacheType,
       cache_rarity: cache.rarity,
       reward: {
-        type: selected.rewardType,
-        value: selected.rewardValue,
-        name: selected.displayName,
+        type:   selected.rewardType,
+        value:  selected.rewardValue,
+        name:   selected.displayName,
         rarity: selected.rarityTier,
       },
     };
   }
+
+  // ── Currency amount per cache type ────────────────────────────────────────
+  private _currencyAmountForCacheType(cacheType: string): number {
+    const amounts: Record<string, number> = {
+      veil_minor:   8,
+      veil_shade:   15,
+      veil_dormant: 25,
+      veil_double:  40,
+    };
+    return amounts[cacheType] ?? 8;
+  }
+
 
   // ── LIST CACHES ───────────────────────────────────────────
 

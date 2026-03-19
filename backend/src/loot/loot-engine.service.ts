@@ -207,21 +207,41 @@ export class LootEngineService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ── Seed Phase 1 base items ───────────────────────────────────────────────
+  // Now writes to base_items table via Prisma (schema updated in Sprint B).
+  // Idempotent — uses upsert, safe to run multiple times.
   async seedBaseItems(): Promise<{ seeded: number; skipped: number }> {
     let seeded = 0;
     let skipped = 0;
     for (const item of BASE_ITEM_LIBRARY) {
-      const exists = await (this.prisma as any).baseItem?.findUnique?.({ where: { id: item.id } })
-        .catch(() => null);
-      if (exists) { skipped++; continue; }
       try {
-        await (this.prisma as any).baseItem.create({ data: item });
+        const result = await this.prisma.baseItem.upsert({
+          where:  { id: item.id },
+          create: {
+            id:           item.id,
+            name:         item.name,
+            slot:         item.slot,
+            levelMin:     item.level_min,
+            levelMax:     item.level_max,
+            levelBand:    item.level_band,
+            regionTheme:  item.region_theme,
+            itemFamily:   item.item_family,
+            rarityAllowed: item.rarity_allowed,
+            pre40Only:    item.pre40_only,
+            loreTags:     item.lore_tags,
+          },
+          update: {
+            name:         item.name,
+            regionTheme:  item.region_theme,
+            loreTags:     item.lore_tags,
+          },
+        });
         seeded++;
-      } catch {
+      } catch (err) {
+        this.logger.warn(`Seed skip ${item.id}: ${(err as any).message}`);
         skipped++;
       }
     }
-    this.logger.log(`Base item seed: ${seeded} inserted, ${skipped} skipped`);
+    this.logger.log(`Base item seed: ${seeded} upserted, ${skipped} failed`);
     return { seeded, skipped };
   }
 
@@ -345,7 +365,7 @@ export class LootEngineService {
     weights: Record<string, number>,
   ): Promise<Record<string, number>> {
     try {
-      const counters = await (this.prisma as any).pityCounter?.findMany?.({
+      const counters = await this.prisma.pityCounter.findMany({
         where: { rootId },
       }) ?? [];
 
@@ -372,20 +392,17 @@ export class LootEngineService {
 
     try {
       // epic_pity: reset on epic+, increment otherwise
-      await (this.prisma as any).pityCounter?.upsert?.({
+      await this.prisma.pityCounter.upsert({
         where:  { rootId_pityType: { rootId, pityType: 'epic_pity' } },
         create: { rootId, pityType: 'epic_pity', counter: isEpicPlus ? 0 : 1 },
         update: { counter: isEpicPlus ? 0 : { increment: 1 } },
       });
 
       // legendary_pity: reset on legendary+, increment otherwise
-      await (this.prisma as any).pityCounter?.upsert?.({
+      await this.prisma.pityCounter.upsert({
         where:  { rootId_pityType: { rootId, pityType: 'legendary_pity' } },
         create: { rootId, pityType: 'legendary_pity', counter: isLegPlus ? 0 : 1 },
         update: { counter: isLegPlus ? 0 : { increment: 1 } },
       });
-    } catch {
-      // PityCounter table may not exist yet — fail silently, pity is optional
-    }
   }
 }
