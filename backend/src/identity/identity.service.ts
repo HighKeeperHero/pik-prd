@@ -915,4 +915,64 @@ export class IdentityService {
       eventXpMultiplier: parseFloat(map.get('fate.event_xp_multiplier')  ?? '1.0'),
     };
   }
+
+  // ── 21.5 Onboarding Telemetry ─────────────────────────────────────────────
+  // Records HERO_AWAKENED and ONBOARDING_COMPLETE to IdentityEvent.
+  // Called once per hero at the end of the Awakening sequence.
+  // Idempotent — duplicate calls are ignored via upsert-style check.
+  async recordAwakening(rootId: string, payload: {
+    skipped_backstory: boolean;
+    rerolls_used:      number;
+    completed_battle:  boolean;
+  }) {
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { id: true, heroName: true, heroLevel: true },
+    });
+    if (!hero) throw new NotFoundException('Hero not found');
+
+    // Check for duplicate — only log once per hero
+    const existing = await this.prisma.identityEvent.findFirst({
+      where: { rootId, eventType: 'identity.hero_awakened' },
+    });
+    if (existing) {
+      return { status: 'already_recorded', event_id: existing.id };
+    }
+
+    // HERO_AWAKENED — records the moment the hero enters the Codex for the first time
+    const awakenedEvent = await this.prisma.identityEvent.create({
+      data: {
+        rootId,
+        eventType: 'identity.hero_awakened',
+        payload: {
+          hero_name:         hero.heroName,
+          hero_level:        hero.heroLevel,
+          skipped_backstory: payload.skipped_backstory,
+          rerolls_used:      payload.rerolls_used,
+          completed_battle:  payload.completed_battle,
+          awakened_at:       new Date().toISOString(),
+        },
+      },
+    });
+
+    // ONBOARDING_COMPLETE — marks the full onboarding funnel as finished
+    await this.prisma.identityEvent.create({
+      data: {
+        rootId,
+        eventType: 'identity.onboarding_complete',
+        payload: {
+          hero_name:    hero.heroName,
+          completed_at: new Date().toISOString(),
+        },
+      },
+    });
+
+    return {
+      status:    'recorded',
+      event_id:  awakenedEvent.id,
+      hero_name: hero.heroName,
+    };
+  }
+
+
 }

@@ -141,30 +141,6 @@ export class IdentityController {
     return this.identityService.equipTitle(rootId, body.title_id);
   }
   /**
-   * PUT /api/users/:root_id/alignment
-   *
-   * One-time alignment selection triggered by the level 20 ceremony.
-   * Accepts { alignment: 'ORDER' | 'CHAOS' | 'LIGHT' | 'DARK' }
-   * Delegates to updateProfile with fate_alignment mapping.
-   */
-  @Put(':root_id/alignment')
-  async setAlignment(
-    @Param('root_id') rootId: string,
-    @Body() body: { alignment: string },
-  ) {
-    if (!body.alignment) {
-      return { status: 'error', message: 'alignment is required' };
-    }
-    const valid = ['ORDER', 'CHAOS', 'LIGHT', 'DARK'];
-    if (!valid.includes(body.alignment.toUpperCase())) {
-      return { status: 'error', message: `Invalid alignment. Must be one of: ${valid.join(', ')}` };
-    }
-    return this.identityService.updateProfile(rootId, {
-      fate_alignment: body.alignment.toUpperCase(),
-    });
-  }
-
-  /**
    * DELETE /api/users/:root_id
    * Hard-delete an identity and all associated records.
    * Operator-only — dashboard use.
@@ -174,5 +150,28 @@ export class IdentityController {
   async deleteIdentity(@Param('root_id') rootId: string) {
     return this.identityService.deleteIdentity(rootId);
   }
+
+  /**
+   * POST /api/users/:root_id/awakening
+   * Sprint 21.5 — Records HERO_AWAKENED + ONBOARDING_COMPLETE telemetry.
+   * Called once from AwakeningScreen.onComplete() in the frontend.
+   * Body: { skipped_backstory, rerolls_used, completed_battle }
+   */
+  @Post(':root_id/awakening')
+  async recordAwakening(
+    @Param('root_id') rootId: string,
+    @Body() body: {
+      skipped_backstory?: boolean;
+      rerolls_used?:      number;
+      completed_battle?:  boolean;
+    },
+  ) {
+    return this.identity.recordAwakening(rootId, {
+      skipped_backstory: body.skipped_backstory ?? false,
+      rerolls_used:      body.rerolls_used      ?? 0,
+      completed_battle:  body.completed_battle  ?? false,
+    });
+  }
+
 
 }
