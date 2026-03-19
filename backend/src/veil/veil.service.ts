@@ -102,6 +102,16 @@ export class VeilService {
     // 6. Hunt tracker — veil_tear_sealed event (fires for every won encounter)
     if (outcome === 'won') {
       this.huntTracker.recordEvent(rootId, 'veil_tear_sealed', { tear_type: tearType, tear_name: tearName });
+      // 22.2 — Grant 'first_veil_seal' title on first ever win
+      await this._maybeGrantTitle(rootId, 'first_veil_seal');
+      // Grant tear-type specific title on first seal of that type
+      const tierTitles: Record<string, string> = {
+        dormant: 'dormant_rift_sealed',
+        double:  'convergence_survived',
+      };
+      if (tierTitles[tearType]) {
+        await this._maybeGrantTitle(rootId, tierTitles[tearType]);
+      }
     }
 
     return {
@@ -267,6 +277,24 @@ export class VeilService {
     if (obj.type === 'seal_any')    return `Seal ${obj.target} tear${obj.target !== 1 ? 's' : ''}`;
     if (obj.type === 'win_streak')  return `Win ${obj.target} battles without retreating`;
     return `Complete ${obj.target}`;
+  }
+
+  // ── Title grant utility (22.2) ───────────────────────────────────────────
+  private async _maybeGrantTitle(rootId: string, titleId: string) {
+    try {
+      const existing = await this.prisma.userTitle.findFirst({ where: { rootId, titleId } });
+      if (existing) return;
+      await this.prisma.userTitle.create({ data: { rootId, titleId } });
+      await this.prisma.identityEvent.create({
+        data: {
+          rootId,
+          eventType: 'identity.title_earned',
+          payload: { title_id: titleId, source: 'veil_encounter' },
+        },
+      });
+    } catch {
+      // Non-critical — title may already exist
+    }
   }
 
   // ── Active Convergence Events ─────────────────────────────────────────────

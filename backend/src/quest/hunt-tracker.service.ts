@@ -144,8 +144,30 @@ export class HuntTrackerService {
         `Hunt rewards: ${rootId} +${hunt.xp_reward} XP, +${hunt.nexus_reward} Nexus, ` +
         `+${hunt.alignment_material_qty} ${materialType ?? 'none'} (${huntId})`
       );
+
+      // ── 22.2 Title: grant 'first_hunt_complete' on first ever hunt ──────────
+      await this._maybeGrantTitle(rootId, 'first_hunt_complete');
     } catch (err) {
       this.logger.error(`Hunt reward grant failed ${rootId}/${huntId}: ${err}`);
+    }
+  }
+
+  // ── Title grant utility ────────────────────────────────────────────────────
+  private async _maybeGrantTitle(rootId: string, titleId: string) {
+    try {
+      const existing = await this.prisma.userTitle.findFirst({ where: { rootId, titleId } });
+      if (existing) return;
+      await this.prisma.userTitle.create({ data: { rootId, titleId } });
+      await this.prisma.identityEvent.create({
+        data: {
+          rootId,
+          eventType: 'identity.title_earned',
+          payload: { title_id: titleId, source: 'auto_grant' },
+        },
+      });
+      this.logger.log(`Title granted: ${rootId} → ${titleId}`);
+    } catch {
+      // Title may already exist or DB error — non-critical
     }
   }
 
