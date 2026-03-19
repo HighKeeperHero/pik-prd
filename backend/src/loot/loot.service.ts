@@ -487,6 +487,80 @@ export class LootService {
         this.logger.warn(`Unknown reward type: ${entry.rewardType}`);
     }
   }
+  // ── BOOTSTRAP TABLES (Loot Sprint A+B) ──────────────────────────────────
+  // Executes the DDL that was skipped when migrations were marked applied.
+  // Safe to run multiple times — all statements use IF NOT EXISTS.
+  async bootstrapTables() {
+    const results: string[] = [];
+
+    // Sprint A: base_items table
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "base_items" (
+        "id"             TEXT    NOT NULL PRIMARY KEY,
+        "name"           TEXT    NOT NULL,
+        "slot"           TEXT    NOT NULL,
+        "level_min"      INTEGER NOT NULL,
+        "level_max"      INTEGER NOT NULL,
+        "level_band"     TEXT    NOT NULL,
+        "region_theme"   TEXT    NOT NULL,
+        "item_family"    TEXT    NOT NULL,
+        "rarity_allowed" TEXT[]  NOT NULL,
+        "pre40_only"     BOOLEAN NOT NULL DEFAULT true,
+        "lore_tags"      TEXT[]  NOT NULL DEFAULT '{}',
+        "created_at"     TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    results.push('base_items: OK');
+
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "base_items_slot_band_idx" ON "base_items" ("slot", "level_band")
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "base_items_region_idx" ON "base_items" ("region_theme")
+    `);
+
+    // Sprint A: pity_counters table
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "pity_counters" (
+        "id"         TEXT    NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+        "root_id"    TEXT    NOT NULL REFERENCES "root_identities"("id") ON DELETE CASCADE,
+        "pity_type"  TEXT    NOT NULL,
+        "counter"    INTEGER NOT NULL DEFAULT 0,
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE ("root_id", "pity_type")
+      )
+    `);
+    results.push('pity_counters: OK');
+
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "pity_counters_root_idx" ON "pity_counters" ("root_id")
+    `);
+
+    // Sprint B: new columns on gear_items
+    const gearCols = [
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "level_band"   TEXT`,
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "region_theme" TEXT`,
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "item_family"  TEXT`,
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "lore_tags"    TEXT[] DEFAULT '{}'`,
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "item_power"   INTEGER`,
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "slot_budget"  INTEGER`,
+      `ALTER TABLE "gear_items" ADD COLUMN IF NOT EXISTS "base_item_id" TEXT`,
+    ];
+    for (const sql of gearCols) {
+      await this.prisma.$executeRawUnsafe(sql);
+    }
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "gear_items_level_band_idx" ON "gear_items" ("level_band")
+    `);
+    await this.prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "gear_items_region_theme_idx" ON "gear_items" ("region_theme")
+    `);
+    results.push('gear_items columns: OK');
+
+    this.logger.log(`Bootstrap complete: ${results.join(', ')}`);
+    return { bootstrapped: results };
+  }
+
   // ── LOOT ENGINE (Sprint Loot-A) ───────────────────────────────────────────
 
   /** Seed Phase 1 base item library */

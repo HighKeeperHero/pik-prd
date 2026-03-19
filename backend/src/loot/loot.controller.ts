@@ -113,4 +113,16 @@ export class LootController {
   }
 
 
+  /**
+   * POST /api/loot/bootstrap-tables
+   * Creates base_items and pity_counters tables if they don't exist.
+   * Safe to run multiple times (IF NOT EXISTS guards).
+   * Required because migrations were marked applied without executing SQL.
+   */
+  @Post('loot/bootstrap-tables')
+  async bootstrapTables() {
+    return this.loot.bootstrapTables();
+  }
+
+
 }
