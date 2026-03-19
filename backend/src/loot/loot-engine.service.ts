@@ -79,12 +79,14 @@ const CACHE_TYPE_TO_FAMILY: Record<string, string> = {
   quest_reward: 'quest_pre40',
 };
 
-// Minimum rarity floor per cache type (Phase 4 quest reward floors)
+// Minimum rarity floor per cache type
+// Must align with DROP_CONFIG rarity intent AND rarity_allowed on T5+ items
+// T5+ items don't allow common/uncommon — floors must be rare+ for higher tiers
 const CACHE_RARITY_FLOOR: Record<string, string> = {
   veil_minor:   'common',
-  veil_shade:   'common',
-  veil_dormant: 'uncommon',
-  veil_double:  'rare',
+  veil_shade:   'uncommon',
+  veil_dormant: 'rare',
+  veil_double:  'epic',
 };
 
 // ── Phase 4: Pity thresholds ──────────────────────────────────────────────────
