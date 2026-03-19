@@ -390,19 +390,18 @@ export class LootEngineService {
     const isEpicPlus = rarity === 'epic' || rarity === 'legendary' || rarity === 'artifact';
     const isLegPlus  = rarity === 'legendary' || rarity === 'artifact';
 
-    try {
-      // epic_pity: reset on epic+, increment otherwise
-      await this.prisma.pityCounter.upsert({
-        where:  { rootId_pityType: { rootId, pityType: 'epic_pity' } },
-        create: { rootId, pityType: 'epic_pity', counter: isEpicPlus ? 0 : 1 },
-        update: { counter: isEpicPlus ? 0 : { increment: 1 } },
-      });
+    // epic_pity: reset on epic+, increment otherwise
+    await this.prisma.pityCounter.upsert({
+      where:  { rootId_pityType: { rootId, pityType: 'epic_pity' } },
+      create: { rootId, pityType: 'epic_pity', counter: isEpicPlus ? 0 : 1 },
+      update: { counter: isEpicPlus ? 0 : { increment: 1 } },
+    });
 
-      // legendary_pity: reset on legendary+, increment otherwise
-      await this.prisma.pityCounter.upsert({
-        where:  { rootId_pityType: { rootId, pityType: 'legendary_pity' } },
-        create: { rootId, pityType: 'legendary_pity', counter: isLegPlus ? 0 : 1 },
-        update: { counter: isLegPlus ? 0 : { increment: 1 } },
-      });
+    // legendary_pity: reset on legendary+, increment otherwise
+    await this.prisma.pityCounter.upsert({
+      where:  { rootId_pityType: { rootId, pityType: 'legendary_pity' } },
+      create: { rootId, pityType: 'legendary_pity', counter: isLegPlus ? 0 : 1 },
+      update: { counter: isLegPlus ? 0 : { increment: 1 } },
+    });
   }
 }
