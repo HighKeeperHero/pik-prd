@@ -56,32 +56,6 @@ export class LootController {
   // ── Operator endpoints ────────────────────────────────────
 
   /**
-   * GET /api/loot/debug
-   */
-  @Get('loot/debug')
-  async debugLoot() {
-    return this.loot.debugLootTable();
-  }
-
-  /**
-   * POST /api/loot/patch-minlevels
-   * One-shot: corrects minLevel values to match actual tier thresholds
-   * Bronze(1) Copper(7) Silver(14) Gold(22) Platinum(30)
-   */
-  @Post('loot/patch-minlevels')
-  async patchMinLevels() {
-    return this.loot.patchMinLevels();
-  }
-
-  /**
-   * POST /api/loot/seed-veil
-   */
-  @Post('loot/seed-veil')
-  async seedVeilLoot() {
-    return this.loot.seedVeilLoot();
-  }
-
-  /**
    * GET /api/loot/table
    */
   @Get('loot/table')
@@ -99,4 +73,44 @@ export class LootController {
   ) {
     return this.loot.grantCacheManual(body);
   }
+  // ── Loot Engine (Sprint Loot-A) ──────────────────────────
+
+  /**
+   * POST /api/loot/seed-base-items
+   * Seeds Phase 1 base item library into base_items table.
+   * Idempotent — safe to run multiple times.
+   */
+  @Post('loot/seed-base-items')
+  async seedBaseItems() {
+    return this.loot.seedBaseItems();
+  }
+
+  /**
+   * GET /api/loot/debug-engine
+   * Returns base item library counts and drop family configs.
+   * Use to verify Phase 1 seed state.
+   */
+  @Get('loot/debug-engine')
+  async debugEngine() {
+    return this.loot.debugBaseItems();
+  }
+
+  /**
+   * POST /api/loot/test-roll
+   * Body: { root_id, cache_type, hero_level, region_hint? }
+   * Dry-run a Phase 4 family roll — useful for QA.
+   */
+  @Post('loot/test-roll')
+  async testRoll(
+    @Body() body: { root_id: string; cache_type: string; hero_level: number; region_hint?: string },
+  ) {
+    return this.loot.rollFromFamily({
+      rootId:      body.root_id,
+      cacheType:   body.cache_type,
+      heroLevel:   body.hero_level,
+      regionHint:  body.region_hint,
+    });
+  }
+
+
 }
