@@ -283,7 +283,7 @@ export class LandmarkService {
     // Insert the new discovery record
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO landmark_discoveries (discovery_id, hero_id, landmark_id, fragment_index, discovered_at)
-       VALUES (gen_random_uuid(), $1, $2, $3, NOW())
+       VALUES (gen_random_uuid()::text, $1, $2, $3, NOW())
        ON CONFLICT (hero_id, landmark_id, fragment_index) DO NOTHING`,
       rootId,
       landmarkId,
@@ -323,7 +323,7 @@ export class LandmarkService {
     try {
       await this.prisma.$executeRawUnsafe(
         `INSERT INTO landmark_discoveries (discovery_id, hero_id, landmark_id, fragment_index, discovered_at)
-         VALUES (gen_random_uuid(), $1, 'prisming-gate', 1, NOW())
+         VALUES (gen_random_uuid()::text, $1, 'prisming-gate', 1, NOW())
          ON CONFLICT (hero_id, landmark_id, fragment_index) DO NOTHING`,
         rootId,
       );
@@ -352,8 +352,8 @@ export class LandmarkService {
 
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS landmark_discoveries (
-        discovery_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        hero_id        UUID NOT NULL REFERENCES root_identities(root_id) ON DELETE CASCADE,
+        discovery_id   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        hero_id        TEXT NOT NULL REFERENCES root_identities(root_id) ON DELETE CASCADE,
         landmark_id    TEXT NOT NULL REFERENCES landmarks(landmark_id) ON DELETE CASCADE,
         fragment_index INTEGER NOT NULL,
         discovered_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
