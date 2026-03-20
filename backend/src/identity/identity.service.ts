@@ -420,6 +420,8 @@ export class IdentityService {
         hero_level:          heroLevel,
         hero_xp_in_level:    heroXpInCurrentLevel,
         hero_xp_to_next:     heroNextThreshold,
+        // Sprint 22.C — Job Class (null until level 40 selection)
+        hero_class:          (user as any).heroClass ?? null,
         total_sessions: totalSessions,
         titles: user.titles.map((t) => t.titleId),
         titles_detail: user.titles.map((t) => ({
@@ -913,6 +915,81 @@ export class IdentityService {
       xpNodeCompletion:  parseFloat(map.get('fate.xp_node_completion')   ?? '15'),
       xpBossTierPct:     parseFloat(map.get('fate.xp_boss_tier_pct')     ?? '0.5'),
       eventXpMultiplier: parseFloat(map.get('fate.event_xp_multiplier')  ?? '1.0'),
+    };
+  }
+
+
+  // ── 22.C Job Class Selection ───────────────────────────────────────────────
+  // Called once at level 40 from the JobClassSelection component.
+  // Class is permanent — cannot be changed after selection.
+  // Valid classes: AEGIS, SCALESWORN, DRYADIC, HARVESTER,
+  //                CORSAIR, GAMBLER, ARTIFICER, ARCANE_SCHOLAR
+  async selectClass(rootId: string, heroClass: string) {
+    const VALID_CLASSES = [
+      'AEGIS', 'SCALESWORN', 'DRYADIC', 'HARVESTER',
+      'CORSAIR', 'GAMBLER', 'ARTIFICER', 'ARCANE_SCHOLAR',
+    ];
+
+    if (!VALID_CLASSES.includes(heroClass)) {
+      throw new BadRequestException(`Invalid class: ${heroClass}. Must be one of: ${VALID_CLASSES.join(', ')}`);
+    }
+
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { id: true, heroName: true, heroLevel: true, heroClass: true },
+    });
+    if (!hero) throw new NotFoundException('Hero not found');
+
+    // Enforce level 40 gate
+    if ((hero.heroLevel ?? 0) < 40) {
+      throw new BadRequestException(
+        `Hero must be level 40 to select a class. Current level: ${hero.heroLevel ?? 0}`
+      );
+    }
+
+    // Permanent — cannot be changed
+    if (hero.heroClass) {
+      throw new BadRequestException(
+        `Class already selected: ${hero.heroClass}. Job class is permanent.`
+      );
+    }
+
+    // Commit the class
+    await this.prisma.rootIdentity.update({
+      where: { id: rootId },
+      data:  { heroClass },
+    });
+
+    // Log the event
+    await this.events.log({
+      rootId,
+      eventType: 'identity.class_selected',
+      payload: {
+        hero_name:  hero.heroName,
+        hero_class: heroClass,
+        hero_level: hero.heroLevel,
+        selected_at: new Date().toISOString(),
+      },
+    });
+
+    // Grant the class title
+    try {
+      const titleId = `class_${heroClass.toLowerCase()}`;
+      await this.prisma.userTitle.create({ data: { rootId, titleId } });
+      await this.events.log({
+        rootId,
+        eventType: 'identity.title_earned',
+        payload: { title_id: titleId, source: 'class_selection' },
+      });
+    } catch {
+      // Title may already exist — non-critical
+    }
+
+    return {
+      hero_name:  hero.heroName,
+      hero_class: heroClass,
+      hero_level: hero.heroLevel,
+      message:    `${hero.heroName} is now bound to the ${heroClass} class.`,
     };
   }
 

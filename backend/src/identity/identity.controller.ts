@@ -174,4 +174,21 @@ export class IdentityController {
   }
 
 
+  /**
+   * POST /api/users/:root_id/class
+   * Sprint 22.C — Permanent job class selection at level 40.
+   * Body: { hero_class: "AEGIS" | "SCALESWORN" | "DRYADIC" | "HARVESTER"
+   *                    | "CORSAIR" | "GAMBLER" | "ARTIFICER" | "ARCANE_SCHOLAR" }
+   * Returns: { hero_name, hero_class, hero_level, message }
+   * Errors: 400 if level < 40, class already set, or invalid class name
+   */
+  @Post(':root_id/class')
+  async selectClass(
+    @Param('root_id') rootId: string,
+    @Body() body: { hero_class: string },
+  ) {
+    return this.identityService.selectClass(rootId, body.hero_class);
+  }
+
+
 }

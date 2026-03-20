@@ -73,6 +73,8 @@ model RootIdentity {
   // Sprint 15 — character-specific progression (per hero, not account-wide)
   heroXp        Int       @default(0) @map("hero_xp")
   heroLevel     Int       @default(1) @map("hero_level")
+  // Sprint 22.C — Job Class (selected at level 40, null until then)
+  heroClass     String?   @map("hero_class")
   enrolledBy    String    @default("self") @map("enrolled_by")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")
