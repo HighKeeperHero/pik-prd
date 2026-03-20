@@ -191,4 +191,15 @@ export class IdentityController {
   }
 
 
+  /**
+   * POST /api/users/bootstrap-schema
+   * Sprint 22.C — Adds hero_class column to root_identities.
+   * Safe to run multiple times (IF NOT EXISTS guard).
+   */
+  @Post('bootstrap-schema')
+  async bootstrapSchema() {
+    return this.identityService.bootstrapSchema();
+  }
+
+
 }

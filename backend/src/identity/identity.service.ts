@@ -919,6 +919,21 @@ export class IdentityService {
   }
 
 
+
+  // ── Bootstrap schema (Sprint 22.C) ────────────────────────────────────────
+  async bootstrapSchema() {
+    const results: string[] = [];
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `ALTER TABLE "root_identities" ADD COLUMN IF NOT EXISTS "hero_class" TEXT`
+      );
+      results.push('hero_class column: OK');
+    } catch (err) {
+      results.push(`hero_class column: ${(err as any).message}`);
+    }
+    return { bootstrapped: results };
+  }
+
   // ── 22.C Job Class Selection ───────────────────────────────────────────────
   // Called once at level 40 from the JobClassSelection component.
   // Class is permanent — cannot be changed after selection.
