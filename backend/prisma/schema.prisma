@@ -104,7 +104,9 @@ model RootIdentity {
   components      PlayerComponents[]
   veilShards      VeilShard?
   tearEncounters  TearEncounter[]
-  pityCounters    PityCounter[]
+  pityCounters      PityCounter[]
+  warbandMemberships WarbandMembership[]
+  sentInvites        WarbandInvite[]     @relation("InviteSender")
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -699,4 +701,56 @@ model PityCounter {
   @@unique([rootId, pityType])
   @@index([rootId])
   @@map("pity_counters")
+}
+
+model Warband {
+  id           String   @id @default(uuid())
+  name         String
+  emblem       String   @default("⚔")
+  alignment    String   @default("NONE")      // PRIMARY alignment — open to others
+  reputation   Int      @default(0)
+  foundedAt    DateTime @default(now()) @map("founded_at")
+  founderRootId String  @map("founder_root_id")
+
+  members      WarbandMembership[]
+  invites      WarbandInvite[]
+  founder      RootIdentity @relation(fields: [founderRootId], references: [id], onDelete: Cascade)
+
+  @@index([alignment])
+  @@index([reputation])
+  @@map("warbands")
+}
+
+model WarbandMembership {
+  id              String   @id @default(uuid())
+  warbandId       String   @map("warband_id")
+  rootId          String   @map("root_id")
+  rank            String   @default("MEMBER")  // FOUNDER | OFFICER | MEMBER
+  alignmentBonus  Boolean  @default(false) @map("alignment_bonus")
+  joinedAt        DateTime @default(now()) @map("joined_at")
+
+  warband         Warband      @relation(fields: [warbandId], references: [id], onDelete: Cascade)
+  hero            RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([warbandId, rootId])
+  @@index([rootId])
+  @@index([warbandId])
+  @@map("warband_memberships")
+}
+
+model WarbandInvite {
+  id              String   @id @default(uuid())
+  warbandId       String   @map("warband_id")
+  invitedByRootId String   @map("invited_by_root_id")
+  inviteCode      String   @unique @map("invite_code")
+  status          String   @default("pending")  // pending | accepted | expired
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  warband         Warband      @relation(fields: [warbandId], references: [id], onDelete: Cascade)
+  invitedBy       RootIdentity @relation("InviteSender", fields: [invitedByRootId], references: [id], onDelete: Cascade)
+
+  @@index([inviteCode])
+  @@index([warbandId])
+  @@map("warband_invites")
 }
