@@ -107,6 +107,7 @@ model RootIdentity {
   pityCounters      PityCounter[]
   warbandMemberships WarbandMembership[]
   sentInvites        WarbandInvite[]     @relation("InviteSender")
+  foundedWarbands    Warband[]
 
   @@index([fateAccountId])
   @@map("root_identities")
