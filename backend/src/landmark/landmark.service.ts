@@ -402,12 +402,12 @@ export class LandmarkService {
   // ── Debug: confirm tables exist and row counts ─────────────────────────────
 
   async debugTables(): Promise<object> {
-    const landmarkCount = await this.prisma.$queryRaw<any[]>(
-      `SELECT COUNT(*)::int AS count FROM landmarks`,
-    );
-    const discoveryCount = await this.prisma.$queryRaw<any[]>(
-      `SELECT COUNT(*)::int AS count FROM landmark_discoveries`,
-    );
+    const landmarkCount = await this.prisma.$queryRaw<any[]>`
+      SELECT COUNT(*)::int AS count FROM landmarks
+    `;
+    const discoveryCount = await this.prisma.$queryRaw<any[]>`
+      SELECT COUNT(*)::int AS count FROM landmark_discoveries
+    `;
     return {
       landmarks:             landmarkCount[0]?.count ?? 0,
       landmark_discoveries:  discoveryCount[0]?.count ?? 0,
