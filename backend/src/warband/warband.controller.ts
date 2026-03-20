@@ -136,4 +136,32 @@ export class WarbandController {
   async getHeroProfile(@Param('root_id') rootId: string) {
     return this.warbands.getHeroPublicProfile(rootId);
   }
+  /** GET /api/warbands/debug — Check table existence and Prisma connectivity */
+  @Get('warbands/debug')
+  async debug() {
+    const prisma = (this.warbands as any).prisma;
+    const results: Record<string, any> = {};
+    for (const [key, table] of [
+      ['warbands',            '"warbands"'],
+      ['warband_memberships', '"warband_memberships"'],
+      ['warband_invites',     '"warband_invites"'],
+    ]) {
+      try {
+        const rows = await prisma.$queryRawUnsafe(`SELECT COUNT(*) FROM ${table}`);
+        results[key] = { exists: true, count: Number((rows as any)[0].count) };
+      } catch (e: any) {
+        results[key] = { exists: false, error: e.message };
+      }
+    }
+    // Test Prisma model access
+    try {
+      await prisma.warband.count();
+      results['prisma_warband_model'] = 'ok';
+    } catch (e: any) {
+      results['prisma_warband_model'] = e.message;
+    }
+    return results;
+  }
+
+
 }
