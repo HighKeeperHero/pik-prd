@@ -108,6 +108,7 @@ model RootIdentity {
   warbandMemberships WarbandMembership[]
   sentInvites        WarbandInvite[]     @relation("InviteSender")
   foundedWarbands    Warband[]
+  convergenceContributions ConvergenceContribution[]
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -655,20 +656,42 @@ model TearEncounter {
 // Active time-limited world events that boost rewards or alter spawns.
 // Checked on every encounter — applied automatically by veil.service.
 model ConvergenceEvent {
-  id               String   @id @default(uuid()) @map("event_id")
-  name             String
-  description      String?
-  flavorText       String?  @map("flavor_text")
-  affectedTiers    String[] @map("affected_tiers")
-  shardMultiplier  Float    @default(1.0) @map("shard_multiplier")
-  cacheBonus       Boolean  @default(false) @map("cache_bonus")
-  startsAt         DateTime @map("starts_at")
-  endsAt           DateTime @map("ends_at")
-  status           String   @default("active")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(uuid()) @map("event_id")
+  name                String
+  description         String?
+  flavorText          String?  @map("flavor_text")
+  affectedTiers       String[] @map("affected_tiers")
+  shardMultiplier     Float    @default(1.0) @map("shard_multiplier")
+  cacheBonus          Boolean  @default(false) @map("cache_bonus")
+  startsAt            DateTime @map("starts_at")
+  endsAt              DateTime @map("ends_at")
+  status              String   @default("active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  // Sprint 24 — global contribution tracking
+  contributionCount   Int      @default(0) @map("contribution_count")
+  targetCount         Int      @default(10000) @map("target_count")
+
+  contributions       ConvergenceContribution[]
 
   @@index([status, endsAt])
   @@map("convergence_events")
+}
+
+model ConvergenceContribution {
+  id          String   @id @default(uuid())
+  eventId     String   @map("event_id")
+  rootId      String   @map("root_id")
+  warbandId   String?  @map("warband_id")
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  event       ConvergenceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  hero        RootIdentity     @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, rootId])
+  @@index([eventId])
+  @@index([rootId])
+  @@map("convergence_contributions")
 }
 
 model BaseItem {

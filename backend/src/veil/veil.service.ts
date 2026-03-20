@@ -99,9 +99,32 @@ export class VeilService {
     // 5. Quest progress
     const questsCompleted = await this._updateQuestProgress(rootId, tearType, outcome);
 
-    // 6. Hunt tracker — veil_tear_sealed event (fires for every won encounter)
+    // 6. Hunt tracker + Convergence contribution
     if (outcome === 'won') {
       this.huntTracker.recordEvent(rootId, 'veil_tear_sealed', { tear_type: tearType, tear_name: tearName });
+
+      // Sprint 24 — increment global + per-hero contribution counter for active events
+      if (activeEvents.length > 0) {
+        const membership = await this.prisma.warbandMembership.findFirst({
+          where: { rootId }, select: { warbandId: true },
+        }).catch(() => null);
+        const warbandId = membership?.warbandId ?? null;
+
+        for (const event of activeEvents) {
+          // Per-hero contribution (for leaderboard)
+          await this.prisma.convergenceContribution.upsert({
+            where:  { eventId_rootId: { eventId: event.id, rootId } },
+            create: { eventId: event.id, rootId, warbandId, count: 1 },
+            update: { count: { increment: 1 }, warbandId },
+          }).catch(() => {});
+
+          // Global counter on the event
+          await this.prisma.convergenceEvent.update({
+            where: { id: event.id },
+            data:  { contributionCount: { increment: 1 } },
+          }).catch(() => {});
+        }
+      }
       // 22.2 — Grant 'first_veil_seal' title on first ever win
       await this._maybeGrantTitle(rootId, 'first_veil_seal');
       // Grant tear-type specific title on first seal of that type
@@ -295,6 +318,90 @@ export class VeilService {
     } catch {
       // Non-critical — title may already exist
     }
+  }
+
+  // ── Sprint 24: Global event progress ────────────────────────────────────────
+  async getGlobalProgress() {
+    const now = new Date();
+    const events = await this.prisma.convergenceEvent.findMany({
+      where: { status: 'active', startsAt: { lte: now }, endsAt: { gte: now } },
+      orderBy: { endsAt: 'asc' },
+    });
+    return events.map(e => ({
+      event_id:           e.id,
+      name:               e.name,
+      description:        e.description,
+      flavor_text:        e.flavorText,
+      affected_tiers:     e.affectedTiers,
+      shard_multiplier:   e.shardMultiplier,
+      cache_bonus:        e.cacheBonus,
+      contribution_count: e.contributionCount,
+      target_count:       e.targetCount,
+      progress_pct:       e.targetCount > 0 ? Math.min(100, Math.round((e.contributionCount / e.targetCount) * 100)) : 0,
+      ends_at:            e.endsAt.getTime(),
+    }));
+  }
+
+  async getContributionLeaderboard(eventId: string, limit = 20) {
+    const contributions = await this.prisma.convergenceContribution.findMany({
+      where:   { eventId },
+      orderBy: { count: 'desc' },
+      take:    Math.min(limit, 100),
+      include: { hero: { select: { heroName: true, fateAlignment: true } } },
+    });
+
+    // Warband aggregation
+    const warbandTotals: Record<string, { warbandId: string; count: number }> = {};
+    for (const c of contributions) {
+      if (c.warbandId) {
+        if (!warbandTotals[c.warbandId]) warbandTotals[c.warbandId] = { warbandId: c.warbandId, count: 0 };
+        warbandTotals[c.warbandId].count += c.count;
+      }
+    }
+
+    return {
+      heroes: contributions.map((c, i) => ({
+        rank:       i + 1,
+        root_id:    c.rootId,
+        hero_name:  c.hero.heroName,
+        alignment:  c.hero.fateAlignment,
+        warband_id: c.warbandId,
+        count:      c.count,
+      })),
+      warbands: Object.values(warbandTotals)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10)
+        .map((w, i) => ({ rank: i + 1, warband_id: w.warbandId, count: w.count })),
+    };
+  }
+
+  // ── Operator: create event ────────────────────────────────────────────────
+  async createEvent(dto: {
+    name:            string;
+    description?:    string;
+    flavor_text?:    string;
+    affected_tiers:  string[];
+    shard_multiplier?: number;
+    cache_bonus?:    boolean;
+    target_count?:   number;
+    starts_at:       string;
+    ends_at:         string;
+  }) {
+    const event = await this.prisma.convergenceEvent.create({
+      data: {
+        name:           dto.name,
+        description:    dto.description,
+        flavorText:     dto.flavor_text,
+        affectedTiers:  dto.affected_tiers,
+        shardMultiplier: dto.shard_multiplier ?? 1.5,
+        cacheBonus:     dto.cache_bonus ?? true,
+        targetCount:    dto.target_count ?? 10000,
+        startsAt:       new Date(dto.starts_at),
+        endsAt:         new Date(dto.ends_at),
+        status:         'active',
+      },
+    });
+    return { event_id: event.id, name: event.name, starts_at: event.startsAt, ends_at: event.endsAt };
   }
 
   // ── Active Convergence Events ─────────────────────────────────────────────
