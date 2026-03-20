@@ -14,6 +14,7 @@ import { Prisma, SourceLink } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { EnrollUserDto } from './dto/enroll-user.dto';
+import { LandmarkService } from '../landmark/landmark.service'; // Sprint 25
 
 @Injectable()
 export class IdentityService {
@@ -28,8 +29,9 @@ export class IdentityService {
   };
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly events: EventsService,
+    private readonly prisma:     PrismaService,
+    private readonly events:     EventsService,
+    private readonly landmarks:  LandmarkService, // Sprint 25
   ) {}
 
   // ── ENROLL ────────────────────────────────────────────────
@@ -128,6 +130,10 @@ export class IdentityService {
       this.logger.log(
         `Enrolled: ${dto.hero_name} (${result.root.id}) by ${dto.enrolled_by}`,
       );
+
+      // Sprint 25 — grant Prisming Gate Fragment 1 on first enrollment
+      // Wrapped in try/catch inside the service; safe if landmarks table not yet created
+      await this.landmarks.autoRegisterPrismingGate(result.root.id);
 
       return {
         root_id: result.root.id,

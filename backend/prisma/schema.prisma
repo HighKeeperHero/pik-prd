@@ -109,6 +109,7 @@ model RootIdentity {
   sentInvites        WarbandInvite[]     @relation("InviteSender")
   foundedWarbands    Warband[]
   convergenceContributions ConvergenceContribution[]
+  landmarkDiscoveries      LandmarkDiscovery[]         // Sprint 25
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -777,4 +778,44 @@ model WarbandInvite {
   @@index([inviteCode])
   @@index([warbandId])
   @@map("warband_invites")
+}
+
+// ============================================================
+// LANDMARKS + LORE DISCOVERY — Sprint 25
+// Tables created via POST /api/landmarks/bootstrap
+// (bootstrap pattern — not prisma migrate execute)
+// ============================================================
+
+model Landmark {
+  id               String   @id @map("landmark_id")
+  name             String
+  region           String
+  tier             Int      @default(1)
+  type             String   @default("public")   // hv_venue | public | operator
+  lat              Float
+  lon              Float
+  radiusMeters     Int      @default(100) @map("radius_meters")
+  isAutoRegistered Boolean  @default(false) @map("is_auto_registered")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  discoveries      LandmarkDiscovery[]
+
+  @@index([region])
+  @@map("landmarks")
+}
+
+model LandmarkDiscovery {
+  id            String   @id @default(uuid()) @map("discovery_id")
+  heroId        String   @map("hero_id")
+  landmarkId    String   @map("landmark_id")
+  fragmentIndex Int      @map("fragment_index")   // 1 | 2 | 3
+  discoveredAt  DateTime @default(now()) @map("discovered_at")
+
+  hero          RootIdentity @relation(fields: [heroId], references: [id], onDelete: Cascade)
+  landmark      Landmark     @relation(fields: [landmarkId], references: [id], onDelete: Cascade)
+
+  @@unique([heroId, landmarkId, fragmentIndex])
+  @@index([heroId])
+  @@index([landmarkId])
+  @@map("landmark_discoveries")
 }
