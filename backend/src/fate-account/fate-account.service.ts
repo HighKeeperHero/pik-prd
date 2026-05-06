@@ -324,7 +324,7 @@ export class FateAccountService {
 
   private async buildAuthResponse(
     accountId: string,
-    email: string,
+    email: string | null,
     session: { token: string; expiresAt: string },
   ) {
     const heroes = await this.listHeroes(accountId);
