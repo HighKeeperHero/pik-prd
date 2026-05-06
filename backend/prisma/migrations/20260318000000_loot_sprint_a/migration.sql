@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS "base_items_region_idx"
 -- Counters reset when the target rarity is obtained
 CREATE TABLE IF NOT EXISTS "pity_counters" (
   "id"         TEXT    NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-  "root_id"    TEXT    NOT NULL REFERENCES "root_identities"("id") ON DELETE CASCADE,
+  "root_id"    TEXT    NOT NULL REFERENCES "root_identities"("root_id") ON DELETE CASCADE,
   "pity_type"  TEXT    NOT NULL,  -- 'epic_pity' | 'legendary_pity'
   "counter"    INTEGER NOT NULL DEFAULT 0,
   "updated_at" TIMESTAMP NOT NULL DEFAULT NOW(),
