@@ -21,15 +21,14 @@ datasource db {
 
 model FateAccount {
   id           String    @id @default(uuid()) @map("account_id")
-  email        String    @unique
-  provider     String    @default("email")       // email | google | apple
-  providerId   String?   @map("provider_id")     // OAuth subject ID (Google sub, Apple sub)
-  passwordHash String?   @map("password_hash")   // null for OAuth-only accounts
-  displayName  String?   @map("display_name")    // Optional account-level display name
-  status       String    @default("active")       // active | suspended | deleted
+  email        String?   @unique                          
+  provider     String    @default("email")
+  providerId   String?   @map("provider_id")
+  passwordHash String?   @map("password_hash")
+  displayName  String?   @map("display_name")
+  status       String    @default("active")
   createdAt    DateTime  @default(now()) @map("created_at")
   lastLoginAt  DateTime? @map("last_login_at")
-  // Sprint 15 — account-wide fate progression (shared across all heroes)
   fateXp       Int       @default(0) @map("fate_xp")
   fateLevel    Int       @default(1) @map("fate_level")
 
@@ -37,7 +36,7 @@ model FateAccount {
   sessions     AccountSession[]
 
   @@index([email])
-  @@index([provider, providerId])
+  @@unique([provider, providerId])                        
   @@map("fate_accounts")
 }
 
@@ -79,6 +78,13 @@ model RootIdentity {
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")
   equippedTitle String?   @map("equipped_title")
+  // Sprint 28 — Awakening narrative profile
+  region                String?
+  wound                 String?
+  calling               String?
+  virtue                String?
+  vice                  String?
+  awakeningCompletedAt  DateTime? @map("awakening_completed_at")
 
   // Relations
   fateAccount   FateAccount?    @relation(fields: [fateAccountId], references: [id], onDelete: Cascade)
