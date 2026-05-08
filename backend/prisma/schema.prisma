@@ -116,6 +116,7 @@ model RootIdentity {
   foundedWarbands    Warband[]
   convergenceContributions ConvergenceContribution[]
   landmarkDiscoveries      LandmarkDiscovery[]         // Sprint 25
+  sanctumState             SanctumState?               // Sprint 28 — iOS daily ritual
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -589,6 +590,27 @@ model Oath {
   @@unique([rootId, weekOf])                    // One oath per hero per week
   @@index([rootId, status])
   @@map("oaths")
+}
+
+// ============================================================
+// SANCTUM (iOS) — Sprint 28
+// In-app daily ritual state. One row per hero. Distinct from the
+// legacy web rite/oath models above (different mechanics, different
+// cadence, different resource economy). Rolls over by UTC date.
+// ============================================================
+model SanctumState {
+  rootId             String    @id @map("root_id")
+  veilEssence        Int       @default(0) @map("veil_essence")
+  lastHearthClaim    String?   @map("last_hearth_claim")    // 'YYYY-MM-DD' UTC
+  oathTodayDate      String?   @map("oath_today_date")       // 'YYYY-MM-DD' UTC
+  oathTodayOption    String?   @map("oath_today_option")     // 'forge' | 'lore' | 'veil'
+  totalHearthClaims  Int       @default(0) @map("total_hearth_claims")
+  totalOathsSworn    Int       @default(0) @map("total_oaths_sworn")
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@map("sanctum_state")
 }
 
 // ============================================================
