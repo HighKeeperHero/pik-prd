@@ -75,6 +75,17 @@ export class VeilService {
         create: { rootId, balance: shards },
         update: { balance: { increment: shards } },
       });
+
+      // Sprint 28 — Veil Essence is the iOS app's unified daily-loop
+      // currency (hearth drip + battle reward → same balance). Mirror
+      // the shard award into sanctum_state so the iOS Sanctum reflects
+      // the win immediately. The legacy veil_shards table above stays
+      // intact for the web client.
+      await this.prisma.sanctumState.upsert({
+        where:  { rootId },
+        create: { rootId, veilEssence: shards },
+        update: { veilEssence: { increment: shards } },
+      });
     }
 
     // 4. Loot cache drop
