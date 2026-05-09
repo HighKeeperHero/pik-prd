@@ -33,26 +33,23 @@ function requireHeroId(req: AuthedRequest): string {
 export class SanctumController {
   constructor(private readonly sanctum: SanctumService) {}
 
+  // Controllers return raw objects; the global response interceptor
+  // adds the { data: ... } envelope. Wrapping here would double-wrap
+  // and break clients that single-unwrap with `json?.data ?? json`.
+
   @Get('state')
   async getState(@Req() req: AuthedRequest) {
-    const state = await this.sanctum.getOrCreateState(requireHeroId(req));
-    return { data: state };
+    return this.sanctum.getOrCreateState(requireHeroId(req));
   }
 
   @Post('hearth/claim')
   async claimHearth(@Req() req: AuthedRequest) {
     const state = await this.sanctum.claimHearth(requireHeroId(req));
-    return {
-      data: {
-        state,
-        granted: SanctumService.HEARTH_REWARD,
-      },
-    };
+    return { state, granted: SanctumService.HEARTH_REWARD };
   }
 
   @Post('oath')
   async swearOath(@Req() req: AuthedRequest, @Body() body: SwearOathDto) {
-    const state = await this.sanctum.swearOath(requireHeroId(req), body.option);
-    return { data: state };
+    return this.sanctum.swearOath(requireHeroId(req), body.option);
   }
 }
