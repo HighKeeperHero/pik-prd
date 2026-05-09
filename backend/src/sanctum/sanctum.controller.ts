@@ -12,28 +12,36 @@ import {
   Body,
   UseGuards,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { SessionGuard } from '../auth/guards/session.guard';
+import { AccountGuard } from '../auth/guards/account.guard';
 import { SanctumService } from './sanctum.service';
 import { SwearOathDto } from './dto/swear-oath.dto';
 
-type AuthedRequest = Request & { rootId: string };
+type AuthedRequest = Request & { accountId: string; heroId: string | null };
+
+function requireHeroId(req: AuthedRequest): string {
+  if (!req.heroId) {
+    throw new BadRequestException('No hero selected on this session.');
+  }
+  return req.heroId;
+}
 
 @Controller('api/sanctum')
-@UseGuards(SessionGuard)
+@UseGuards(AccountGuard)
 export class SanctumController {
   constructor(private readonly sanctum: SanctumService) {}
 
   @Get('state')
   async getState(@Req() req: AuthedRequest) {
-    const state = await this.sanctum.getOrCreateState(req.rootId);
+    const state = await this.sanctum.getOrCreateState(requireHeroId(req));
     return { data: state };
   }
 
   @Post('hearth/claim')
   async claimHearth(@Req() req: AuthedRequest) {
-    const state = await this.sanctum.claimHearth(req.rootId);
+    const state = await this.sanctum.claimHearth(requireHeroId(req));
     return {
       data: {
         state,
@@ -44,7 +52,7 @@ export class SanctumController {
 
   @Post('oath')
   async swearOath(@Req() req: AuthedRequest, @Body() body: SwearOathDto) {
-    const state = await this.sanctum.swearOath(req.rootId, body.option);
+    const state = await this.sanctum.swearOath(requireHeroId(req), body.option);
     return { data: state };
   }
 }

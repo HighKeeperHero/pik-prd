@@ -3,11 +3,13 @@ import { SanctumController } from './sanctum.controller';
 import { SanctumService } from './sanctum.service';
 import { PrismaService } from '../prisma.service';
 import { AuthModule } from '../auth/auth.module';
+import { FateAccountModule } from '../fate-account/fate-account.module';
+import { AccountGuard } from '../auth/guards/account.guard';
 
 @Module({
-  imports:     [AuthModule],
+  imports:     [AuthModule, FateAccountModule],
   controllers: [SanctumController],
-  providers:   [SanctumService, PrismaService],
+  providers:   [SanctumService, PrismaService, AccountGuard],
   exports:     [SanctumService],
 })
 export class SanctumModule {}
