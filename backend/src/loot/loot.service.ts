@@ -179,16 +179,27 @@ export class LootService {
       rewardName   = inventoryResult.item_name;
       rewardRarity = inventoryResult.rarity;
     } else {
-      // Currency roll — grant Veil Shards as consolation
+      // Currency roll — grant Veil Shards as consolation.
       const shardAmount = this._currencyAmountForCacheType(cache.cacheType);
       await this.prisma.veilShard.upsert({
         where:  { rootId },
         create: { rootId, balance: shardAmount },
         update: { balance: { increment: shardAmount } },
       });
+
+      // Sprint 28 — mirror to sanctum_state.veil_essence so the iOS
+      // app surfaces the drop. Without this, currency-roll opens
+      // appear to award nothing visible (the iOS UI does not read
+      // the legacy veil_shards table).
+      await this.prisma.sanctumState.upsert({
+        where:  { rootId },
+        create: { rootId, veilEssence: shardAmount },
+        update: { veilEssence: { increment: shardAmount } },
+      });
+
       rewardType   = 'veil_shards';
       rewardValue  = String(shardAmount);
-      rewardName   = `${shardAmount} Veil Shards`;
+      rewardName   = `${shardAmount} Veil Essence`;
       rewardRarity = 'common';
     }
 
