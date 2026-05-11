@@ -85,6 +85,10 @@ model RootIdentity {
   virtue                String?
   vice                  String?
   awakeningCompletedAt  DateTime? @map("awakening_completed_at")
+  // Sprint 28 — Expo push token (single token per hero in v1.0;
+  // multi-device support is a separate push_devices table later).
+  pushToken             String?   @map("push_token")
+  pushUpdatedAt         DateTime? @map("push_updated_at")
 
   // Relations
   fateAccount   FateAccount?    @relation(fields: [fateAccountId], references: [id], onDelete: Cascade)

@@ -34,6 +34,7 @@ import { VenturesModule }    from './quest/ventures.module';   // ← Sprint 20.
 import { WarbandModule }     from './warband/warband.module';    // ← Sprint 23
 import { LandmarkModule }   from './landmark/landmark.module';  // ← Sprint 25
 import { SanctumModule }    from './sanctum/sanctum.module';     // ← Sprint 28 (iOS daily ritual)
+import { PushModule }       from './push/push.module';            // ← Sprint 28 (iOS push token register)
 
 import { Controller, Get } from '@nestjs/common';
 
@@ -92,6 +93,7 @@ class HealthController {
     WarbandModule,        // ← Sprint 23
     LandmarkModule,       // ← Sprint 25
     SanctumModule,        // ← Sprint 28 (iOS daily ritual)
+    PushModule,           // ← Sprint 28 (iOS push token register)
   ],
   controllers: [HealthController],
   providers: [
