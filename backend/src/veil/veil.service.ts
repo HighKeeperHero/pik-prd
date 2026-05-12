@@ -48,6 +48,17 @@ export class VeilService {
     const hero = await this.prisma.rootIdentity.findUnique({ where: { id: rootId } });
     if (!hero) throw new NotFoundException('Hero not found');
 
+    // Sprint 28 — first-seal detection. We count prior wins BEFORE
+    // inserting this encounter; if zero and the current outcome is
+    // 'won', this seal is the player's first. The iOS client uses
+    // this flag to play the Reliquary-remembers cinematic on the
+    // BattleResult screen exactly once per hero. Done early so the
+    // count isn't affected by any subsequent writes in this method.
+    const priorWins = await this.prisma.tearEncounter.count({
+      where: { rootId, outcome: 'won' },
+    });
+    const isFirstSeal = outcome === 'won' && priorWins === 0;
+
     // 1. Check active convergence events for this tear tier
     const now = new Date();
     const activeEvents = await this.prisma.convergenceEvent.findMany({
@@ -156,6 +167,7 @@ export class VeilService {
       convergence_event: activeEvents.length > 0 ? activeEvents[0].name : undefined,
       cache_earned:      cacheEarned,
       quests_completed:  questsCompleted,
+      is_first_seal:     isFirstSeal,
     };
   }
 
