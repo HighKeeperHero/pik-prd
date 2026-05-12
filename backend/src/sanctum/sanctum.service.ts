@@ -21,11 +21,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { LevelingService } from '../leveling/leveling.service';
 
 export type OathOption = 'forge' | 'lore' | 'veil';
 const VALID_OATHS: ReadonlyArray<OathOption> = ['forge', 'lore', 'veil'];
 
 const HEARTH_REWARD = 5;
+
+// Phase 2 Arc A — XP grants on daily ritual actions.
+const XP_HEARTH = 25;
+const XP_OATH   = 25;
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
@@ -33,7 +38,10 @@ function todayUtc(): string {
 
 @Injectable()
 export class SanctumService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma:   PrismaService,
+    private readonly leveling: LevelingService,
+  ) {}
 
   async getOrCreateState(rootId: string) {
     const existing = await this.prisma.sanctumState.findUnique({ where: { rootId } });
@@ -47,7 +55,7 @@ export class SanctumService {
     if (state.lastHearthClaim === today) {
       throw new ConflictException('Hearth already tended today.');
     }
-    return this.prisma.sanctumState.update({
+    const updated = await this.prisma.sanctumState.update({
       where: { rootId },
       data: {
         veilEssence:       { increment: HEARTH_REWARD },
@@ -55,6 +63,8 @@ export class SanctumService {
         totalHearthClaims: { increment: 1 },
       },
     });
+    const xpAward = await this.leveling.grantXp(rootId, XP_HEARTH);
+    return { ...updated, xp_award: xpAward };
   }
 
   async swearOath(rootId: string, option: OathOption) {
@@ -66,7 +76,7 @@ export class SanctumService {
     if (state.oathTodayDate === today) {
       throw new ConflictException('Oath already sworn today.');
     }
-    return this.prisma.sanctumState.update({
+    const updated = await this.prisma.sanctumState.update({
       where: { rootId },
       data: {
         oathTodayDate:    today,
@@ -74,6 +84,8 @@ export class SanctumService {
         totalOathsSworn:  { increment: 1 },
       },
     });
+    const xpAward = await this.leveling.grantXp(rootId, XP_OATH);
+    return { ...updated, xp_award: xpAward };
   }
 
   /** Awarded amount for hearth claim — exposed so the controller can echo it back. */

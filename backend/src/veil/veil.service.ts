@@ -3,6 +3,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
+import { LevelingService, type XpAward } from '../leveling/leveling.service';
+
+// Phase 2 Arc A — XP granted per tear tier on a successful seal.
+// Source of truth: docs/roadmap/phase-2.md.
+const XP_BY_TEAR_TIER: Record<string, number> = {
+  minor:   50,
+  wander:  100,
+  dormant: 250,
+  double:  500,
+};
 
 export interface RecordEncounterDto {
   tearType: string;   // minor | wander | dormant | double
@@ -37,8 +47,9 @@ interface QuestRewards {
 @Injectable()
 export class VeilService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly huntTracker: HuntTrackerService,
+    private readonly prisma:       PrismaService,
+    private readonly huntTracker:  HuntTrackerService,
+    private readonly leveling:     LevelingService,
   ) {}
 
   // ── Record a battle outcome ───────────────────────────────────────────────
@@ -159,6 +170,18 @@ export class VeilService {
       }
     }
 
+    // Phase 2 Arc A — grant XP on a successful seal. Tier-keyed
+    // table is the source of truth for amount. Result rides on
+    // the response so the client can render the level-up beat
+    // inline with the standard reward block.
+    let xpAward: XpAward | null = null;
+    if (outcome === 'won') {
+      const xpAmount = XP_BY_TEAR_TIER[tearType] ?? 0;
+      if (xpAmount > 0) {
+        xpAward = await this.leveling.grantXp(rootId, xpAmount);
+      }
+    }
+
     return {
       encounter_id:      encounter.id,
       outcome,
@@ -168,6 +191,7 @@ export class VeilService {
       cache_earned:      cacheEarned,
       quests_completed:  questsCompleted,
       is_first_seal:     isFirstSeal,
+      xp_award:          xpAward,
     };
   }
 

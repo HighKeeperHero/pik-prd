@@ -19,6 +19,22 @@ import { EventsService } from '../events/events.service';
 import { SseService } from '../sse/sse.service';
 import { GearService } from '../gear/gear.service';
 import { LootEngineService } from './loot-engine.service';
+import { LevelingService } from '../leveling/leveling.service';
+
+// Phase 2 Arc A — XP grant per cache rarity tier on open.
+// Source: docs/roadmap/phase-2.md.
+const XP_BY_CACHE_RARITY: Record<string, number> = {
+  common:    100,
+  uncommon:  200,
+  rare:      300,
+  'rare+':   350,
+  epic:      400,
+  legendary: 500,
+  artifact:  600,
+};
+function xpForCacheRarity(rarity: string): number {
+  return XP_BY_CACHE_RARITY[rarity?.toLowerCase()] ?? 100;
+}
 
 /** Cache rarity determines the visual treatment and drop pool weighting */
 const CACHE_RARITIES: Record<string, { minLevel: number; label: string }> = {
@@ -50,11 +66,12 @@ export class LootService {
   private readonly logger = new Logger(LootService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly events: EventsService,
-    private readonly sse: SseService,
-    private readonly gear: GearService,
+    private readonly prisma:     PrismaService,
+    private readonly events:     EventsService,
+    private readonly sse:        SseService,
+    private readonly gear:       GearService,
     private readonly lootEngine: LootEngineService,
+    private readonly leveling:   LevelingService,
   ) {}
 
   // ── GRANT A CACHE ─────────────────────────────────────────
@@ -242,6 +259,10 @@ export class LootService {
       `[Engine] Cache opened: ${cache.rarity} ${cache.cacheType} → ${rewardRarity} ${rewardName} (${rootId})`
     );
 
+    // Phase 2 Arc A — XP grant scales with reward rarity tier.
+    // Common = 1, Uncommon = 2, ..., Artifact = 6.
+    const xpAward = await this.leveling.grantXp(rootId, xpForCacheRarity(rewardRarity));
+
     return {
       cache_id:     cache.id,
       cache_type:   cache.cacheType,
@@ -256,6 +277,7 @@ export class LootService {
         level_band:   engineResult?.level_band ?? null,
         item_power:   engineResult?.item_power ?? null,
       },
+      xp_award:     xpAward,
     };
   }
 
