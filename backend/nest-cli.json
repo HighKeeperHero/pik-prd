@@ -4,7 +4,9 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": [],
+    "assets": [
+      { "include": "iap/certs/*.cer", "outDir": "dist" }
+    ],
     "watchAssets": false
   }
 }
