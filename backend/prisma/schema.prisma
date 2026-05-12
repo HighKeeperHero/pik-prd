@@ -121,6 +121,7 @@ model RootIdentity {
   convergenceContributions ConvergenceContribution[]
   landmarkDiscoveries      LandmarkDiscovery[]         // Sprint 25
   sanctumState             SanctumState?               // Sprint 28 — iOS daily ritual
+  iapPurchases             IapPurchase[]               // Sprint 28 — iOS IAP transactions
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -615,6 +616,31 @@ model SanctumState {
   root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@map("sanctum_state")
+}
+
+// ============================================================
+// IAP (iOS) — Sprint 28
+// One row per StoreKit 2 transaction. Idempotent on the Apple
+// transactionId so double-network can't double-credit. Refund
+// handling (Server Notifications V2) is post-v1.0; refundedAt
+// stays null until that landing.
+// ============================================================
+model IapPurchase {
+  id                  String    @id @default(uuid()) @map("iap_id")
+  rootId              String    @map("root_id")
+  sku                 String                                  // 'essence_small' | 'essence_pack' | 'essence_hoard'
+  essenceGranted      Int       @map("essence_granted")
+  appleTransactionId  String    @unique @map("apple_transaction_id")  // Apple's canonical transactionId
+  appleEnvironment    String    @map("apple_environment")     // 'Sandbox' | 'Production'
+  appleBundleId       String    @map("apple_bundle_id")
+  status              String    @default("granted")            // granted | refunded | revoked
+  refundedAt          DateTime? @map("refunded_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@index([rootId, createdAt])
+  @@map("iap_purchases")
 }
 
 // ============================================================
