@@ -5,9 +5,10 @@ import { PrismaService } from '../prisma.service';
 import { AuthModule } from '../auth/auth.module';
 import { FateAccountModule } from '../fate-account/fate-account.module';
 import { AccountGuard } from '../auth/guards/account.guard';
+import { LevelingModule } from '../leveling/leveling.module';
 
 @Module({
-  imports:     [AuthModule, FateAccountModule],
+  imports:     [AuthModule, FateAccountModule, LevelingModule],
   controllers: [SanctumController],
   providers:   [SanctumService, PrismaService, AccountGuard],
   exports:     [SanctumService],

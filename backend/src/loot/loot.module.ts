@@ -8,11 +8,12 @@ import { AuthModule } from '../auth/auth.module';
 import { GearModule } from '../gear/gear.module';
 import { FateAccountModule } from '../fate-account/fate-account.module';
 import { AccountGuard } from '../auth/guards/account.guard';
+import { LevelingModule } from '../leveling/leveling.module';
 
 @Module({
-  imports: [EventsModule, AuthModule, GearModule, FateAccountModule],
+  imports:     [EventsModule, AuthModule, GearModule, FateAccountModule, LevelingModule],
   controllers: [LootController],
-  providers: [LootService, LootEngineService, AccountGuard],
-  exports: [LootService, LootEngineService],
+  providers:   [LootService, LootEngineService, AccountGuard],
+  exports:     [LootService, LootEngineService],
 })
 export class LootModule {}
