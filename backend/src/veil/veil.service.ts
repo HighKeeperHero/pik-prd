@@ -603,13 +603,18 @@ export class VeilService {
       },
     });
 
-    // Compute true distance + filter to radius
+    // Compute true distance + filter to radius. Tolerance of 50m
+    // covers the gap between the seed's `radial × 111` placement
+    // and the actual haversine great-circle distance — a tear seeded
+    // at radial 0.045 deg lands at ~5.01 km haversine, which the
+    // player perceives as "right at the edge" of a 5 km radius.
+    const RADIUS_TOLERANCE_KM = 0.05;
     const withDist = candidates
       .map((t) => ({
         ...t,
         distance_km: haversineKm(lat, lon, t.lat, t.lon),
       }))
-      .filter((t) => t.distance_km <= radius_km);
+      .filter((t) => t.distance_km <= radius_km + RADIUS_TOLERANCE_KM);
 
     // Group by tier, sort each group by distance ascending
     const byTier: Record<string, typeof withDist> = { T1: [], T2: [], T3: [], T4: [] };
