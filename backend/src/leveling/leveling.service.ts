@@ -1,11 +1,18 @@
 // ============================================================
 // PIK — Leveling Service
 //
-// Hero XP curve per Phase 2 roadmap (docs/roadmap/phase-2.md):
+// Fate XP curve per Phase 2 roadmap (docs/roadmap/phase-2.md):
 //   xp_to_next_level(n) = floor(80 * n ^ 1.5)
 //
 // Front-loaded easy, exponentially harder. Daily-active player
-// targeted to reach L40 in 10-12 weeks.
+// targeted to reach L40 in 10-12 weeks. The single source of
+// truth — don't reimplement the curve elsewhere. Inject this
+// service.
+//
+// Per canon (heroes-veritas-native:docs/canon/progression.md):
+// Fate XP is the account-wide progression number. Drives
+// Adventurer Rank and all content gates. Combat power is
+// Resonance, which is gear-derived and computed separately.
 //
 // Reference cumulative XP:
 //   L5  -> 1,500
@@ -13,9 +20,6 @@
 //   L20 -> 36,000
 //   L30 -> 100,000
 //   L40 -> 210,000
-//
-// This is the single source of truth — don't reimplement the
-// curve elsewhere. Inject this service.
 // ============================================================
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -48,15 +52,15 @@ export function levelFromXp(xp: number): number {
 }
 
 export interface XpAward {
-  xp_gained:  number;
-  hero_xp:    number;
-  hero_level: number;
-  leveled_up: boolean;
+  xp_gained:        number;
+  fate_xp:          number;
+  fate_level:       number;
+  leveled_up:       boolean;
   /** Convenience for the iOS client — XP into the current level
    *  and XP needed to reach the next, so the progress bar
    *  doesn't need to re-derive the curve. */
-  xp_in_level:        number;
-  xp_to_next_level:   number;
+  xp_in_level:      number;
+  xp_to_next_level: number;
 }
 
 @Injectable()
@@ -65,37 +69,37 @@ export class LevelingService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Grant XP atomically and return the updated state plus a
-   *  leveled_up flag if this grant pushed the hero to a new
-   *  level. No-ops with a null return if the hero doesn't
+  /** Grant Fate XP atomically and return the updated state plus
+   *  a leveled_up flag if this grant pushed the hero to a new
+   *  Fate level. No-ops with a null return if the hero doesn't
    *  exist (caller should treat that as a missing entitlement,
    *  not a fatal error). */
   async grantXp(rootId: string, amount: number): Promise<XpAward | null> {
     if (amount <= 0) return null;
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { heroXp: true, heroLevel: true },
+      select: { fateXp: true, fateLevel: true },
     });
     if (!hero) return null;
 
-    const newXp    = (hero.heroXp ?? 0) + amount;
-    const newLevel = levelFromXp(newXp);
-    const leveledUp = newLevel > (hero.heroLevel ?? 1);
+    const newXp     = (hero.fateXp ?? 0) + amount;
+    const newLevel  = levelFromXp(newXp);
+    const leveledUp = newLevel > (hero.fateLevel ?? 1);
 
     await this.prisma.rootIdentity.update({
       where: { id: rootId },
-      data:  { heroXp: newXp, heroLevel: newLevel },
+      data:  { fateXp: newXp, fateLevel: newLevel },
     });
 
     if (leveledUp) {
-      this.logger.log(`Hero ${rootId} reached level ${newLevel} (xp=${newXp})`);
+      this.logger.log(`Hero ${rootId} reached Fate level ${newLevel} (xp=${newXp})`);
     }
 
     const baseForLevel = xpToReach(newLevel);
     return {
       xp_gained:        amount,
-      hero_xp:          newXp,
-      hero_level:       newLevel,
+      fate_xp:          newXp,
+      fate_level:       newLevel,
       leveled_up:       leveledUp,
       xp_in_level:      newXp - baseForLevel,
       xp_to_next_level: xpForLevel(newLevel),

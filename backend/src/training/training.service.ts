@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
+import { LevelingService } from '../leveling/leveling.service';
 import {
   LogTrainingDto,
   CompleteRiteDto,
@@ -71,8 +72,9 @@ export class TrainingService {
   private readonly logger = new Logger(TrainingService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly events: EventsService,
+    private readonly prisma:   PrismaService,
+    private readonly events:   EventsService,
+    private readonly leveling: LevelingService,
   ) {}
 
   // ── GET DAILY RITES ───────────────────────────────────────────────────────────
@@ -170,16 +172,11 @@ export class TrainingService {
         },
       });
 
-      // Grant Fate XP to hero
-      const updated = await tx.rootIdentity.update({
-        where: { id: rootId },
-        data: { heroXp: { increment: xp } },
-      });
-
-      // Update pillar progress
+      // Pillar progress + 7-day streak Fate Seal stay inside the tx so they
+      // mirror the rite completion's atomicity. Fate XP is granted after the
+      // tx commits — LevelingService does its own findUnique+update.
       await this.updatePillarXp(tx, rootId, rite.template.pillar as Pillar, xp);
 
-      // Grant Fate Seal on 7-day streak
       let sealGranted = false;
       if (newStreak >= 7 && newStreak % 7 === 0) {
         await tx.fateCache.create({
@@ -188,11 +185,11 @@ export class TrainingService {
         sealGranted = true;
       }
 
-      return { entry, fateXp: updated.fateXp, fateLevel: updated.fateLevel, xp, sealGranted, allThreeBonus, resonanceApplied };
+      return { entry, xp, sealGranted, allThreeBonus, resonanceApplied };
     });
 
-    // Check for level up
-    await this.checkLevelUp(rootId);
+    // Grant Fate XP (LevelingService is the canonical curve + level-up source)
+    const xpAward = await this.leveling.grantXp(rootId, xp);
 
     // Log event
     await this.events.log({
@@ -217,7 +214,9 @@ export class TrainingService {
       all_three_bonus:  result.allThreeBonus,
       resonance_bonus:  result.resonanceApplied,
       seal_granted:     result.sealGranted,
-      fate_xp:          result.fateXp,
+      fate_xp:          xpAward?.fate_xp ?? 0,
+      fate_level:       xpAward?.fate_level ?? 1,
+      leveled_up:       xpAward?.leveled_up ?? false,
     };
   }
 
@@ -354,19 +353,17 @@ export class TrainingService {
           where: { id: oathId },
           data: { status: 'kept', resolvedAt: new Date(), xpGranted },
         });
-        await tx.rootIdentity.update({
-          where: { id: rootId },
-          data: { heroXp: { increment: xpGranted! } },
-        });
         // Add a fate marker for the Chronicle
         await tx.fateMarker.create({
           data: { rootId, marker: `Kept the ${oath.pillar} oath: "${oath.declaration}"` },
         });
       });
-      await this.checkLevelUp(rootId);
+      // Fate XP grant + level-up via LevelingService (canonical curve)
+      await this.leveling.grantXp(rootId, xpGranted!);
       message = 'Your word held. The Chronicle grows. The Veil acknowledges your resolve.';
     } else {
-      // Apply Veil Debt
+      // Apply Veil Debt — negative grant. LevelingService.grantXp ignores
+      // non-positive amounts by design, so apply the debt directly here.
       await this.prisma.$transaction(async (tx) => {
         await tx.oath.update({
           where: { id: oathId },
@@ -374,7 +371,7 @@ export class TrainingService {
         });
         await tx.rootIdentity.update({
           where: { id: rootId },
-          data: { heroXp: { increment: XP.OATH_BROKEN_DEBT } },
+          data: { fateXp: { increment: XP.OATH_BROKEN_DEBT } },
         });
         await tx.fateMarker.create({
           data: { rootId, marker: `Failed the ${oath.pillar} oath: "${oath.declaration}" — a Veil Debt recorded.` },
@@ -542,62 +539,6 @@ export class TrainingService {
     const progress = await this.prisma.pillarProgress.findMany({ where: { rootId } });
     if (!progress.length) return 0;
     return Math.max(...progress.map(p => p.streak));
-  }
-
-  private async checkLevelUp(rootId: string) {
-    // ── Hero level-up check ───────────────────────────────────────────────────
-    // Uses flat formula: level = Math.floor(heroXp / xpPerHeroLevel) + 1
-    // heroXp tracks this character's XP; fateXp is kept for legacy ingest compat.
-    const hero = await this.prisma.rootIdentity.findUnique({
-      where: { id: rootId },
-      select: { id: true, fateXp: true, fateLevel: true, heroXp: true, heroLevel: true, fateAccountId: true },
-    });
-    if (!hero) return;
-
-    const heroCfg = await this.prisma.config.findUnique({ where: { key: 'fate.xp_per_level' } });
-    const xpPerHeroLevel = parseInt(heroCfg?.value ?? '250', 10);
-
-    // Derive hero level from heroXp (fall back to fateXp for pre-Sprint-15 rows)
-    const currentHeroXp = (hero as any).heroXp ?? hero.fateXp;
-    const newHeroLevel  = Math.floor(currentHeroXp / xpPerHeroLevel) + 1;
-
-    if (newHeroLevel > ((hero as any).heroLevel ?? hero.fateLevel)) {
-      await this.prisma.rootIdentity.update({
-        where: { id: rootId },
-        data: { heroLevel: newHeroLevel } as any,
-      });
-      await this.events.log({
-        rootId,
-        sourceId: 'codex-platform',
-        eventType: 'progression.level_up',
-        payload: { old_level: (hero as any).heroLevel ?? hero.fateLevel, new_level: newHeroLevel, source: 'training' },
-      });
-    }
-
-    // ── Account Fate level sync ───────────────────────────────────────────────
-    // Recalculate fate_accounts.fate_xp = SUM of all heroes' heroXp in account.
-    // fate_accounts uses a steeper XP curve (fate.account_xp_per_level) so that
-    // multi-hero accounts don't Fate-level disproportionately fast.
-    if (hero.fateAccountId) {
-      try {
-        const fateCfg = await this.prisma.config.findUnique({ where: { key: 'fate.account_xp_per_level' } });
-        const xpPerFateLevel = parseInt(fateCfg?.value ?? '375', 10);
-
-        const allHeroes = await this.prisma.rootIdentity.findMany({
-          where: { fateAccountId: hero.fateAccountId },
-          select: { heroXp: true, fateXp: true },
-        });
-        const totalFateXp  = allHeroes.reduce((sum, h) => sum + ((h as any).heroXp ?? h.fateXp ?? 0), 0);
-        const newFateLevel = Math.floor(totalFateXp / xpPerFateLevel) + 1;
-
-        await (this.prisma.fateAccount as any).update({
-          where: { id: hero.fateAccountId },
-          data: { fateXp: totalFateXp, fateLevel: newFateLevel },
-        });
-      } catch (err) {
-        this.logger.warn(`Account fate sync failed for ${rootId}: ${err.message}`);
-      }
-    }
   }
 
   private buildDailySummary(rites: any[], streak: number) {

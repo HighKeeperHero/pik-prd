@@ -179,7 +179,7 @@ export class IdentityController {
    * Sprint 22.C — Permanent job class selection at level 40.
    * Body: { hero_class: "AEGIS" | "SCALESWORN" | "DRYADIC" | "HARVESTER"
    *                    | "CORSAIR" | "GAMBLER" | "ARTIFICER" | "ARCANE_SCHOLAR" }
-   * Returns: { hero_name, hero_class, hero_level, message }
+   * Returns: { hero_name, hero_class, fate_level, message }
    * Errors: 400 if level < 40, class already set, or invalid class name
    */
   @Post(':root_id/class')

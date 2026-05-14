@@ -82,7 +82,7 @@ export class WarbandService {
   async getWarband(warbandId: string, requestingRootId?: string) {
     const w = await this.prisma.warband.findUnique({
       where:   { id: warbandId },
-      include: { members: { include: { hero: { select: { heroName: true, fateAlignment: true, heroLevel: true } } } } },
+      include: { members: { include: { hero: { select: { heroName: true, fateAlignment: true, fateLevel: true } } } } },
     });
     if (!w) throw new NotFoundException('Warband not found');
     return this._formatWarbandFull(w, requestingRootId);
@@ -92,7 +92,7 @@ export class WarbandService {
   async getMyWarband(rootId: string) {
     const membership = await this.prisma.warbandMembership.findFirst({
       where:   { rootId },
-      include: { warband: { include: { members: { include: { hero: { select: { heroName: true, fateAlignment: true, heroLevel: true } } } } } } },
+      include: { warband: { include: { members: { include: { hero: { select: { heroName: true, fateAlignment: true, fateLevel: true } } } } } } },
     });
     if (!membership) return null;
     return this._formatWarbandFull(membership.warband, rootId);
@@ -281,7 +281,7 @@ export class WarbandService {
       where:  { id: targetRootId },
       select: {
         id: true, heroName: true, fateAlignment: true,
-        heroLevel: true, heroClass: true, equippedTitle: true,
+        fateLevel: true, heroClass: true, equippedTitle: true,
         titles: { select: { titleId: true } },
         warbandMemberships: {
           include: { warband: { select: { id: true, name: true, emblem: true } } },
@@ -302,7 +302,7 @@ export class WarbandService {
       root_id:        hero.id,
       hero_name:      hero.heroName,
       alignment:      hero.fateAlignment,
-      hero_level:     hero.heroLevel,
+      fate_level:     hero.fateLevel,
       hero_class:     hero.heroClass,
       equipped_title: hero.equippedTitle,
       title_count:    hero.titles.length,
@@ -359,7 +359,7 @@ export class WarbandService {
         root_id:         m.rootId,
         hero_name:       m.hero?.heroName ?? 'Unknown',
         alignment:       m.hero?.fateAlignment ?? 'NONE',
-        hero_level:      m.hero?.heroLevel ?? 1,
+        fate_level:      m.hero?.fateLevel ?? 1,
         rank:            m.rank,
         alignment_bonus: m.alignmentBonus,
         joined_at:       m.joinedAt?.toISOString?.() ?? m.joined_at,

@@ -150,13 +150,13 @@ export class LootService {
     if (cache.rootId !== rootId) throw new BadRequestException('This cache does not belong to you');
     if (cache.status !== 'sealed') throw new BadRequestException('This cache has already been opened');
 
-    // 2. Get player level — heroLevel is character-specific
+    // 2. Get player Fate level — drives loot tier
     const user = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { fateLevel: true, heroLevel: true, heroXp: true },
+      select: { fateLevel: true },
     });
     if (!user) throw new NotFoundException('Identity not found');
-    const effectiveLevel = (user as any).heroLevel ?? user.fateLevel ?? 1;
+    const effectiveLevel = user.fateLevel ?? 1;
 
     // 3. Route to engine or legacy table based on cache type
     const ENGINE_CACHE_TYPES = ['veil_minor', 'veil_shade', 'veil_dormant', 'veil_double'];
@@ -169,12 +169,12 @@ export class LootService {
   }
 
   // ── Engine path (veil caches) ─────────────────────────────────────────────
-  private async _openCacheViaEngine(rootId: string, cache: any, heroLevel: number) {
+  private async _openCacheViaEngine(rootId: string, cache: any, fateLevel: number) {
     // Roll from Phase 4 family engine
     const engineResult = await this.lootEngine.rollFromFamily({
       rootId,
       cacheType: cache.cacheType,
-      heroLevel,
+      fateLevel,
     });
 
     let rewardType:  string;
@@ -248,7 +248,7 @@ export class LootService {
         reward_value:  rewardValue,
         reward_name:   rewardName,
         reward_rarity: rewardRarity,
-        hero_level:    heroLevel,
+        fate_level:    fateLevel,
         region_theme:  engineResult?.region_theme,
         level_band:    engineResult?.level_band,
         item_power:    engineResult?.item_power,
@@ -479,7 +479,7 @@ export class LootService {
         const xp = parseInt(entry.rewardValue) || 0;
         await this.prisma.rootIdentity.update({
           where: { id: rootId },
-          data: { heroXp: { increment: xp } },
+          data: { fateXp: { increment: xp } },
         });
         break;
       }
@@ -493,7 +493,7 @@ export class LootService {
           // Already holds the title — xp_boost fallback
           await this.prisma.rootIdentity.update({
             where: { id: rootId },
-            data: { heroXp: { increment: 100 } },
+            data: { fateXp: { increment: 100 } },
           });
         }
         break;
@@ -610,7 +610,7 @@ export class LootService {
   async rollFromFamily(params: {
     rootId: string;
     cacheType: string;
-    heroLevel: number;
+    fateLevel: number;
     regionHint?: string;
   }) {
     return this.lootEngine.rollFromFamily(params);

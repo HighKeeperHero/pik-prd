@@ -5,9 +5,10 @@ import { TrainingController } from './training.controller';
 import { TrainingService } from './training.service';
 import { PrismaService } from '../prisma.service';
 import { EventsModule } from '../events/events.module';
+import { LevelingModule } from '../leveling/leveling.module';
 
 @Module({
-  imports: [EventsModule],
+  imports: [EventsModule, LevelingModule],
   controllers: [TrainingController],
   providers: [TrainingService, PrismaService],
   exports: [TrainingService],

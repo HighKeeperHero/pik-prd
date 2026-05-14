@@ -29,8 +29,6 @@ model FateAccount {
   status       String    @default("active")
   createdAt    DateTime  @default(now()) @map("created_at")
   lastLoginAt  DateTime? @map("last_login_at")
-  fateXp       Int       @default(0) @map("fate_xp")
-  fateLevel    Int       @default(1) @map("fate_level")
 
   heroes       RootIdentity[]
   sessions     AccountSession[]
@@ -67,11 +65,11 @@ model RootIdentity {
   heroName      String    @unique @map("hero_name")
   fateAlignment String    @default("NONE") @map("fate_alignment")
   origin        String?
+  // Sprint 28 — single Fate XP per docs/canon/progression.md.
+  // Drives Adventurer Rank and all content gates; combat power is
+  // Resonance (gear-derived, computed, see § 3 of the canon).
   fateXp        Int       @default(0) @map("fate_xp")
   fateLevel     Int       @default(1) @map("fate_level")
-  // Sprint 15 — character-specific progression (per hero, not account-wide)
-  heroXp        Int       @default(0) @map("hero_xp")
-  heroLevel     Int       @default(1) @map("hero_level")
   // Sprint 22.C — Job Class (selected at level 40, null until then)
   heroClass     String?   @map("hero_class")
   enrolledBy    String    @default("self") @map("enrolled_by")

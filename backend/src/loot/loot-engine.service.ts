@@ -265,7 +265,7 @@ export class LootEngineService {
   async rollFromFamily(params: {
     rootId:        string;
     cacheType:     string;
-    heroLevel:     number;
+    fateLevel:     number;
     regionHint?:   string;  // optional — biases region weighting
   }): Promise<{
     slot:         string;
@@ -277,13 +277,13 @@ export class LootEngineService {
     item_power:   number;
     slot_budget:  number;
   } | null> {
-    const { rootId, cacheType, heroLevel, regionHint } = params;
+    const { rootId, cacheType, fateLevel, regionHint } = params;
 
     const familyKey = CACHE_TYPE_TO_FAMILY[cacheType] ?? 'cache_pre40';
     const family    = DROP_TABLE_FAMILIES[familyKey];
     if (!family) return null;
 
-    const tier = getTierForLevel(heroLevel);
+    const tier = getTierForLevel(fateLevel);
 
     // Step 1 — Roll category (slot)
     const rawSlot = rollFromWeights(family.category_weights);

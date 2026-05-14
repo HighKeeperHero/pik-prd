@@ -463,7 +463,7 @@ export class QuestService {
     if (rewards.xp && rewards.xp > 0) {
       await this.prisma.rootIdentity.update({
         where: { id: rootId },
-        data: { heroXp: { increment: rewards.xp } },
+        data: { fateXp: { increment: rewards.xp } },
       });
       this.logger.log(`Quest reward: +${rewards.xp} XP for completing "${questName}"`);
     }

@@ -269,7 +269,7 @@ export class VeilService {
           });
           await this.prisma.rootIdentity.update({
             where: { id: rootId },
-            data:  { heroXp: { increment: rewards.xp } },
+            data:  { fateXp: { increment: rewards.xp } },
           });
         }
 
@@ -283,14 +283,14 @@ export class VeilService {
   private async _autoEnrollVeilQuests(rootId: string, alreadyStarted: string[]) {
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { heroLevel: true },
+      select: { fateLevel: true },
     });
     const templates = await this.prisma.questTemplate.findMany({
       where: {
         status:    'active',
         questType: { startsWith: 'veil' },
         id:        { notIn: alreadyStarted },
-        minLevel:  { lte: hero?.heroLevel ?? 1 },
+        minLevel:  { lte: hero?.fateLevel ?? 1 },
       },
     });
     for (const t of templates) {

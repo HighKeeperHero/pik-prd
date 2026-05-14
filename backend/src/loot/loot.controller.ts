@@ -97,17 +97,17 @@ export class LootController {
 
   /**
    * POST /api/loot/test-roll
-   * Body: { root_id, cache_type, hero_level, region_hint? }
+   * Body: { root_id, cache_type, fate_level, region_hint? }
    * Dry-run a Phase 4 family roll — useful for QA.
    */
   @Post('loot/test-roll')
   async testRoll(
-    @Body() body: { root_id: string; cache_type: string; hero_level: number; region_hint?: string },
+    @Body() body: { root_id: string; cache_type: string; fate_level: number; region_hint?: string },
   ) {
     return this.loot.rollFromFamily({
       rootId:      body.root_id,
       cacheType:   body.cache_type,
-      heroLevel:   body.hero_level,
+      fateLevel:   body.fate_level,
       regionHint:  body.region_hint,
     });
   }

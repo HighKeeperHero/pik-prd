@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { EnrollUserDto } from './dto/enroll-user.dto';
 import { LandmarkService } from '../landmark/landmark.service'; // Sprint 25
+import { levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
 
 @Injectable()
 export class IdentityService {
@@ -201,9 +202,10 @@ export class IdentityService {
         },
         fateMarkers: { orderBy: { createdAt: 'desc' } },
         fateCaches: { orderBy: { grantedAt: 'desc' } },
-        // Sprint 16: join FateAccount for account-wide fate progression
+        // FateAccount join retained for email/displayName lookup; Fate XP
+        // now lives on RootIdentity directly (Sprint 28 collapse).
         fateAccount: {
-          select: { id: true, fateXp: true, fateLevel: true },
+          select: { id: true, email: true, displayName: true },
         },
       },
     });
@@ -269,33 +271,15 @@ export class IdentityService {
       this.logger.warn(`Quest data unavailable for ${rootId}: ${err.message}`);
     }
 
-    // Get progression config for XP calculations
-    const config = await this.getProgressionConfig();
-
-    // ── Flat XP level helpers ──────────────────────────────────────────────────
-    // Both Hero and Fate use flat XP-per-level thresholds (different values).
-    // level(xp, perLevel) = Math.floor(xp / perLevel) + 1  — same as training.service
-    // xpInLevel(xp, level, perLevel) = xp since current level started
-    const computeLevel     = (xp: number, perLevel: number) =>
-      Math.floor(xp / perLevel) + 1;
-    const computeXpInLevel = (xp: number, level: number, perLevel: number) =>
-      Math.max(0, xp - (level - 1) * perLevel);
-
-    // ── Account-wide Fate progression (from fate_accounts, steeper curve) ──────
-    // fate.account_xp_per_level > fate.xp_per_level so that multi-hero accounts
-    // (which accumulate Fate XP faster) don't Fate-level disproportionately fast.
-    const accountFateXp    = (user as any).fateAccount?.fateXp ?? user.fateXp;
-    const accountFateLevel = computeLevel(accountFateXp, config.xpPerFateLevel);
-    const fateXpInCurrentLevel = computeXpInLevel(accountFateXp, accountFateLevel, config.xpPerFateLevel);
-    const fateNextThreshold    = config.xpPerFateLevel;
-
-    // ── Character-specific Hero progression (from root_identities, normal curve) ─
-    // heroXp / heroLevel added Sprint 15. Falls back to fateXp/fateLevel for
-    // heroes that predate the migration (values were seeded equal at that point).
-    const heroXp           = (user as any).heroXp ?? user.fateXp;
-    const heroLevel        = computeLevel(heroXp, config.xpPerHeroLevel);
-    const heroXpInCurrentLevel = computeXpInLevel(heroXp, heroLevel, config.xpPerHeroLevel);
-    const heroNextThreshold    = config.xpPerHeroLevel;
+    // ── Fate progression — single canonical axis ──────────────────────────────
+    // Per heroes-veritas-native:docs/canon/progression.md, there is one
+    // account-wide Fate XP number on the canonical curve floor(80 * n^1.5).
+    // Combat power is Resonance (gear-derived, computed; see § 3 of canon).
+    const fateXp           = user.fateXp ?? 0;
+    const fateLevel        = levelFromXp(fateXp);
+    const baseForLevel     = xpToReach(fateLevel);
+    const fateXpInLevel    = fateXp - baseForLevel;
+    const fateXpToNext     = xpForLevel(fateLevel);
 
     // Count sessions from events
     const totalSessions = await this.prisma.identityEvent.count({
@@ -416,16 +400,13 @@ export class IdentityService {
         hero_rename: renameStatus,
       },
       progression: {
-        // Account-wide Fate progression (sum of all heroes, steeper XP curve)
-        fate_xp:             accountFateXp,
-        fate_level:          accountFateLevel,
-        xp_in_current_level: fateXpInCurrentLevel,
-        xp_needed_for_next:  fateNextThreshold,
-        // Character-specific Hero progression (this hero only, normal XP curve)
-        hero_xp:             heroXp,
-        hero_level:          heroLevel,
-        hero_xp_in_level:    heroXpInCurrentLevel,
-        hero_xp_to_next:     heroNextThreshold,
+        // Fate XP — single account-wide progression axis, canonical curve.
+        // Drives Adventurer Rank and all content gates. Combat power
+        // (Resonance) is gear-derived and computed separately.
+        fate_xp:             fateXp,
+        fate_level:          fateLevel,
+        fate_xp_in_level:    fateXpInLevel,
+        fate_xp_to_next:     fateXpToNext,
         // Sprint 22.C — Job Class (null until level 40 selection)
         hero_class:          (user as any).heroClass ?? null,
         total_sessions: totalSessions,
@@ -891,8 +872,6 @@ export class IdentityService {
           in: [
             'fate.xp_base_threshold',
             'fate.xp_level_multiplier',
-            'fate.xp_per_level',
-            'fate.account_xp_per_level',
             'fate.xp_per_session_normal',
             'fate.xp_per_session_hard',
             'fate.xp_node_completion',
@@ -905,22 +884,18 @@ export class IdentityService {
 
     const map = new Map(configs.map((c) => [c.key, c.value]));
 
+    // Per-level thresholds (Hero/Fate flat-curve) retired Sprint 28 —
+    // LevelingService is the single source of truth for the canonical
+    // Fate curve `floor(80 * n^1.5)`. The keys below are session-XP
+    // scaling factors used by the ingest pipeline.
     return {
-      // ── Flat per-level thresholds (authoritative for display & level-ups) ──
-      // Hero level:  XP earned by this specific character
-      xpPerHeroLevel:    parseInt(map.get('fate.xp_per_level')         ?? '250', 10),
-      // Fate level:  XP earned account-wide (sum of all heroes)
-      // Deliberately steeper so that multi-hero accounts don't Fate-level
-      // significantly faster than focused single-hero accounts.
-      xpPerFateLevel:    parseInt(map.get('fate.account_xp_per_level') ?? '375', 10),
-      // ── Legacy geometric config (kept for ingest/session XP scaling) ──
-      xpBaseThreshold:   parseFloat(map.get('fate.xp_base_threshold')  ?? '200'),
-      xpLevelMultiplier: parseFloat(map.get('fate.xp_level_multiplier') ?? '1.2'),
+      xpBaseThreshold:    parseFloat(map.get('fate.xp_base_threshold')  ?? '200'),
+      xpLevelMultiplier:  parseFloat(map.get('fate.xp_level_multiplier') ?? '1.2'),
       xpPerSessionNormal: parseFloat(map.get('fate.xp_per_session_normal') ?? '100'),
-      xpPerSessionHard:  parseFloat(map.get('fate.xp_per_session_hard')  ?? '150'),
-      xpNodeCompletion:  parseFloat(map.get('fate.xp_node_completion')   ?? '15'),
-      xpBossTierPct:     parseFloat(map.get('fate.xp_boss_tier_pct')     ?? '0.5'),
-      eventXpMultiplier: parseFloat(map.get('fate.event_xp_multiplier')  ?? '1.0'),
+      xpPerSessionHard:   parseFloat(map.get('fate.xp_per_session_hard')  ?? '150'),
+      xpNodeCompletion:   parseFloat(map.get('fate.xp_node_completion')   ?? '15'),
+      xpBossTierPct:      parseFloat(map.get('fate.xp_boss_tier_pct')     ?? '0.5'),
+      eventXpMultiplier:  parseFloat(map.get('fate.event_xp_multiplier')  ?? '1.0'),
     };
   }
 
@@ -957,14 +932,14 @@ export class IdentityService {
 
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { id: true, heroName: true, heroLevel: true, heroClass: true },
+      select: { id: true, heroName: true, fateLevel: true, heroClass: true },
     });
     if (!hero) throw new NotFoundException('Hero not found');
 
-    // Enforce level 40 gate
-    if ((hero.heroLevel ?? 0) < 40) {
+    // Enforce level 40 Job Quest gate (Adventurer Rank: Adamantium → Job Quest)
+    if ((hero.fateLevel ?? 0) < 40) {
       throw new BadRequestException(
-        `Hero must be level 40 to select a class. Current level: ${hero.heroLevel ?? 0}`
+        `Hero must be Fate level 40 to select a class. Current level: ${hero.fateLevel ?? 0}`
       );
     }
 
@@ -986,9 +961,9 @@ export class IdentityService {
       rootId,
       eventType: 'identity.class_selected',
       payload: {
-        hero_name:  hero.heroName,
-        hero_class: heroClass,
-        hero_level: hero.heroLevel,
+        hero_name:   hero.heroName,
+        hero_class:  heroClass,
+        fate_level:  hero.fateLevel,
         selected_at: new Date().toISOString(),
       },
     });
@@ -1009,7 +984,7 @@ export class IdentityService {
     return {
       hero_name:  hero.heroName,
       hero_class: heroClass,
-      hero_level: hero.heroLevel,
+      fate_level: hero.fateLevel,
       message:    `${hero.heroName} is now bound to the ${heroClass} class.`,
     };
   }
@@ -1025,7 +1000,7 @@ export class IdentityService {
   }) {
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { id: true, heroName: true, heroLevel: true },
+      select: { id: true, heroName: true, fateLevel: true },
     });
     if (!hero) throw new NotFoundException('Hero not found');
 
@@ -1044,7 +1019,7 @@ export class IdentityService {
         eventType: 'identity.hero_awakened',
         payload: {
           hero_name:         hero.heroName,
-          hero_level:        hero.heroLevel,
+          fate_level:        hero.fateLevel,
           skipped_backstory: payload.skipped_backstory,
           rerolls_used:      payload.rerolls_used,
           completed_battle:  payload.completed_battle,

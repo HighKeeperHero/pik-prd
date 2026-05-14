@@ -124,7 +124,7 @@ export class HuntTrackerService {
       await this.prisma.$transaction([
         this.prisma.rootIdentity.update({
           where: { id: rootId },
-          data:  { heroXp: { increment: hunt.xp_reward } },
+          data:  { fateXp: { increment: hunt.xp_reward } },
         }),
         this.prisma.playerNexus.upsert({
           where:  { rootId },

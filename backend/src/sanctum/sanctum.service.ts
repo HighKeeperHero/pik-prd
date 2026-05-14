@@ -21,7 +21,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { LevelingService, xpForLevel, xpToReach } from '../leveling/leveling.service';
+import { LevelingService, levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
 
 export type OathOption = 'forge' | 'lore' | 'veil';
 const VALID_OATHS: ReadonlyArray<OathOption> = ['forge', 'lore', 'veil'];
@@ -49,23 +49,26 @@ export class SanctumService {
     return this.attachProgression(rootId, state);
   }
 
-  /** Append per-hero progression (level + XP) to a sanctum_state
-   *  row. The client uses this as the canonical level source so the
+  /** Append Fate progression (level + XP) to a sanctum_state row.
+   *  The client uses this as the canonical level source so the
    *  Sanctum screen can render "LVL N" + XP progress bar without
-   *  needing a second API call. */
+   *  needing a second API call. Fate XP per canon (progression.md
+   *  §2) drives Adventurer Rank and content gates. */
   private async attachProgression<T extends { rootId: string }>(rootId: string, state: T) {
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { heroXp: true, heroLevel: true },
+      select: { fateXp: true, fateLevel: true },
     });
-    const heroLevel    = hero?.heroLevel ?? 1;
-    const heroXp       = hero?.heroXp ?? 0;
-    const xpInLevel    = heroXp - xpToReach(heroLevel);
-    const xpToNextLvl  = xpForLevel(heroLevel);
+    const fateXp       = hero?.fateXp ?? 0;
+    // Derive Fate level fresh from XP — the stored fateLevel may lag
+    // if a non-LevelingService path granted XP without recomputing.
+    const fateLevel    = levelFromXp(fateXp);
+    const xpInLevel    = fateXp - xpToReach(fateLevel);
+    const xpToNextLvl  = xpForLevel(fateLevel);
     return {
       ...state,
-      heroLevel,
-      heroXp,
+      fateLevel,
+      fateXp,
       xpInLevel,
       xpToNextLevel: xpToNextLvl,
     };
