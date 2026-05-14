@@ -1,6 +1,6 @@
 // backend/src/veil/veil.service.ts
 // Phase 2: loot cache drops, quest progress tracking, convergence events
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
 import { LevelingService, type XpAward } from '../leveling/leveling.service';
@@ -41,6 +41,34 @@ const TIER_TO_TYPE: Record<string, string> = {
   T1: 'minor', T2: 'wander', T3: 'dormant', T4: 'double',
 };
 
+// City centers for tear respawning. Must stay in sync with the
+// seed migration's VALUES list (20260514010000_reseed_world_tears).
+// If a city is added/removed in the seed, mirror the change here.
+const CITY_CENTERS: Record<string, { lat: number; lon: number }> = {
+  'folsom-ca':  { lat: 38.6779, lon: -121.1761 },
+  'sf-ca':      { lat: 37.7749, lon: -122.4194 },
+  'nyc-ny':     { lat: 40.7128, lon:  -74.0060 },
+  'la-ca':      { lat: 34.0522, lon: -118.2437 },
+  'seattle-wa': { lat: 47.6062, lon: -122.3321 },
+  'austin-tx':  { lat: 30.2672, lon:  -97.7431 },
+  'chicago-il': { lat: 41.8781, lon:  -87.6298 },
+  'london-uk':  { lat: 51.5074, lon:   -0.1278 },
+  'tokyo-jp':   { lat: 35.6762, lon:  139.6503 },
+};
+
+// Per-tier radial bands (degrees from city center). Used when
+// respawning a sealed/expired tear at a fresh random location.
+// Must align with the seed migration's tier-banded layout —
+// keeps post-seal density consistent with the initial placement.
+const TIER_RADIAL_BANDS: Record<string, { min: number; max: number }> = {
+  T1: { min: 0.005, max: 0.014 },
+  T2: { min: 0.013, max: 0.022 },
+  T3: { min: 0.018, max: 0.034 },
+  T4: { min: 0.025, max: 0.045 },
+};
+
+const TEAR_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24h
+
 /** Great-circle distance between two lat/lon points, km. */
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R    = 6371;
@@ -59,6 +87,11 @@ export interface RecordEncounterDto {
   shards: number;
   lat?: number;
   lon?: number;
+  /** Sprint 29 Arc B — world_tears row UUID. When provided and the
+   *  outcome is 'won', the row is marked sealed and a replacement
+   *  is spawned in the same region + tier. Omit for legacy /
+   *  unmoored encounters that don't map to a server tear. */
+  worldTearId?: string;
 }
 
 // ── Loot drop config per tier ─────────────────────────────────────────────────
@@ -84,6 +117,8 @@ interface QuestRewards {
 
 @Injectable()
 export class VeilService {
+  private readonly logger = new Logger(VeilService.name);
+
   constructor(
     private readonly prisma:       PrismaService,
     private readonly huntTracker:  HuntTrackerService,
@@ -92,7 +127,7 @@ export class VeilService {
 
   // ── Record a battle outcome ───────────────────────────────────────────────
   async recordEncounter(rootId: string, dto: RecordEncounterDto) {
-    const { tearType, tearName, outcome, shards: rawShards, lat, lon } = dto;
+    const { tearType, tearName, outcome, shards: rawShards, lat, lon, worldTearId } = dto;
 
     const hero = await this.prisma.rootIdentity.findUnique({ where: { id: rootId } });
     if (!hero) throw new NotFoundException('Hero not found');
@@ -127,6 +162,18 @@ export class VeilService {
     const encounter = await this.prisma.tearEncounter.create({
       data: { rootId, tearType, tearName, outcome, shards, lat, lon },
     });
+
+    // 2.5. Sprint 29 Arc B — seal the world_tear row + spawn a
+    // replacement when this encounter ties to a server tear and the
+    // hero won. Silent no-op when worldTearId is missing (legacy
+    // procedural encounters) or the tear is already sealed.
+    if (outcome === 'won' && worldTearId) {
+      await this.sealWorldTear(worldTearId, rootId).catch((err) => {
+        // Don't fail the encounter if the seal-side bookkeeping
+        // glitches — the player still won the fight.
+        this.logger.warn(`sealWorldTear failed for ${worldTearId}: ${err}`);
+      });
+    }
 
     // 3. Update shard balance
     if (outcome === 'won' && shards > 0) {
@@ -595,11 +642,19 @@ export class VeilService {
     const latDelta = (radius_km / 111) * 1.05;
     const lonDelta = (radius_km / (111 * Math.cos((lat * Math.PI) / 180))) * 1.05;
 
+    const now = new Date();
     const candidates = await this.prisma.worldTear.findMany({
       where: {
         status: 'active',
         lat:    { gte: lat - latDelta, lte: lat + latDelta },
         lon:    { gte: lon - lonDelta, lte: lon + lonDelta },
+        // Filter expired tears (slice 3 lifecycle). NULL means
+        // "never expires" — preserves legacy seed semantics for
+        // tears spawned before this slice.
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: now } },
+        ],
       },
     });
 
@@ -655,5 +710,67 @@ export class VeilService {
       radius_km,
       band_mix:  band.mix,
     };
+  }
+
+  /** Spawn a fresh tear in the given region's tier-banded radial,
+   *  at a random angle. Used to maintain density after a tear is
+   *  sealed (and, eventually, after the 24h expiry sweep). Returns
+   *  null if the region or tier isn't recognized — the seal still
+   *  succeeds; density just drifts down by one for that city/tier.
+   *
+   *  Placement is uniformly random within the tier's radial band.
+   *  This intentionally differs from the seed's deterministic ring
+   *  formula — once a city goes "live", successive respawns vary
+   *  the spatial pattern so a returning player doesn't see the same
+   *  six points forever. */
+  async spawnReplacementTear(regionLabel: string | null, tier: string) {
+    if (!regionLabel) return null;
+    const center = CITY_CENTERS[regionLabel];
+    const band   = TIER_RADIAL_BANDS[tier];
+    if (!center || !band) return null;
+
+    const radial = band.min + Math.random() * (band.max - band.min);
+    const angle  = Math.random() * 2 * Math.PI;
+    const lat    = center.lat + radial * Math.sin(angle);
+    const lon    = center.lon + (radial * Math.cos(angle)) / Math.cos((center.lat * Math.PI) / 180);
+
+    return this.prisma.worldTear.create({
+      data: {
+        lat,
+        lon,
+        tier,
+        status:      'active',
+        spawnedAt:   new Date(),
+        expiresAt:   new Date(Date.now() + TEAR_LIFETIME_MS),
+        regionLabel,
+      },
+    });
+  }
+
+  /** Seal a tear and immediately spawn a replacement in the same
+   *  region + tier. Called from recordEncounter when an encounter
+   *  is won with a world_tear_id. Idempotent — re-sealing an
+   *  already-sealed tear is a no-op (returns false). */
+  async sealWorldTear(tearId: string, rootId: string): Promise<boolean> {
+    const tear = await this.prisma.worldTear.findUnique({ where: { id: tearId } });
+    if (!tear || tear.status !== 'active') return false;
+
+    await this.prisma.worldTear.update({
+      where: { id: tearId },
+      data:  {
+        status:         'sealed',
+        sealedAt:       new Date(),
+        sealedByRootId: rootId,
+      },
+    });
+
+    // Fire-and-forget — replacement spawn shouldn't block the
+    // encounter response.
+    this.spawnReplacementTear(tear.regionLabel, tear.tier).catch(() => {
+      // Soft-fail; the seal already committed. Density recovers
+      // on the next maintenance sweep (Arc B slice 3b).
+    });
+
+    return true;
   }
 }

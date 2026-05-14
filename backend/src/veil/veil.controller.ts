@@ -9,13 +9,18 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { VeilService } from './veil.service';
 
 interface RecordEncounterBody {
-  root_id:   string;
-  tear_type: string;
-  tear_name: string;
-  outcome:   'won' | 'fled';
-  shards:    number;
-  lat?:      number;
-  lon?:      number;
+  root_id:        string;
+  tear_type:      string;
+  tear_name:      string;
+  outcome:        'won' | 'fled';
+  shards:         number;
+  lat?:           number;
+  lon?:           number;
+  /** Sprint 29 Arc B — world_tears UUID. When present on a 'won'
+   *  encounter, the server marks the tear sealed and spawns a
+   *  replacement in the same region + tier. Optional for legacy
+   *  / procedural encounters. */
+  world_tear_id?: string;
 }
 
 @Controller('api/veil')
@@ -26,7 +31,7 @@ export class VeilController {
   @Post('encounter')
   @SkipThrottle()
   async recordEncounter(@Body() body: RecordEncounterBody) {
-    const { root_id, tear_type, tear_name, outcome, shards, lat, lon } = body;
+    const { root_id, tear_type, tear_name, outcome, shards, lat, lon, world_tear_id } = body;
     if (!root_id)   throw new BadRequestException('root_id is required');
     if (!tear_type) throw new BadRequestException('tear_type is required');
     if (!tear_name) throw new BadRequestException('tear_name is required');
@@ -34,12 +39,13 @@ export class VeilController {
       throw new BadRequestException("outcome must be 'won' or 'fled'");
 
     return this.veilService.recordEncounter(root_id, {
-      tearType: tear_type,
-      tearName: tear_name,
-      outcome:  outcome as 'won' | 'fled',
-      shards:   shards ?? 0,
+      tearType:    tear_type,
+      tearName:    tear_name,
+      outcome:     outcome as 'won' | 'fled',
+      shards:      shards ?? 0,
       lat,
       lon,
+      worldTearId: world_tear_id,
     });
   }
 
