@@ -71,6 +71,33 @@ export class VeilController {
     return this.veilService.getActiveEvents();
   }
 
+  // GET /api/veil/tears/nearby?lat=X&lon=Y&fate_level=N&radius_km=R
+  // Phase 2 Arc B — returns a tier-weighted slice of nearby active
+  // world tears per docs/roadmap/phase-2.md. radius_km is optional;
+  // omitting it uses the band default for the player's Fate level.
+  @Get('tears/nearby')
+  @SkipThrottle()
+  async getNearbyTears(
+    @Query('lat')                                                       latStr:      string,
+    @Query('lon')                                                       lonStr:      string,
+    @Query('fate_level', new DefaultValuePipe(1), ParseIntPipe)         fateLevel:   number,
+    @Query('radius_km')                                                 radiusKmStr?: string,
+  ) {
+    const lat = parseFloat(latStr);
+    const lon = parseFloat(lonStr);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      throw new BadRequestException('lat and lon must be finite numeric query params');
+    }
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      throw new BadRequestException('lat/lon out of range');
+    }
+    const radiusKm = radiusKmStr ? parseFloat(radiusKmStr) : undefined;
+    if (radiusKm !== undefined && (!Number.isFinite(radiusKm) || radiusKm <= 0 || radiusKm > 50)) {
+      throw new BadRequestException('radius_km must be a positive number <= 50');
+    }
+    return this.veilService.getNearbyTears(lat, lon, fateLevel, radiusKm);
+  }
+
   // GET /api/veil/shards/:rootId
   @Get('shards/:rootId')
   async getShards(@Param('rootId') rootId: string) {

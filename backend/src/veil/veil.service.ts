@@ -14,6 +14,44 @@ const XP_BY_TEAR_TIER: Record<string, number> = {
   double:  500,
 };
 
+// Phase 2 Arc B — Geo rift density (level-banded tier weights).
+// Source of truth: docs/roadmap/phase-2.md § Locked design parameters.
+// `total` is the target number of tears returned for a player in
+// the band; `mix` is the per-tier fraction; `radius_km` is the
+// default search radius if the client doesn't override.
+interface RiftBand {
+  total:     number;
+  radius_km: number;
+  mix:       { T1: number; T2: number; T3: number; T4: number };
+}
+const RIFT_BANDS: RiftBand[] = [
+  { total:  9, radius_km: 2, mix: { T1: 0.60, T2: 0.30, T3: 0.08, T4: 0.02 } },  // L1-5
+  { total: 13, radius_km: 3, mix: { T1: 0.45, T2: 0.35, T3: 0.15, T4: 0.05 } },  // L6-15
+  { total: 20, radius_km: 4, mix: { T1: 0.30, T2: 0.35, T3: 0.25, T4: 0.10 } },  // L16-30
+  { total: 23, radius_km: 5, mix: { T1: 0.20, T2: 0.30, T3: 0.30, T4: 0.20 } },  // L31+
+];
+function bandForFateLevel(level: number): RiftBand {
+  if (level <=  5) return RIFT_BANDS[0];
+  if (level <= 15) return RIFT_BANDS[1];
+  if (level <= 30) return RIFT_BANDS[2];
+  return RIFT_BANDS[3];
+}
+
+const TIER_TO_TYPE: Record<string, string> = {
+  T1: 'minor', T2: 'wander', T3: 'dormant', T4: 'double',
+};
+
+/** Great-circle distance between two lat/lon points, km. */
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R    = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a    = Math.sin(dLat / 2) ** 2 +
+               Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 export interface RecordEncounterDto {
   tearType: string;   // minor | wander | dormant | double
   tearName: string;
@@ -525,5 +563,89 @@ export class VeilService {
   async getShardBalance(rootId: string) {
     const row = await this.prisma.veilShard.findUnique({ where: { rootId } });
     return { root_id: rootId, balance: row?.balance ?? 0 };
+  }
+
+  // ── Phase 2 Arc B — Geo-aware rifts ──────────────────────────────────────
+  /** Returns a tier-weighted slice of nearby active world tears
+   *  per the level-banded rules in docs/roadmap/phase-2.md.
+   *
+   *  Algorithm:
+   *    1. Look up the player's band (radius + tier-mix) by Fate level.
+   *    2. Bounding-box prefilter via Prisma indexes (lat/lon range).
+   *    3. Distance-filter to true radius via haversine.
+   *    4. Group by tier; per tier, take the closest floor(total · pct)
+   *       tears. Total is fixed per band; mix is fixed per band.
+   *    5. Return union sorted by distance for client convenience.
+   *
+   *  No randomization in the selection — the data layer is static
+   *  (seeded) so the response is deterministic for a given lat/lon/
+   *  fate_level until lifecycle (slice 3) introduces spawn/expire. */
+  async getNearbyTears(
+    lat:           number,
+    lon:           number,
+    fateLevel:     number,
+    radiusKmOverride?: number,
+  ) {
+    const band      = bandForFateLevel(fateLevel);
+    const radius_km = radiusKmOverride ?? band.radius_km;
+
+    // Bounding-box prefilter. 1 deg lat ≈ 111 km; lon scales by cos(lat).
+    // Slight overshoot via `* 1.05` so the haversine filter doesn't clip
+    // tears right at the edge of the radius.
+    const latDelta = (radius_km / 111) * 1.05;
+    const lonDelta = (radius_km / (111 * Math.cos((lat * Math.PI) / 180))) * 1.05;
+
+    const candidates = await this.prisma.worldTear.findMany({
+      where: {
+        status: 'active',
+        lat:    { gte: lat - latDelta, lte: lat + latDelta },
+        lon:    { gte: lon - lonDelta, lte: lon + lonDelta },
+      },
+    });
+
+    // Compute true distance + filter to radius
+    const withDist = candidates
+      .map((t) => ({
+        ...t,
+        distance_km: haversineKm(lat, lon, t.lat, t.lon),
+      }))
+      .filter((t) => t.distance_km <= radius_km);
+
+    // Group by tier, sort each group by distance ascending
+    const byTier: Record<string, typeof withDist> = { T1: [], T2: [], T3: [], T4: [] };
+    for (const t of withDist) {
+      if (byTier[t.tier]) byTier[t.tier].push(t);
+    }
+    for (const tier of Object.keys(byTier)) {
+      byTier[tier].sort((a, b) => a.distance_km - b.distance_km);
+    }
+
+    // Per-tier slice using the band's mix
+    const tiers: Array<keyof typeof band.mix> = ['T1', 'T2', 'T3', 'T4'];
+    const selected = tiers.flatMap((tier) => {
+      const target = Math.floor(band.total * band.mix[tier]);
+      return byTier[tier].slice(0, target);
+    });
+
+    // Final sort by distance for client display order
+    selected.sort((a, b) => a.distance_km - b.distance_km);
+
+    return {
+      tears: selected.map((t) => ({
+        tear_id:      t.id,
+        lat:          t.lat,
+        lon:          t.lon,
+        tier:         t.tier,
+        type:         TIER_TO_TYPE[t.tier] ?? 'minor',
+        status:       t.status,
+        distance_km:  Math.round(t.distance_km * 100) / 100,
+        region_label: t.regionLabel,
+        spawned_at:   t.spawnedAt.toISOString(),
+        expires_at:   t.expiresAt?.toISOString() ?? null,
+      })),
+      total:     selected.length,
+      radius_km,
+      band_mix:  band.mix,
+    };
   }
 }

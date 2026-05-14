@@ -120,6 +120,7 @@ model RootIdentity {
   landmarkDiscoveries      LandmarkDiscovery[]         // Sprint 25
   sanctumState             SanctumState?               // Sprint 28 — iOS daily ritual
   iapPurchases             IapPurchase[]               // Sprint 28 — iOS IAP transactions
+  sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -874,4 +875,37 @@ model LandmarkDiscovery {
   @@index([heroId])
   @@index([landmarkId])
   @@map("landmark_discoveries")
+}
+
+// ============================================================
+// WORLD TEARS — Sprint 29 / Arc B
+// Geo-aware rifts seeded across real-world cities. The iOS Map
+// screen swaps procedural spawnTears for /api/veil/tears/nearby
+// queries against this table. Tier maps 1:1 to client tear type
+// (T1 minor, T2 wander, T3 dormant, T4 double).
+//
+// Lifecycle (slice 3, not yet implemented):
+//   spawned_at → active 24h → expires OR sealed by first hero.
+//
+// Indexes are a coarse bbox optimization; v2 wants postgis +
+// gist for proper great-circle distance queries.
+// ============================================================
+model WorldTear {
+  id              String    @id @default(uuid()) @map("tear_id")
+  lat             Float
+  lon             Float
+  tier            String                                  // 'T1' | 'T2' | 'T3' | 'T4'
+  status          String    @default("active")            // 'active' | 'sealed' | 'expired'
+  spawnedAt       DateTime  @default(now()) @map("spawned_at")
+  expiresAt       DateTime? @map("expires_at")
+  sealedAt        DateTime? @map("sealed_at")
+  sealedByRootId  String?   @map("sealed_by_root_id")
+  regionLabel     String?   @map("region_label")          // e.g. 'folsom-ca', 'london-uk' — for analytics, not auth
+
+  sealedBy        RootIdentity? @relation(fields: [sealedByRootId], references: [id], onDelete: SetNull)
+
+  @@index([status, lat, lon])
+  @@index([sealedByRootId])
+  @@index([regionLabel, status])
+  @@map("world_tears")
 }
