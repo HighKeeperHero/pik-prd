@@ -620,10 +620,13 @@ export class VeilService {
       byTier[tier].sort((a, b) => a.distance_km - b.distance_km);
     }
 
-    // Per-tier slice using the band's mix
+    // Per-tier slice using the band's mix. Round (not floor) so the
+    // returned totals match phase-2.md's documented band ranges
+    // (8-10 / 12-15 / 18-22 / 22-25) — flooring consistently
+    // under-delivers on the upper bands and on rare-tier counts.
     const tiers: Array<keyof typeof band.mix> = ['T1', 'T2', 'T3', 'T4'];
     const selected = tiers.flatMap((tier) => {
-      const target = Math.floor(band.total * band.mix[tier]);
+      const target = Math.round(band.total * band.mix[tier]);
       return byTier[tier].slice(0, target);
     });
 
