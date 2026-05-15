@@ -610,6 +610,11 @@ model SanctumState {
   oathTodayOption    String?   @map("oath_today_option")     // 'forge' | 'lore' | 'veil'
   totalHearthClaims  Int       @default(0) @map("total_hearth_claims")
   totalOathsSworn    Int       @default(0) @map("total_oaths_sworn")
+  // Sprint 30 — daily Veil Trial (snackable 60s minigame).
+  // last_trial_complete gates one-per-day, mirroring Hearth's pattern.
+  lastTrialComplete  String?   @map("last_trial_complete")   // 'YYYY-MM-DD' UTC
+  totalTrials        Int       @default(0) @map("total_trials")
+  bestTrialScore     Int       @default(0) @map("best_trial_score")
   updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
 
   root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)

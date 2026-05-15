@@ -32,6 +32,17 @@ const HEARTH_REWARD = 5;
 const XP_HEARTH = 25;
 const XP_OATH   = 25;
 
+// Sprint 30 Slice 5.1 — Veil Trial reward shape.
+//   * Essence: 1 per "catch" (score), capped so a perfect run
+//     can't out-yield a Hearth + Oath. Trial is the snackable
+//     dopamine layer, not the primary income.
+//   * Fate XP: small flat bonus so the loop still ladders into
+//     Adventurer Rank progression — but small enough that it
+//     doesn't compete with battles / chapters for primary XP.
+const TRIAL_ESSENCE_PER_CATCH = 1;
+const TRIAL_ESSENCE_MAX       = 20;
+const XP_TRIAL                = 10;
+
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -117,4 +128,52 @@ export class SanctumService {
 
   /** Awarded amount for hearth claim — exposed so the controller can echo it back. */
   static readonly HEARTH_REWARD = HEARTH_REWARD;
+
+  /** Sprint 30 / Slice 5.1 — Veil Trial completion.
+   *
+   *  Daily snackable minigame; one run per UTC day per hero. The
+   *  client posts the score it tallied client-side; the server
+   *  caps it via TRIAL_ESSENCE_MAX so a fudged client can't
+   *  out-yield the cap. Tighten with server-side rate / duration
+   *  validation in a later slice if abuse appears.
+   *
+   *  Reward: Veil Essence = min(score, max) + small flat Fate XP. */
+  async completeTrial(rootId: string, score: number) {
+    if (!Number.isFinite(score) || score < 0) {
+      throw new BadRequestException('Trial score must be a non-negative number.');
+    }
+    const today = todayUtc();
+    const state = await this.getOrCreateState(rootId);
+    if ((state as { lastTrialComplete?: string | null }).lastTrialComplete === today) {
+      throw new ConflictException('Veil Trial already completed today.');
+    }
+
+    const essence = Math.min(
+      Math.floor(score) * TRIAL_ESSENCE_PER_CATCH,
+      TRIAL_ESSENCE_MAX,
+    );
+    const newBest = Math.max(
+      (state as { bestTrialScore?: number }).bestTrialScore ?? 0,
+      Math.floor(score),
+    );
+
+    const updated = await this.prisma.sanctumState.update({
+      where: { rootId },
+      data: {
+        veilEssence:        { increment: essence },
+        lastTrialComplete:  today,
+        totalTrials:        { increment: 1 },
+        bestTrialScore:     newBest,
+      },
+    });
+    const xpAward      = await this.leveling.grantXp(rootId, XP_TRIAL);
+    const withProgress = await this.attachProgression(rootId, updated);
+    return {
+      ...withProgress,
+      xp_award: xpAward,
+      essence_granted: essence,
+      score:           Math.floor(score),
+      best:            newBest,
+    };
+  }
 }

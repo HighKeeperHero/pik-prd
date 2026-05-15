@@ -52,4 +52,13 @@ export class SanctumController {
   async swearOath(@Req() req: AuthedRequest, @Body() body: SwearOathDto) {
     return this.sanctum.swearOath(requireHeroId(req), body.option);
   }
+
+  // Sprint 30 / Slice 5.1 — Veil Trial completion.
+  // Body: { score: number }. Returns the updated sanctum_state +
+  // xp_award + granted essence + score / best.
+  @Post('trial/complete')
+  async completeTrial(@Req() req: AuthedRequest, @Body() body: { score?: number }) {
+    const score = Number(body?.score ?? 0);
+    return this.sanctum.completeTrial(requireHeroId(req), score);
+  }
 }
