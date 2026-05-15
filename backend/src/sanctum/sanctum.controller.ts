@@ -61,4 +61,12 @@ export class SanctumController {
     const score = Number(body?.score ?? 0);
     return this.sanctum.completeTrial(requireHeroId(req), score);
   }
+
+  // Sprint 30 / Slice 5.2 — Augury Draw.
+  // No body. Server-side weighted pick of 3 cards from AUGURY_DECK.
+  // Returns the cards + aggregated essence/xp/cache grants.
+  @Post('augury/draw')
+  async drawAugury(@Req() req: AuthedRequest) {
+    return this.sanctum.drawAugury(requireHeroId(req));
+  }
 }

@@ -615,6 +615,9 @@ model SanctumState {
   lastTrialComplete  String?   @map("last_trial_complete")   // 'YYYY-MM-DD' UTC
   totalTrials        Int       @default(0) @map("total_trials")
   bestTrialScore     Int       @default(0) @map("best_trial_score")
+  // Sprint 30 Slice 5.2 — daily Augury Draw (3-card weighted reveal).
+  lastAuguryDate     String?   @map("last_augury_date")      // 'YYYY-MM-DD' UTC
+  totalAuguries      Int       @default(0) @map("total_auguries")
   updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
 
   root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
