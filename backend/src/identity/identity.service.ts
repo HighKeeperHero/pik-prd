@@ -424,6 +424,9 @@ export class IdentityService {
         origin: user.origin,
         fate_alignment: user.fateAlignment,
         equipped_title: user.equippedTitle ?? null,
+        // Sprint 31 — Reliquary Mark (cosmetic). NULL = default
+        // "plain-bound" silver. iOS RELIC_MARKS lookup keyed by slug.
+        relic_mark:     user.relicMark ?? null,
         hero_rename: renameStatus,
       },
       progression: {
@@ -697,6 +700,48 @@ export class IdentityService {
   }
 
   // ── EQUIP TITLE ───────────────────────────────────────────
+
+  // ── Reliquary Marks (Sprint 31 / Tier 2 cosmetic evolution) ─
+  // Allowlist of mark slugs. Adding a mark = editing this array +
+  // shipping iOS art for it. Server-side validation gates any
+  // request to set a mark not in this list. Marks are cosmetic
+  // only — no power, no unlock, no spend. The point is to test
+  // whether the act of *choosing* triggers identity-attachment.
+  private static readonly RELIC_MARK_ALLOWLIST = new Set<string>([
+    'pale',     // The Pale Mark — default
+    'forge',    // The Forge-Pressed
+    'veil',     // The Veil-Sighted
+    'hearth',   // The Hearth-Warmed
+  ]);
+
+  async setRelicMark(rootId: string, mark: string | null) {
+    if (mark !== null && !IdentityService.RELIC_MARK_ALLOWLIST.has(mark)) {
+      throw new BadRequestException(`Unknown Reliquary Mark: ${mark}`);
+    }
+    const user = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { relicMark: true },
+    });
+    if (!user) throw new NotFoundException(`Identity not found: ${rootId}`);
+
+    const prev = user.relicMark ?? null;
+    await this.prisma.rootIdentity.update({
+      where: { id: rootId },
+      data:  { relicMark: mark },
+    });
+
+    // Identity event so Chronicle surfaces the moment + telemetry
+    // funnel can measure the attachment signal.
+    await this.events.log({
+      rootId,
+      eventType: 'identity.relic_mark_chosen',
+      payload:   { mark, previous: prev },
+    });
+
+    this.logger.log(`Relic Mark set: ${rootId} → ${mark ?? 'none'} (was ${prev ?? 'none'})`);
+
+    return { root_id: rootId, relic_mark: mark, previous: prev };
+  }
 
   async equipTitle(rootId: string, titleId: string | null) {
     const user = await this.prisma.rootIdentity.findUnique({

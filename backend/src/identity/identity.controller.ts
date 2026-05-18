@@ -101,6 +101,23 @@ export class IdentityController {
   }
 
   /**
+   * PUT /api/users/:root_id/relic-mark
+   *
+   * Sprint 31 / Tier 2 cosmetic evolution. Sets (or clears via
+   * null) the hero's Reliquary Mark. Body: { mark: string | null }.
+   * Server validates against the in-code allowlist; iOS keeps its
+   * RELIC_MARKS array in sync.
+   */
+  @Put(':root_id/relic-mark')
+  async setRelicMark(
+    @Param('root_id') rootId: string,
+    @Body() body: { mark?: string | null },
+  ) {
+    const mark = body?.mark === undefined ? null : body.mark;
+    return this.identityService.setRelicMark(rootId, mark);
+  }
+
+  /**
    * POST /api/users/:root_id/inventory/:inventory_id/dismantle
    *
    * Dismantle an unequipped inventory item for Nexus currency.

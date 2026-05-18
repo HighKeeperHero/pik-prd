@@ -76,6 +76,12 @@ model RootIdentity {
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")
   equippedTitle String?   @map("equipped_title")
+  // Sprint 31 — Reliquary Mark (Tier 2 cosmetic evolution). The
+  // Reliquary is canon-universal (every hero wears one — economy.md
+  // § 2). Mark is the player's first cosmetic-as-identity hook on
+  // it. NULL = unmarked (default "plain-bound" silver). Validated
+  // server-side against a known-Mark allowlist.
+  relicMark     String?   @map("relic_mark")
   // Sprint 28 — Awakening narrative profile
   region                String?
   wound                 String?
