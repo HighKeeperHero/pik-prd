@@ -1114,17 +1114,31 @@ export class IdentityService {
     };
     const entries: Entry[] = [];
 
-    // 1. Awakening — one-time
+    // 1. Awakening — one-time. Pull the rich narrative fields off
+    //    RootIdentity (region/origin/virtue/vice) and weave them into
+    //    the Chronicle entry's subtitle so the awakening moment is
+    //    *specific* to this hero, not a generic "The Veil noticed you."
     const awakening = await this.prisma.identityEvent.findFirst({
       where:   { rootId, eventType: 'identity.hero_awakened' },
       orderBy: { createdAt: 'asc' },
     });
     if (awakening) {
+      const hero = await this.prisma.rootIdentity.findUnique({
+        where:  { id: rootId },
+        select: { region: true, origin: true, virtue: true },
+      });
+      const fragments: string[] = [];
+      if (hero?.region) fragments.push(`${hero.region}-marked`);
+      if (hero?.origin) fragments.push(`${hero.origin}-born`);
+      const place = fragments.length > 0 ? fragments.join(', ') + '.' : '';
+      const reading = hero?.virtue ? ` The Veil named your virtue: ${hero.virtue}.` : '';
+      const subtitle = (place + reading).trim() ||
+        'The Veil noticed you. A thread began to gather.';
       entries.push({
         id:        awakening.id,
         kind:      'awakening',
         title:     'YOU AWOKE',
-        subtitle:  'The Veil noticed you. A thread began to gather.',
+        subtitle,
         glyph:     '◈',
         accent:    '#C8A04E',
         timestamp: awakening.createdAt.toISOString(),
