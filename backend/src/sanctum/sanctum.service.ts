@@ -50,6 +50,10 @@ const XP_TRIAL                = 10;
 //     legendary roughly once every two months.
 //   * Rewards stack: each card may grant essence + fate_xp; legendary
 //     also spawns a sealed cache via the existing FateCache table.
+//
+// Sprint 31 — deck is now DB-driven (augury_cards table). The in-code
+// constant was removed; new cards, seasonal additions, and weight
+// rebalancing ship via DB rows without a redeploy.
 interface AuguryCard {
   id:      string;
   name:    string;
@@ -63,59 +67,14 @@ interface AuguryCard {
   };
 }
 
-const AUGURY_DECK: AuguryCard[] = [
-  // ── Common — drift, ash, mote ──────────────────────────────
-  { id: 'wisp-fragment',   name: 'WISP FRAGMENT',   rarity: 'common', weight: 50,
-    flavor: 'A pale wisp drifts past your fingers.',
-    rewards: { essence: 5 } },
-  { id: 'pale-coin',       name: 'PALE COIN',       rarity: 'common', weight: 50,
-    flavor: 'A coin warmed by hands not your own.',
-    rewards: { essence: 6 } },
-  { id: 'hearth-ash',      name: 'HEARTH ASH',      rarity: 'common', weight: 50,
-    flavor: 'Ash from a hearth whose owner has gone.',
-    rewards: { essence: 4, fate_xp: 5 } },
-  { id: 'veil-mote',       name: 'VEIL MOTE',       rarity: 'common', weight: 50,
-    flavor: 'A mote of Veil dust catches on your sleeve.',
-    rewards: { fate_xp: 10 } },
-
-  // ── Uncommon — sparks + threads + echoes ───────────────────
-  { id: 'forge-spark',     name: 'FORGE SPARK',     rarity: 'uncommon', weight: 35,
-    flavor: 'A spark from a forge not your own.',
-    rewards: { essence: 10, fate_xp: 10 } },
-  { id: 'reliquary-echo',  name: 'RELIQUARY ECHO',  rarity: 'uncommon', weight: 35,
-    flavor: 'The Reliquary at your throat warms briefly.',
-    rewards: { essence: 14 } },
-  { id: 'oath-thread',     name: 'OATH THREAD',     rarity: 'uncommon', weight: 35,
-    flavor: 'A thread pulled from an oath someone kept.',
-    rewards: { essence: 8, fate_xp: 18 } },
-
-  // ── Rare — held memories, marked tokens ────────────────────
-  { id: 'sealed-memory',   name: 'SEALED MEMORY',   rarity: 'rare', weight: 15,
-    flavor: 'A memory the Veil tried to keep.',
-    rewards: { essence: 20, fate_xp: 25 } },
-  { id: 'mintmaster-mark', name: "MINTMASTER'S MARK", rarity: 'rare', weight: 15,
-    flavor: 'A token marked by an unfamiliar sigil.',
-    rewards: { essence: 30 } },
-
-  // ── Epic — Empyrean glimpse ────────────────────────────────
-  { id: 'empyrean-glimmer', name: 'EMPYREAN GLIMMER', rarity: 'epic', weight: 5,
-    flavor: 'A glimmer of Empyrean color, brief but real.',
-    rewards: { essence: 40, fate_xp: 40 } },
-
-  // ── Legendary — the Oracular speaks (+ sealed cache) ───────
-  { id: 'oracular-vision', name: 'THE ORACULAR SPEAKS', rarity: 'legendary', weight: 2,
-    flavor: 'A vision passes through you. You remember it later.',
-    rewards: { essence: 30, fate_xp: 80, cache: { type: 'augury_legendary', rarity: 'epic' } } },
-];
-
-function weightedPickCard(): AuguryCard {
-  const totalWeight = AUGURY_DECK.reduce((sum, c) => sum + c.weight, 0);
+function weightedPickCard(deck: AuguryCard[]): AuguryCard {
+  const totalWeight = deck.reduce((sum, c) => sum + c.weight, 0);
   let r = Math.random() * totalWeight;
-  for (const card of AUGURY_DECK) {
+  for (const card of deck) {
     r -= card.weight;
     if (r <= 0) return card;
   }
-  return AUGURY_DECK[0];
+  return deck[0];
 }
 
 function todayUtc(): string {
@@ -268,9 +227,34 @@ export class SanctumService {
       throw new ConflictException('Augury already drawn today.');
     }
 
+    // Sprint 31 — deck pulled from DB (augury_cards) so seasonal cards
+    // and weight rebalancing can ship without a redeploy. Filter:
+    // active = true, season is NULL (base deck — seasonal filter added
+    // later when first seasonal pool ships).
+    const rows = await this.prisma.auguryCard.findMany({
+      where: { active: true, season: null },
+    });
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        'No active Augury cards. Run the seed migration before drawing.',
+      );
+    }
+    const deck: AuguryCard[] = rows.map((r) => ({
+      id:      r.id,
+      name:    r.name,
+      flavor:  r.flavor,
+      rarity:  r.rarity as AuguryCard['rarity'],
+      weight:  r.weight,
+      rewards: r.rewards as AuguryCard['rewards'],
+    }));
+
     // Three independent weighted picks. Same card may appear twice
     // by design — rare but a real moment when it does.
-    const cards: AuguryCard[] = [weightedPickCard(), weightedPickCard(), weightedPickCard()];
+    const cards: AuguryCard[] = [
+      weightedPickCard(deck),
+      weightedPickCard(deck),
+      weightedPickCard(deck),
+    ];
 
     // Aggregate rewards
     let totalEssence = 0;

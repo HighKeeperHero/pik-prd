@@ -626,6 +626,35 @@ model SanctumState {
 }
 
 // ============================================================
+// AUGURY CARDS — Sprint 31 modular content-injection
+//
+// The daily Augury Draw deck. Lives in the DB so new cards (and
+// seasonal cards, A/B test weights, rebalancing) ship without a
+// redeploy. Per memory:strategic_north_star.md, this is the
+// platform-shaped move that lets the same architecture later host
+// quest-of-the-week / event-of-the-month content.
+// ============================================================
+model AuguryCard {
+  id          String   @id @map("card_id")    // 'wisp-fragment' — stable slug
+  name        String                            // 'WISP FRAGMENT' (display)
+  flavor      String                            // 'A pale wisp drifts past your fingers.'
+  rarity      String                            // 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
+  weight      Int                               // weighted-random pick weight
+  rewards     Json                              // { essence?, fate_xp?, cache? }
+  active      Boolean  @default(true)           // disable without deleting
+  // Seasonal flag — cards with season != null are only eligible
+  // for draws during their named season (e.g. 'hallow'). NULL =
+  // permanent deck. Adds zero overhead to base draws (NULL is the
+  // default match).
+  season      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([active])
+  @@index([season])
+  @@map("augury_cards")
+}
+
+// ============================================================
 // IAP (iOS) — Sprint 28
 // One row per StoreKit 2 transaction. Idempotent on the Apple
 // transactionId so double-network can't double-credit. Refund
