@@ -89,6 +89,18 @@ export class IdentityController {
   }
 
   /**
+   * GET /api/users/:root_id/chronicle
+   *
+   * Sprint 31 identity-narrative surface — curated milestone feed
+   * surfaced under Codex. Distinct from /timeline (raw event log).
+   * Response: { entries: ChronicleEntry[] }, newest first.
+   */
+  @Get(':root_id/chronicle')
+  async getChronicle(@Param('root_id') rootId: string) {
+    return this.identityService.getChronicle(rootId);
+  }
+
+  /**
    * POST /api/users/:root_id/inventory/:inventory_id/dismantle
    *
    * Dismantle an unequipped inventory item for Nexus currency.

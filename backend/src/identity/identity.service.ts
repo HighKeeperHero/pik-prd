@@ -35,6 +35,33 @@ export class IdentityService {
     private readonly landmarks:  LandmarkService, // Sprint 25
   ) {}
 
+  // ── Chronicle helpers — Sprint 30 / Sprint 31 identity narrative ──
+  // Adventurer Rank tier table mirrors heroes-veritas-native:src/api/pik.ts
+  // TIERS. Source of truth: docs/canon/progression.md § 2.
+  private static readonly RANK_TIERS = [
+    { name: 'Bronze',     min: 1,  max: 6,  color: '#cd7f32' },
+    { name: 'Copper',     min: 7,  max: 13, color: '#b87333' },
+    { name: 'Silver',     min: 14, max: 21, color: '#c0c0c0' },
+    { name: 'Gold',       min: 22, max: 29, color: '#ffd700' },
+    { name: 'Platinum',   min: 30, max: 39, color: '#e5e4e2' },
+    { name: 'Adamantium', min: 40, max: 40, color: '#4ff0d0' },
+    { name: 'Job Quest',  min: 41, max: 999, color: '#C9A24B' },
+  ];
+  private tierForLevel(level: number): typeof IdentityService.RANK_TIERS[number] {
+    return IdentityService.RANK_TIERS.find(t => level >= t.min && level <= t.max)
+        ?? IdentityService.RANK_TIERS[0];
+  }
+  // Flavor lines for each rank — surfaced on Chronicle entries when
+  // the hero crosses into that tier. Canon-aligned, lochmaw-tongue.
+  private static readonly RANK_FLAVOR: Record<string, string> = {
+    Copper:      'Your name moved to a brighter board.',
+    Silver:      'The barrows began to remember.',
+    Gold:        'The Awakened spoke it without prompting.',
+    Platinum:    'The Oracular took notice.',
+    Adamantium:  'You stood at the edge of Adventurer.',
+    'Job Quest': 'A path opened that no other had walked the same way.',
+  };
+
   // ── ENROLL ────────────────────────────────────────────────
 
   async enroll(dto: EnrollUserDto) {
@@ -1047,5 +1074,148 @@ export class IdentityService {
     };
   }
 
+  // ── CHRONICLE — Sprint 31 identity-narrative surface ──────
+  /**
+   * Returns a hero's curated identity timeline — the moments that
+   * say "this is who you have become." Distinct from the raw
+   * /timeline endpoint (which shows every event for debugging).
+   *
+   * Chronicle is the answer to the strategic question
+   * (memory:strategic_north_star.md): the artifact that proves the
+   * player has a story, not just stats. Surfaced under Codex.
+   *
+   * Sources today:
+   *   - identity_events of type 'identity.hero_awakened' (one-time)
+   *   - identity_events of type 'progression.level_up' filtered for
+   *     entries that cross an Adventurer Rank boundary
+   *   - identity_events of type 'identity.class_selected'
+   *   - identity_events of type 'identity.title_earned'
+   *   - the player's first won tear_encounter (derived)
+   *
+   * Future sources (additive — write IdentityEvent rows from those
+   * code paths):
+   *   - Augury legendary draws
+   *   - Veil Trial new-best moments
+   *   - Hearth / oath streak milestones (7, 30, 100 days)
+   *   - First seal of each tear tier (minor / wander / dormant / double)
+   *   - Venue Renown thresholds (when that ships)
+   *
+   * Order: newest first. The reader scrolls back into their history.
+   */
+  async getChronicle(rootId: string) {
+    type Entry = {
+      id:        string;
+      kind:      string;
+      title:     string;
+      subtitle:  string;
+      glyph:     string;
+      accent:    string;
+      timestamp: string;
+    };
+    const entries: Entry[] = [];
 
+    // 1. Awakening — one-time
+    const awakening = await this.prisma.identityEvent.findFirst({
+      where:   { rootId, eventType: 'identity.hero_awakened' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (awakening) {
+      entries.push({
+        id:        awakening.id,
+        kind:      'awakening',
+        title:     'YOU AWOKE',
+        subtitle:  'The Veil noticed you. A thread began to gather.',
+        glyph:     '◈',
+        accent:    '#C8A04E',
+        timestamp: awakening.createdAt.toISOString(),
+      });
+    }
+
+    // 2. Adventurer Rank transitions — filter level_up events for
+    //    the runs that crossed a tier boundary.
+    const levelUps = await this.prisma.identityEvent.findMany({
+      where:   { rootId, eventType: 'progression.level_up' },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const lu of levelUps) {
+      const payload = (lu.payload ?? {}) as { old_level?: number; new_level?: number };
+      const oldLv = payload.old_level ?? 0;
+      const newLv = payload.new_level ?? 0;
+      if (!newLv || newLv <= oldLv) continue;
+      const oldTier = this.tierForLevel(oldLv);
+      const newTier = this.tierForLevel(newLv);
+      if (oldTier.name === newTier.name) continue;
+      entries.push({
+        id:        `rank-${lu.id}`,
+        kind:      'rank-transition',
+        title:     `YOU BECAME ${newTier.name.toUpperCase()}`,
+        subtitle:  IdentityService.RANK_FLAVOR[newTier.name] ?? 'The thread takes a new shape.',
+        glyph:     '◆',
+        accent:    newTier.color,
+        timestamp: lu.createdAt.toISOString(),
+      });
+    }
+
+    // 3. First seal — derived from the earliest 'won' encounter.
+    const firstWin = await this.prisma.tearEncounter.findFirst({
+      where:   { rootId, outcome: 'won' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (firstWin) {
+      entries.push({
+        id:        `first-seal-${firstWin.id}`,
+        kind:      'first-seal',
+        title:     'YOUR FIRST SEAL',
+        subtitle:  `${firstWin.tearName} closed at your hand. The Reliquary remembered.`,
+        glyph:     '✦',
+        accent:    '#C8A04E',
+        timestamp: firstWin.createdAt.toISOString(),
+      });
+    }
+
+    // 4. Job Class selected (post-L40)
+    const classSelected = await this.prisma.identityEvent.findFirst({
+      where:   { rootId, eventType: 'identity.class_selected' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (classSelected) {
+      const payload = (classSelected.payload ?? {}) as { hero_class?: string };
+      const cls     = (payload.hero_class ?? 'unknown').toString();
+      entries.push({
+        id:        classSelected.id,
+        kind:      'class-selected',
+        title:     'YOU ANSWERED THE JOB QUEST',
+        subtitle:  `The path becomes ${cls}.`,
+        glyph:     '⚔',
+        accent:    '#C9A24B',
+        timestamp: classSelected.createdAt.toISOString(),
+      });
+    }
+
+    // 5. Titles earned — each surfaced as a "name that sticks" moment.
+    const titleEvents = await this.prisma.identityEvent.findMany({
+      where:   { rootId, eventType: 'identity.title_earned' },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const te of titleEvents) {
+      const payload = (te.payload ?? {}) as { title_id?: string };
+      const titleId = payload.title_id ?? 'unknown';
+      // Single-shot lookup; small in practice (one row per title).
+      const titleRow = await this.prisma.title.findUnique({ where: { id: titleId } });
+      entries.push({
+        id:        te.id,
+        kind:      'title-earned',
+        title:     `TITLE — ${(titleRow?.displayName ?? titleId).toUpperCase()}`,
+        subtitle:  titleRow?.description ?? 'A title not soon spoken aloud.',
+        glyph:     '✺',
+        accent:    '#7A5888',
+        timestamp: te.createdAt.toISOString(),
+      });
+    }
+
+    // Newest first
+    entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+    return { entries };
+  }
 }
