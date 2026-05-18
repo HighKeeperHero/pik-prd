@@ -702,17 +702,21 @@ export class IdentityService {
   // ── EQUIP TITLE ───────────────────────────────────────────
 
   // ── Reliquary Marks (Sprint 31 / Tier 2 cosmetic evolution) ─
-  // Allowlist of mark slugs. Adding a mark = editing this array +
-  // shipping iOS art for it. Server-side validation gates any
-  // request to set a mark not in this list. Marks are cosmetic
-  // only — no power, no unlock, no spend. The point is to test
-  // whether the act of *choosing* triggers identity-attachment.
-  private static readonly RELIC_MARK_ALLOWLIST = new Set<string>([
-    'pale',     // The Pale Mark — default
-    'forge',    // The Forge-Pressed
-    'veil',     // The Veil-Sighted
-    'hearth',   // The Hearth-Warmed
-  ]);
+  // Display map mirrors the iOS RELIC_MARKS array. Keys gate the
+  // server-side allowlist for setRelicMark; values provide name +
+  // glyph for Chronicle subtitle rendering (so the backend isn't
+  // forced to call into iOS for display text).
+  //
+  // Adding a Mark = edit this map + iOS RELIC_MARKS + ship art.
+  private static readonly RELIC_MARK_DISPLAY: Record<string, { name: string; glyph: string }> = {
+    pale:   { name: 'The Pale Mark',     glyph: '◇' },
+    forge:  { name: 'The Forge-Pressed', glyph: '⚒' },
+    veil:   { name: 'The Veil-Sighted',  glyph: '◉' },
+    hearth: { name: 'The Hearth-Warmed', glyph: '♨' },
+  };
+  private static readonly RELIC_MARK_ALLOWLIST = new Set<string>(
+    Object.keys(IdentityService.RELIC_MARK_DISPLAY),
+  );
 
   async setRelicMark(rootId: string, mark: string | null) {
     if (mark !== null && !IdentityService.RELIC_MARK_ALLOWLIST.has(mark)) {
@@ -1248,6 +1252,29 @@ export class IdentityService {
         glyph:     '⚔',
         accent:    '#C9A24B',
         timestamp: classSelected.createdAt.toISOString(),
+      });
+    }
+
+    // 4b. Reliquary Marks pressed — each cosmetic choice is a small
+    //     identity moment. Same player may have many over time; each
+    //     gets its own Chronicle entry.
+    const markEvents = await this.prisma.identityEvent.findMany({
+      where:   { rootId, eventType: 'identity.relic_mark_chosen' },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const me of markEvents) {
+      const payload = (me.payload ?? {}) as { mark?: string };
+      const slug    = payload.mark ?? 'pale';
+      const def     = IdentityService.RELIC_MARK_DISPLAY[slug]
+                   ?? IdentityService.RELIC_MARK_DISPLAY.pale;
+      entries.push({
+        id:        me.id,
+        kind:      'mark-pressed',
+        title:     'A MARK WAS PRESSED',
+        subtitle:  `You wear ${def.name} now.`,
+        glyph:     def.glyph,
+        accent:    '#C8A04E',
+        timestamp: me.createdAt.toISOString(),
       });
     }
 
