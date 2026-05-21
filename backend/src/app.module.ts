@@ -37,6 +37,7 @@ import { SanctumModule }    from './sanctum/sanctum.module';     // ← Sprint 2
 import { PushModule }       from './push/push.module';            // ← Sprint 28 (iOS push token register)
 import { IapModule }        from './iap/iap.module';              // ← Sprint 28 (iOS StoreKit 2 redeem)
 import { LevelingModule }   from './leveling/leveling.module';    // ← Phase 2 Arc A (hero XP curve)
+import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Sprint 31 (XR interop seam: USDZ assets)
 
 import { Controller, Get } from '@nestjs/common';
 
@@ -98,6 +99,7 @@ class HealthController {
     PushModule,           // ← Sprint 28 (iOS push token register)
     IapModule,            // ← Sprint 28 (iOS StoreKit 2 redeem)
     LevelingModule,       // ← Phase 2 Arc A (hero XP curve)
+    RelicMarksModule,     // ← Sprint 31 (XR interop seam: USDZ assets)
   ],
   controllers: [HealthController],
   providers: [

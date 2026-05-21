@@ -1,0 +1,7 @@
+# Drop per-Mark USDZ assets here:
+#   pale.usdz    forge.usdz    veil.usdz    hearth.usdz
+#
+# Or a single placeholder.usdz to override the default redirect.
+#
+# Authored in Reality Composer Pro, Blender (USD export), or
+# any USDZ-capable tool. Keep under ~5MB per file.
