@@ -127,6 +127,7 @@ model RootIdentity {
   sanctumState             SanctumState?               // Sprint 28 — iOS daily ritual
   iapPurchases             IapPurchase[]               // Sprint 28 — iOS IAP transactions
   fateFox                  FateFox?                    // Sprint 31 — Fate Fox companion (one per hero)
+  memoria                  PlayerMemoria[]             // Sprint 32 — Memoria identity-collection
   sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
 
   @@index([fateAccountId])
@@ -652,6 +653,54 @@ model FateFox {
   root      RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@map("fate_foxes")
+}
+
+// ============================================================
+// MEMORIA — Sprint 32 Tier 2 identity-collection axis
+//
+// Each Memoria is a kept moment: a breath, a coal, a whisker.
+// Granted idempotently when the player crosses a defined
+// identity threshold (Awakening, Fox bond, first rank-up, etc).
+//
+// Identity weight, not power. Memoria do not affect combat,
+// XP, or rewards — they exist purely as the persistent record
+// of who the hero has become.
+//
+// The grant trigger lives in code (MemoriaService) keyed by
+// triggerKey; the DB stores the def's display metadata only.
+// New Memoria ship via INSERT + a new resolver in the service.
+// ============================================================
+model Memoria {
+  id           String   @id @map("memoria_id")     // slug, e.g. 'first_breath'
+  name         String                                // 'THE FIRST BREATH'
+  lore         String                                // one-or-two-line narrative, mythic register
+  glyph        String                                // single char rendered on the collection grid
+  accent       String                                // hex color for ring + Chronicle entry
+  triggerKey   String   @map("trigger_key")         // matches a resolver in MemoriaService
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  grants       PlayerMemoria[]
+
+  @@map("memoria_defs")
+}
+
+model PlayerMemoria {
+  id            String   @id @default(uuid()) @map("player_memoria_id")
+  rootId        String   @map("root_id")
+  memoriaId     String   @map("memoria_id")
+  grantedAt     DateTime @default(now()) @map("granted_at")
+  // Pointer back to the IdentityEvent that triggered the grant, so
+  // future surfaces (XR, lore zoom-ins) can re-link "you got this
+  // BECAUSE…" without re-deriving from the ledger every time.
+  sourceEventId String?  @map("source_event_id")
+
+  root          RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  memoria       Memoria      @relation(fields: [memoriaId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, memoriaId])
+  @@index([rootId])
+  @@map("player_memoria")
 }
 
 // ============================================================

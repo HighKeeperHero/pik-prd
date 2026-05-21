@@ -1397,6 +1397,38 @@ export class IdentityService {
       });
     }
 
+    // 6. Memoria granted — Sprint 32. Each is a "kept moment"; the
+    //    Chronicle entry reuses the def's glyph + accent so the row
+    //    reads as the same object the player sees on the collection
+    //    grid. Join the def in a single query to avoid N+1.
+    const memoriaEvents = await this.prisma.identityEvent.findMany({
+      where:   { rootId, eventType: 'identity.memoria_granted' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (memoriaEvents.length > 0) {
+      const memoriaIds = memoriaEvents
+        .map((e) => (e.payload as { memoria_id?: string })?.memoria_id)
+        .filter((id): id is string => Boolean(id));
+      const defs = await this.prisma.memoria.findMany({
+        where: { id: { in: memoriaIds } },
+      });
+      const defMap = new Map(defs.map((d) => [d.id, d]));
+      for (const me of memoriaEvents) {
+        const payload = (me.payload ?? {}) as { memoria_id?: string; name?: string };
+        const def = payload.memoria_id ? defMap.get(payload.memoria_id) : null;
+        if (!def) continue; // stale event for a removed def — skip silently
+        entries.push({
+          id:        me.id,
+          kind:      'memoria-granted',
+          title:     `A MEMORIA — ${def.name}`,
+          subtitle:  def.lore,
+          glyph:     def.glyph,
+          accent:    def.accent,
+          timestamp: me.createdAt.toISOString(),
+        });
+      }
+    }
+
     // Newest first
     entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 

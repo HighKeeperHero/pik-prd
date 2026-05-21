@@ -38,6 +38,7 @@ import { PushModule }       from './push/push.module';            // ← Sprint 
 import { IapModule }        from './iap/iap.module';              // ← Sprint 28 (iOS StoreKit 2 redeem)
 import { LevelingModule }   from './leveling/leveling.module';    // ← Phase 2 Arc A (hero XP curve)
 import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Sprint 31 (XR interop seam: USDZ assets)
+import { MemoriaModule }    from './memoria/memoria.module';          // ← Sprint 32 (Tier 2 identity-collection)
 
 import { Controller, Get } from '@nestjs/common';
 
@@ -100,6 +101,7 @@ class HealthController {
     IapModule,            // ← Sprint 28 (iOS StoreKit 2 redeem)
     LevelingModule,       // ← Phase 2 Arc A (hero XP curve)
     RelicMarksModule,     // ← Sprint 31 (XR interop seam: USDZ assets)
+    MemoriaModule,        // ← Sprint 32 (Tier 2 identity-collection)
   ],
   controllers: [HealthController],
   providers: [
