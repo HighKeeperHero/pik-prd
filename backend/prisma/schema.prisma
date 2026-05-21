@@ -126,6 +126,7 @@ model RootIdentity {
   landmarkDiscoveries      LandmarkDiscovery[]         // Sprint 25
   sanctumState             SanctumState?               // Sprint 28 — iOS daily ritual
   iapPurchases             IapPurchase[]               // Sprint 28 — iOS IAP transactions
+  fateFox                  FateFox?                    // Sprint 31 — Fate Fox companion (one per hero)
   sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
 
   @@index([fateAccountId])
@@ -629,6 +630,28 @@ model SanctumState {
   root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@map("sanctum_state")
+}
+
+// ============================================================
+// FATE FOX — Sprint 31 / Tier 2 companion-bond
+//
+// Per docs/canon/progression.md § 6, every Awakened may bond one
+// Fate Fox; the bond is permanent on both sides. Fox is a modifier
+// layer — utility nudges (XP yield, cache rarity, etc.), NEVER
+// combat power. v1 implements only the bond + a flat +5% Fate XP
+// nudge; future slices add more modifier types + cosmetic skins.
+//
+// rootId is @unique because each hero bonds exactly one Fox for life.
+// ============================================================
+model FateFox {
+  id        String   @id @default(uuid()) @map("fox_id")
+  rootId    String   @unique @map("root_id")
+  name      String
+  bondedAt  DateTime @default(now()) @map("bonded_at")
+
+  root      RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@map("fate_foxes")
 }
 
 // ============================================================

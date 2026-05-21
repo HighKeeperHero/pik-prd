@@ -718,6 +718,85 @@ export class IdentityService {
     Object.keys(IdentityService.RELIC_MARK_DISPLAY),
   );
 
+  // ── Fate Fox (Sprint 31 / Tier 2 companion-bond) ───────────
+  // Per docs/canon/progression.md § 6:
+  //   * One fox per hero, permanent both ways
+  //   * Modifier layer only — never combat power
+  //   * Fox Level derived from Fate level at a smaller multiplier
+  //   * v1 modifier: +5% Fate XP yield, applied in LevelingService
+
+  /** Compute the fox's level given the hero's current Fate level.
+   *  Canon: "Fox Level grows alongside Fate at a smaller multiplier
+   *  (partner, not peer)." */
+  static foxLevelFromFate(fateLevel: number): number {
+    return Math.max(1, Math.floor(fateLevel * 0.6));
+  }
+
+  async bondFox(rootId: string, name: string) {
+    const trimmed = name?.trim();
+    if (!trimmed || trimmed.length < 2 || trimmed.length > 32) {
+      throw new BadRequestException(
+        'Fox name must be between 2 and 32 characters.',
+      );
+    }
+
+    const existing = await this.prisma.fateFox.findUnique({ where: { rootId } });
+    if (existing) {
+      // Canon — the bond is permanent both sides. Surface 409 so iOS
+      // can route to the "show your fox" view instead of allowing a
+      // second bond attempt.
+      throw new ConflictException(
+        `${existing.name} already walks with you. The bond does not unbind.`,
+      );
+    }
+
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { id: true, fateLevel: true },
+    });
+    if (!hero) throw new NotFoundException(`Identity not found: ${rootId}`);
+
+    const fox = await this.prisma.fateFox.create({
+      data: { rootId, name: trimmed },
+    });
+
+    await this.events.log({
+      rootId,
+      eventType: 'identity.fox_bonded',
+      payload:   { fox_id: fox.id, fox_name: trimmed },
+    });
+
+    this.logger.log(`Fox bonded: ${rootId} ↔ ${trimmed} (${fox.id})`);
+
+    return {
+      fox_id:    fox.id,
+      name:      fox.name,
+      bonded_at: fox.bondedAt.toISOString(),
+      level:     IdentityService.foxLevelFromFate(hero.fateLevel ?? 1),
+      xp_yield_pct: 0.05,
+    };
+  }
+
+  async getFox(rootId: string) {
+    const fox = await this.prisma.fateFox.findUnique({ where: { rootId } });
+    if (!fox) return { fox: null };
+
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { fateLevel: true },
+    });
+
+    return {
+      fox: {
+        fox_id:       fox.id,
+        name:         fox.name,
+        bonded_at:    fox.bondedAt.toISOString(),
+        level:        IdentityService.foxLevelFromFate(hero?.fateLevel ?? 1),
+        xp_yield_pct: 0.05,
+      },
+    };
+  }
+
   async setRelicMark(rootId: string, mark: string | null) {
     if (mark !== null && !IdentityService.RELIC_MARK_ALLOWLIST.has(mark)) {
       throw new BadRequestException(`Unknown Reliquary Mark: ${mark}`);
@@ -1275,6 +1354,25 @@ export class IdentityService {
         glyph:     def.glyph,
         accent:    '#C8A04E',
         timestamp: me.createdAt.toISOString(),
+      });
+    }
+
+    // 4c. Fox bond — one-time, canon-permanent moment per § 6.
+    const foxEvent = await this.prisma.identityEvent.findFirst({
+      where:   { rootId, eventType: 'identity.fox_bonded' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (foxEvent) {
+      const payload = (foxEvent.payload ?? {}) as { fox_name?: string };
+      const foxName = payload.fox_name ?? 'A fox';
+      entries.push({
+        id:        foxEvent.id,
+        kind:      'fox-bonded',
+        title:     'A FOX FOUND YOU',
+        subtitle:  `${foxName} walks with you from this day. The bond does not unbind.`,
+        glyph:     '✦',
+        accent:    '#C8A04E',
+        timestamp: foxEvent.createdAt.toISOString(),
       });
     }
 

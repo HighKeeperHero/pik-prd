@@ -118,6 +118,33 @@ export class IdentityController {
   }
 
   /**
+   * POST /api/users/:root_id/fox/bond
+   *
+   * Sprint 31 / Tier 2 companion bond. One-time per hero. Body:
+   * { name: string }. 409 if a fox is already bonded — the bond
+   * does not unbind (canon § 6).
+   */
+  @Post(':root_id/fox/bond')
+  async bondFox(
+    @Param('root_id') rootId: string,
+    @Body() body: { name?: string },
+  ) {
+    return this.identityService.bondFox(rootId, body?.name ?? '');
+  }
+
+  /**
+   * GET /api/users/:root_id/fox
+   *
+   * Returns the hero's bonded fox (or null if not yet bonded).
+   * Includes derived fox level (canon: "smaller multiplier than Fate")
+   * and the active modifier % so iOS can surface "your fox grants +5%".
+   */
+  @Get(':root_id/fox')
+  async getFox(@Param('root_id') rootId: string) {
+    return this.identityService.getFox(rootId);
+  }
+
+  /**
    * POST /api/users/:root_id/inventory/:inventory_id/dismantle
    *
    * Dismantle an unequipped inventory item for Nexus currency.

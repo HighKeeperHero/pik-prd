@@ -61,6 +61,11 @@ export interface XpAward {
    *  doesn't need to re-derive the curve. */
   xp_in_level:      number;
   xp_to_next_level: number;
+  /** Sprint 31 — extra XP added by the hero's bonded Fate Fox
+   *  (canon § 6 modifier layer). 0 if no fox bonded. Reported
+   *  separately so iOS can surface "Your fox lent its luck +N"
+   *  in level-up or trial-result cinematics. */
+  fox_bonus:        number;
 }
 
 @Injectable()
@@ -78,11 +83,17 @@ export class LevelingService {
     if (amount <= 0) return null;
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { fateXp: true, fateLevel: true },
+      select: { fateXp: true, fateLevel: true, fateFox: true },
     });
     if (!hero) return null;
 
-    const newXp     = (hero.fateXp ?? 0) + amount;
+    // Sprint 31 — Fate Fox XP-yield modifier (canon § 6). Flat +5%
+    // when a fox is bonded. Floored so partial points are absorbed
+    // rather than producing half-XP grants.
+    const foxBonus = hero.fateFox ? Math.floor(amount * 0.05) : 0;
+    const totalGain = amount + foxBonus;
+
+    const newXp     = (hero.fateXp ?? 0) + totalGain;
     const newLevel  = levelFromXp(newXp);
     const leveledUp = newLevel > (hero.fateLevel ?? 1);
 
@@ -97,10 +108,11 @@ export class LevelingService {
 
     const baseForLevel = xpToReach(newLevel);
     return {
-      xp_gained:        amount,
+      xp_gained:        totalGain,
       fate_xp:          newXp,
       fate_level:       newLevel,
       leveled_up:       leveledUp,
+      fox_bonus:        foxBonus,
       xp_in_level:      newXp - baseForLevel,
       xp_to_next_level: xpForLevel(newLevel),
     };
