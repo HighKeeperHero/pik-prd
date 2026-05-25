@@ -17,6 +17,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Req,
@@ -111,5 +112,14 @@ export class FateAccountController {
     @Body() dto: UpdateHeroAlignmentDto,
   ) {
     return this.service.updateAlignment(req.accountId, heroId, dto.alignment);
+  }
+
+  /** DELETE /api/account — permanently delete the authenticated account
+   *  and all its heroes + data. App Store Guideline 5.1.1(v) requirement.
+   *  Cascades via Prisma onDelete. The client clears local session after. */
+  @Delete()
+  @UseGuards(AccountGuard)
+  async deleteAccount(@Req() req: Request & { accountId: string }) {
+    return this.service.deleteAccount(req.accountId);
   }
 }

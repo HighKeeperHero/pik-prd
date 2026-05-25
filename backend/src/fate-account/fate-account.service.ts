@@ -168,6 +168,23 @@ export class FateAccountService {
 
   // ── HERO MANAGEMENT ──────────────────────────────────────────────────────────
 
+  /** Permanently delete an account and all associated data. Required
+   *  by App Store Review Guideline 5.1.1(v) — any app with account
+   *  creation must offer in-app account deletion.
+   *
+   *  Deleting the FateAccount cascades (onDelete: Cascade) through all
+   *  its RootIdentity heroes and every per-hero row (sessions, events,
+   *  memoria, gear, IAP records, sanctum state, etc.), plus the account's
+   *  own AccountSessions. One delete tears down the whole graph.
+   *
+   *  NOTE: this is a hard delete. If business/tax retention of IAP
+   *  records is ever needed, switch to anonymize-and-retain for the
+   *  IapPurchase rows specifically. */
+  async deleteAccount(accountId: string): Promise<{ deleted: true }> {
+    await this.prisma.fateAccount.delete({ where: { id: accountId } });
+    return { deleted: true };
+  }
+
   async listHeroes(accountId: string) {
     const heroes = await this.prisma.rootIdentity.findMany({
       where: { fateAccountId: accountId, status: 'active' },
