@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "The Forge",
+    "slug": "heroes-veritas-forge",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "forge",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#08080f",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#08080f",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.heroesveritas.forge"
+    },
+    "android": {
+      "package": "com.heroesveritas.forge",
+      "adaptiveIcon": {
+        "backgroundColor": "#08080f"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "pikApiUrl": "https://pik-prd-production.up.railway.app"
+    }
+  }
+}

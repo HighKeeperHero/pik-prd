@@ -217,115 +217,6 @@ export async function getLeaderboardSummary(limit = 5) {
   return get(`/api/leaderboard/summary?limit=${limit}`);
 }
 
-// ── The Forge (gym / workout companion) ─────────────────
-
-const del = (path) => request('DELETE', path);
-
-/** Movement library (global + this hero's custom), optionally filtered */
-export async function forgeExercises(params = {}, rootId = ROOT_ID) {
-  const qs = new URLSearchParams();
-  if (params.category) qs.set('category', params.category);
-  if (params.equipment) qs.set('equipment', params.equipment);
-  if (params.q) qs.set('q', params.q);
-  const q = qs.toString();
-  return get(`/api/forge/${rootId}/exercises${q ? '?' + q : ''}`);
-}
-
-/** Create a custom movement */
-export async function forgeCreateExercise(dto, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/exercises`, dto);
-}
-
-/** Per-movement set history + records */
-export async function forgeExerciseHistory(exerciseId, rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/exercises/${exerciseId}/history`);
-}
-
-/** Saved regimens (routines) */
-export async function forgeRegimens(rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/regimens`);
-}
-
-/** Create a regimen */
-export async function forgeSaveRegimen(dto, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/regimens`, dto);
-}
-
-/** Update a regimen */
-export async function forgeUpdateRegimen(regimenId, dto, rootId = ROOT_ID) {
-  return put(`/api/forge/${rootId}/regimens/${regimenId}`, dto);
-}
-
-/** Archive a regimen */
-export async function forgeDeleteRegimen(regimenId, rootId = ROOT_ID) {
-  return del(`/api/forge/${rootId}/regimens/${regimenId}`);
-}
-
-/** Start a Forge Rite (optionally from a regimen) */
-export async function forgeStartSession(dto = {}, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/sessions/start`, dto);
-}
-
-/** Get the active session (or null) */
-export async function forgeActiveSession(rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/sessions/active`);
-}
-
-/** Get a session by id */
-export async function forgeSession(sessionId, rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/sessions/${sessionId}`);
-}
-
-/** Add an exercise to the active session */
-export async function forgeAddExercise(sessionId, exerciseId, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/sessions/${sessionId}/exercises`, { exercise_id: exerciseId });
-}
-
-/** Remove an exercise from the active session */
-export async function forgeRemoveExercise(sessionId, sessionExerciseId, rootId = ROOT_ID) {
-  return del(`/api/forge/${rootId}/sessions/${sessionId}/exercises/${sessionExerciseId}`);
-}
-
-/** Log a set */
-export async function forgeLogSet(sessionId, dto, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/sessions/${sessionId}/sets`, dto);
-}
-
-/** Update a set */
-export async function forgeUpdateSet(setId, dto, rootId = ROOT_ID) {
-  return put(`/api/forge/${rootId}/sets/${setId}`, dto);
-}
-
-/** Delete a set */
-export async function forgeDeleteSet(setId, rootId = ROOT_ID) {
-  return del(`/api/forge/${rootId}/sets/${setId}`);
-}
-
-/** Seal the rite (finish the workout) */
-export async function forgeFinishSession(sessionId, dto = {}, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/sessions/${sessionId}/finish`, dto);
-}
-
-/** Discard the active session */
-export async function forgeDiscardSession(sessionId, rootId = ROOT_ID) {
-  return post(`/api/forge/${rootId}/sessions/${sessionId}/discard`, {});
-}
-
-/** Completed session history */
-export async function forgeHistory(limit = 20, rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/history?limit=${limit}`);
-}
-
-/** Personal records (Feats) */
-export async function forgeRecords(rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/records`);
-}
-
-/** Aggregate stats */
-export async function forgeStats(rootId = ROOT_ID) {
-  return get(`/api/forge/${rootId}/stats`);
-}
-
 // ── Default export as namespace ─────────────────────────
 
 const api = {
@@ -338,13 +229,6 @@ const api = {
   getQuestBoard, getPlayerQuests, acceptQuest, evaluateQuests,
   getPlayerSessions, getLiveSessions, getLiveCounts,
   getLeaderboard, getLeaderboardSummary,
-  forgeExercises, forgeCreateExercise, forgeExerciseHistory,
-  forgeRegimens, forgeSaveRegimen, forgeUpdateRegimen, forgeDeleteRegimen,
-  forgeStartSession, forgeActiveSession, forgeSession,
-  forgeAddExercise, forgeRemoveExercise,
-  forgeLogSet, forgeUpdateSet, forgeDeleteSet,
-  forgeFinishSession, forgeDiscardSession,
-  forgeHistory, forgeRecords, forgeStats,
 };
 
 export default api;

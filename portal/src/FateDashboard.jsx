@@ -499,7 +499,7 @@ function HeroModal({ show, onClose, onSubmit, accountData, takenHeroNames = [], 
 // FATE DASHBOARD
 // ══════════════════════════════════════════════════════════
 
-export default function FateDashboard({ rootId, userData, onLogout, onEnterPortal, onEnterForge, onUserDataRefresh }) {
+export default function FateDashboard({ rootId, userData, onLogout, onEnterPortal, onUserDataRefresh }) {
   const [entered, setEntered] = useState(false);
   const [activeTab, setActiveTab] = useState("home"); // "home" | "veil"
   const [showHeroModal, setShowHeroModal] = useState(false);
@@ -871,32 +871,6 @@ export default function FateDashboard({ rootId, userData, onLogout, onEnterPorta
             </button>
           )}
         </Fade>
-
-        {/* ── The Forge (workout companion) ── */}
-        {onEnterForge && (
-          <Fade show={entered} delay={250}>
-            <button onClick={onEnterForge} style={{
-              width: "100%", padding: 16, borderRadius: 14, marginBottom: 16,
-              display: "flex", alignItems: "center", gap: 14, textAlign: "left",
-              background: "linear-gradient(135deg, rgba(245,158,11,0.10), rgba(217,119,6,0.05))",
-              border: "1px solid rgba(245,158,11,0.25)",
-              cursor: "pointer", fontFamily: FONT_B,
-            }}>
-              <div style={{
-                width: 44, height: 44, borderRadius: 11, flexShrink: 0,
-                background: "linear-gradient(135deg,#f59e0b,#d97706)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
-              }}>{"⚒️"}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>The Forge</div>
-                <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
-                  Log your training — temper the body, earn Forge XP
-                </div>
-              </div>
-              <span style={{ fontSize: 20, color: "#f59e0b" }}>{"→"}</span>
-            </button>
-          </Fade>
-        )}
 
         {/* ── Connected Venues ── */}
         <Fade show={entered} delay={300}>
