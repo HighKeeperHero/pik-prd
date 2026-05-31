@@ -39,6 +39,7 @@ import { IapModule }        from './iap/iap.module';              // ← Sprint 
 import { LevelingModule }   from './leveling/leveling.module';    // ← Phase 2 Arc A (hero XP curve)
 import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Sprint 31 (XR interop seam: USDZ assets)
 import { MemoriaModule }    from './memoria/memoria.module';          // ← Sprint 32 (Tier 2 identity-collection)
+import { ForgeModule }      from './forge/forge.module';               // ← Sprint 33 (gym / workout companion)
 
 import { Controller, Get } from '@nestjs/common';
 
@@ -102,6 +103,7 @@ class HealthController {
     LevelingModule,       // ← Phase 2 Arc A (hero XP curve)
     RelicMarksModule,     // ← Sprint 31 (XR interop seam: USDZ assets)
     MemoriaModule,        // ← Sprint 32 (Tier 2 identity-collection)
+    ForgeModule,          // ← Sprint 33 (gym / workout companion)
   ],
   controllers: [HealthController],
   providers: [

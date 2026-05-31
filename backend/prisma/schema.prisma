@@ -129,6 +129,11 @@ model RootIdentity {
   fateFox                  FateFox?                    // Sprint 31 — Fate Fox companion (one per hero)
   memoria                  PlayerMemoria[]             // Sprint 32 — Memoria identity-collection
   sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
+  // Sprint 33 — The Forge (gym / workout companion)
+  forgeExercises           ForgeExercise[]             // custom movements authored by this hero
+  forgeRegimens            ForgeRegimen[]              // saved routines / Forms
+  forgeSessions            ForgeSession[]              // logged workouts (Forge Rites)
+  forgeRecords             ForgePersonalRecord[]       // bests / Feats
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -1023,4 +1028,159 @@ model WorldTear {
   @@index([sealedByRootId])
   @@index([regionLabel, status])
   @@map("world_tears")
+}
+
+// ============================================================
+// THE FORGE — Sprint 33
+// Gym / workout companion (a Hevy/Strong-style logger) that
+// tempers the body and feeds the Forge pillar + Fate XP. This is
+// the Codex's body-tempering arm: a hero logs sets and reps, the
+// Forge records the Feat, and the Chronicle remembers.
+//
+//   ForgeExercise        — movement library (global + custom)
+//   ForgeRegimen         — saved routine / template ("Form")
+//   ForgeRegimenExercise — an exercise slot within a regimen
+//   ForgeSession         — a logged workout ("Forge Rite")
+//   ForgeSessionExercise — an exercise performed in a session
+//   ForgeSet             — a single set (weight × reps)
+//   ForgePersonalRecord  — a hero's best for a movement (a "Feat")
+// ============================================================
+
+model ForgeExercise {
+  id           String   @id @default(uuid()) @map("exercise_id")
+  slug         String?  @unique                              // stable id for the global library; null for custom
+  name         String                                        // "Barbell Bench Press"
+  themeName    String?  @map("theme_name")                   // in-world flavour, e.g. "The Iron Press"
+  category     String                                        // muscle group: chest | back | legs | shoulders | arms | core | cardio | other
+  equipment    String   @default("barbell")                 // barbell | dumbbell | machine | cable | bodyweight | kettlebell | other
+  logType      String   @default("weight_reps") @map("log_type") // weight_reps | reps | duration | distance
+  instructions String?                                       // how-to / cue text
+  isCustom     Boolean  @default(false) @map("is_custom")
+  rootId       String?  @map("root_id")                      // owner for custom movements (null = global)
+  status       String   @default("active")                  // active | retired
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  root             RootIdentity?          @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  regimenSlots     ForgeRegimenExercise[]
+  sessionExercises ForgeSessionExercise[]
+  records          ForgePersonalRecord[]
+
+  @@index([category, status])
+  @@index([rootId])
+  @@map("forge_exercises")
+}
+
+model ForgeRegimen {
+  id         String   @id @default(uuid()) @map("regimen_id")
+  rootId     String   @map("root_id")
+  name       String                                          // "Push Day"
+  themeTitle String?  @map("theme_title")                    // "The Sundering Form"
+  notes      String?
+  archived   Boolean  @default(false)
+  orderIdx   Int      @default(0) @map("order_idx")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  root      RootIdentity           @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  exercises ForgeRegimenExercise[]
+  sessions  ForgeSession[]
+
+  @@index([rootId, archived])
+  @@map("forge_regimens")
+}
+
+model ForgeRegimenExercise {
+  id         String  @id @default(uuid()) @map("regimen_exercise_id")
+  regimenId  String  @map("regimen_id")
+  exerciseId String  @map("exercise_id")
+  orderIdx   Int     @default(0) @map("order_idx")
+  targetSets Int     @default(3) @map("target_sets")
+  targetReps Int?    @map("target_reps")
+  restSec    Int     @default(120) @map("rest_sec")
+  notes      String?
+
+  regimen  ForgeRegimen  @relation(fields: [regimenId], references: [id], onDelete: Cascade)
+  exercise ForgeExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([regimenId])
+  @@map("forge_regimen_exercises")
+}
+
+model ForgeSession {
+  id          String    @id @default(uuid()) @map("session_id")
+  rootId      String    @map("root_id")
+  regimenId   String?   @map("regimen_id")                   // source routine, if any
+  name        String    @default("Forge Rite")
+  status      String    @default("active")                  // active | completed | discarded
+  notes       String?
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  durationSec Int?      @map("duration_sec")
+  totalVolume Int       @default(0) @map("total_volume")     // kg moved (sum of weight × reps)
+  totalSets   Int       @default(0) @map("total_sets")
+  totalReps   Int       @default(0) @map("total_reps")
+  prCount     Int       @default(0) @map("pr_count")
+  fateXp      Int       @default(0) @map("fate_xp")          // Fate XP granted on completion
+  forgeXp     Int       @default(0) @map("forge_xp")         // Forge pillar XP granted
+
+  root      RootIdentity           @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  regimen   ForgeRegimen?          @relation(fields: [regimenId], references: [id], onDelete: SetNull)
+  exercises ForgeSessionExercise[]
+
+  @@index([rootId, status])
+  @@index([rootId, startedAt])
+  @@map("forge_sessions")
+}
+
+model ForgeSessionExercise {
+  id         String  @id @default(uuid()) @map("session_exercise_id")
+  sessionId  String  @map("session_id")
+  exerciseId String  @map("exercise_id")
+  orderIdx   Int     @default(0) @map("order_idx")
+  notes      String?
+
+  session  ForgeSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise ForgeExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  sets     ForgeSet[]
+
+  @@index([sessionId])
+  @@map("forge_session_exercises")
+}
+
+model ForgeSet {
+  id                String  @id @default(uuid()) @map("set_id")
+  sessionExerciseId String  @map("session_exercise_id")
+  setNumber         Int     @map("set_number")
+  weight            Float?                                   // kg
+  reps              Int?
+  durationSec       Int?    @map("duration_sec")
+  distanceM         Int?    @map("distance_m")
+  rpe               Float?                                   // rate of perceived exertion (1–10)
+  isWarmup          Boolean @default(false) @map("is_warmup")
+  completed         Boolean @default(false)
+  isPr              Boolean @default(false) @map("is_pr")
+
+  sessionExercise ForgeSessionExercise @relation(fields: [sessionExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([sessionExerciseId])
+  @@map("forge_sets")
+}
+
+model ForgePersonalRecord {
+  id         String   @id @default(uuid()) @map("record_id")
+  rootId     String   @map("root_id")
+  exerciseId String   @map("exercise_id")
+  recordType String   @map("record_type")                   // max_weight | est_1rm | max_reps | best_duration | best_distance
+  value      Float                                          // canonical numeric value of the record
+  weight     Float?
+  reps       Int?
+  sessionId  String?  @map("session_id")
+  achievedAt DateTime @default(now()) @map("achieved_at")
+
+  root     RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  exercise ForgeExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, exerciseId, recordType])
+  @@index([rootId])
+  @@map("forge_personal_records")
 }

@@ -267,6 +267,22 @@ export class TrainingService {
     };
   }
 
+  // ── GRANT PILLAR XP (cross-system hook) ─────────────────────────────────────────
+  // Public entry point for other body/mind/spirit-tempering systems — notably
+  // The Forge workout logger (Sprint 33) — to advance a pillar's level, streak,
+  // and pillar titles through the exact same curve rites use. Keeps pillar
+  // progression single-sourced rather than duplicated per feature. Fate XP is the
+  // caller's responsibility (grant it via LevelingService) so each system sets
+  // its own Fate economy.
+
+  async grantPillarXp(rootId: string, pillar: Pillar, xp: number): Promise<void> {
+    if (xp <= 0) return;
+    await this.ensureHeroExists(rootId);
+    await this.prisma.$transaction(async (tx) => {
+      await this.updatePillarXp(tx, rootId, pillar, xp);
+    });
+  }
+
   // ── GET PILLAR PROGRESS ───────────────────────────────────────────────────────
 
   async getPillarProgress(rootId: string) {

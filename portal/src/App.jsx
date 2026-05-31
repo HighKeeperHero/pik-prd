@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import PIKOnboarding from './PIKOnboarding.jsx';
 import PIKPortal from './PIKPortal.jsx';
 import FateDashboard from './FateDashboard.jsx';
+import ForgeApp from './ForgeApp.jsx';
 import api from './api.js';
 
 const API_BASE = import.meta.env.VITE_PIK_API_URL || 'https://pik-prd-production.up.railway.app';
@@ -516,6 +517,9 @@ export default function App() {
   if (screen === 'portal' && rootId) {
     return <PIKPortal rootId={rootId} onLogout={handleLogout} onBackToDashboard={() => setScreen('dashboard')} />;
   }
+  if (screen === 'forge' && rootId) {
+    return <ForgeApp rootId={rootId} onExit={() => setScreen('dashboard')} />;
+  }
   if (screen === 'dashboard' && rootId) {
     return (
       <FateDashboard
@@ -523,6 +527,7 @@ export default function App() {
         userData={userData}
         onLogout={handleLogout}
         onEnterPortal={(rid) => setScreen('portal')}
+        onEnterForge={() => setScreen('forge')}
         onUserDataRefresh={(newData) => {
           // Preserve Fate Name from persona, don't let it get overwritten by hero_name
           const fateName = newData.personas?.[0]?.display_name || userData?.display_name || newData.hero_name;

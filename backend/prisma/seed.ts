@@ -13,6 +13,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
+import { FORGE_LIBRARY } from '../src/forge/exercise-library';
 
 const prisma = new PrismaClient();
 
@@ -499,6 +500,33 @@ async function main() {
     });
   }
   console.log(`  ✓ ${pillarTitles.length} pillar titles`);
+
+  // ── The Forge — global movement library (Sprint 33) ───────────────────────
+
+  for (const ex of FORGE_LIBRARY) {
+    await prisma.forgeExercise.upsert({
+      where:  { slug: ex.slug },
+      update: {
+        name:         ex.name,
+        themeName:    ex.themeName,
+        category:     ex.category,
+        equipment:    ex.equipment,
+        logType:      ex.logType,
+        instructions: ex.instructions ?? null,
+      },
+      create: {
+        slug:         ex.slug,
+        name:         ex.name,
+        themeName:    ex.themeName,
+        category:     ex.category,
+        equipment:    ex.equipment,
+        logType:      ex.logType,
+        instructions: ex.instructions ?? null,
+        isCustom:     false,
+      },
+    });
+  }
+  console.log(`  ✓ ${FORGE_LIBRARY.length} Forge movements`);
 
   console.log('');
   console.log('=== SEED COMPLETE ===');
