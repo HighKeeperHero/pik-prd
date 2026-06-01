@@ -13,6 +13,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { FORGE_LIBRARY } from '../src/forge/exercise-library';
 
 const prisma = new PrismaClient();
@@ -527,6 +528,33 @@ async function main() {
     });
   }
   console.log(`  ✓ ${FORGE_LIBRARY.length} Forge movements`);
+
+  // ── Demo account + hero (local dev login) ─────────────────────────────────
+  // A ready-to-use email/password account with one hero, so the Forge app can
+  // sign in and log workouts immediately against a local backend.
+  const demoEmail = 'demo@heroesveritas.com';
+  const demoPassword = 'forgedemo123';
+  const demoAccount = await prisma.fateAccount.upsert({
+    where: { email: demoEmail },
+    update: {},
+    create: {
+      email: demoEmail,
+      provider: 'email',
+      passwordHash: await bcrypt.hash(demoPassword, 10),
+      displayName: 'Demo Hero',
+    },
+  });
+  await prisma.rootIdentity.upsert({
+    where: { heroName: 'Emberforge' },
+    update: { fateAccountId: demoAccount.id },
+    create: {
+      heroName: 'Emberforge',
+      fateAccountId: demoAccount.id,
+      fateAlignment: 'NONE',
+      enrolledBy: 'seed:forge-demo',
+    },
+  });
+  console.log(`  ✓ demo login → ${demoEmail} / ${demoPassword} (hero: Emberforge)`);
 
   console.log('');
   console.log('=== SEED COMPLETE ===');

@@ -56,6 +56,7 @@ export const accountLogin = (email, password) => post('/api/account/login', { em
 export const accountRegister = (email, password, display_name) =>
   post('/api/account/register', { email, password, display_name });
 export const listHeroes = () => get('/api/account/heroes');
+export const createHero = (hero_name, origin) => post('/api/account/heroes', { hero_name, origin });
 export const selectHero = (heroId) => post(`/api/account/heroes/${heroId}/select`, {});
 export const accountLogout = () => post('/api/account/logout', {});
 
@@ -96,7 +97,7 @@ export const forgeStats = () => get(`/api/forge/${ROOT_ID}/stats`);
 
 export default {
   setBaseUrl, setSession, setRootId, getRootId, clearSession,
-  accountLogin, accountRegister, listHeroes, selectHero, accountLogout,
+  accountLogin, accountRegister, listHeroes, createHero, selectHero, accountLogout,
   forgeExercises, forgeCreateExercise, forgeExerciseHistory,
   forgeRegimens, forgeSaveRegimen, forgeUpdateRegimen, forgeDeleteRegimen,
   forgeStartSession, forgeActiveSession, forgeSession,

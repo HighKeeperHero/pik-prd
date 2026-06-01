@@ -3,6 +3,7 @@
 // Application Bootstrap (Sprint 3 — Hardened)
 // Place at: src/main.ts
 // ============================================================
+import 'dotenv/config'; // load .env for local dev (no-op in prod where vars are real)
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';

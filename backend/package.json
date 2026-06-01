@@ -14,7 +14,12 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d --wait",
+    "setup": "prisma migrate deploy && prisma db seed",
+    "dev": "npm run db:up && npm run setup && npm run start:dev"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
@@ -29,6 +34,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "dotenv": "^16.6.1",
     "google-auth-library": "^10.6.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
