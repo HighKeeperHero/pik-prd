@@ -19,7 +19,10 @@ npm start          # then press i (iOS), a (Android), or w (web)
 ```
 
 Requires the [Expo](https://docs.expo.dev/) toolchain (`npx expo`).
-The app targets Expo SDK 52 (React Native 0.76).
+The app targets Expo SDK 55 (React Native 0.83, React 19).
+
+> Web preview (`w`) isn't wired up by default. To enable it:
+> `npx expo install react-dom react-native-web @expo/metro-runtime`.
 
 ## Configuration
 
