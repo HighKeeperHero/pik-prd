@@ -23,9 +23,15 @@ The app targets Expo SDK 52 (React Native 0.76).
 
 ## Configuration
 
-The backend URL defaults to the production PIK API. Override it in
-`app.json` under `expo.extra.pikApiUrl`, e.g. point it at a local
-backend (`http://<your-lan-ip>:8080`) during development.
+The backend URL defaults to the production PIK API. Override it either way:
+
+- **Env var (simplest):** set `EXPO_PUBLIC_PIK_API_URL` before starting —
+  `EXPO_PUBLIC_PIK_API_URL=http://192.168.1.20:8080 npx expo start`
+  (or put it in a `.env` file; Expo inlines `EXPO_PUBLIC_*` automatically).
+- **app.json:** set `expo.extra.pikApiUrl`.
+
+Use your machine's **LAN IP**, not `localhost`, so a phone running
+Expo Go can reach your local backend.
 
 ## How it connects to the Codex
 

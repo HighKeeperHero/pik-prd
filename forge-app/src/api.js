@@ -11,6 +11,7 @@
 import Constants from 'expo-constants';
 
 const DEFAULT_BASE =
+  process.env.EXPO_PUBLIC_PIK_API_URL ||
   Constants?.expoConfig?.extra?.pikApiUrl ||
   'https://pik-prd-production.up.railway.app';
 
