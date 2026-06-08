@@ -5,7 +5,7 @@
 // ============================================================
 import { Module, Global } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard, SkipThrottle } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
 
@@ -44,8 +44,26 @@ import { Controller, Get } from '@nestjs/common';
 
 @Controller('api')
 class HealthController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  // Liveness — process is up. Fast, dependency-free (a DB blip must not
+  // restart the app). Point Railway's healthcheck path here.
   @Get('health')
+  @SkipThrottle()
   health() { return { status: 'ok', timestamp: new Date().toISOString() }; }
+
+  // Readiness — verifies the DB is reachable. Point an external uptime
+  // monitor (UptimeRobot/BetterStack) here to catch DB outages too.
+  @Get('health/ready')
+  @SkipThrottle()
+  async ready() {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+      return { status: 'ok', db: 'ok', timestamp: new Date().toISOString() };
+    } catch {
+      return { status: 'degraded', db: 'down', timestamp: new Date().toISOString() };
+    }
+  }
 }
 
 @Global()
