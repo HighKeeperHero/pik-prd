@@ -744,9 +744,14 @@ model IapPurchase {
   rootId              String    @map("root_id")
   sku                 String                                  // 'essence_small' | 'essence_pack' | 'essence_hoard'
   essenceGranted      Int       @map("essence_granted")
-  appleTransactionId  String    @unique @map("apple_transaction_id")  // Apple's canonical transactionId
-  appleEnvironment    String    @map("apple_environment")     // 'Sandbox' | 'Production'
-  appleBundleId       String    @map("apple_bundle_id")
+  platform            String    @default("ios")               // 'ios' | 'android'
+  // Apple (StoreKit 2) — null for Android rows.
+  appleTransactionId  String?   @unique @map("apple_transaction_id")  // Apple's canonical transactionId
+  appleEnvironment    String?   @map("apple_environment")     // 'Sandbox' | 'Production'
+  appleBundleId       String?   @map("apple_bundle_id")
+  // Google Play — null for iOS rows. orderId is the dedup key.
+  googleOrderId       String?   @unique @map("google_order_id")
+  googlePurchaseToken String?   @map("google_purchase_token")
   status              String    @default("granted")            // granted | refunded | revoked
   refundedAt          DateTime? @map("refunded_at")
   createdAt           DateTime  @default(now()) @map("created_at")

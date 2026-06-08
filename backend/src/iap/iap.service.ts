@@ -20,6 +20,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ESSENCE_BY_SKU, APPLE_BUNDLE_ID, APPLE_APP_APPLE_ID } from './skus';
+import { GooglePlayVerifier } from './google-play.verifier';
 import {
   SignedDataVerifier,
   Environment,
@@ -34,7 +35,10 @@ export class IapService implements OnModuleInit {
   private prodVerifier!:    SignedDataVerifier;
   private sandboxVerifier!: SignedDataVerifier;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly google: GooglePlayVerifier,
+  ) {}
 
   onModuleInit() {
     const certsDir = path.join(__dirname, 'certs');
@@ -65,7 +69,20 @@ export class IapService implements OnModuleInit {
     this.logger.log('Apple receipt verifiers ready (prod + sandbox).');
   }
 
-  async redeem(rootId: string, signedTransaction: string) {
+  /** Platform dispatcher. iOS sends a StoreKit JWS; Android sends a
+   *  Play purchase token + productId. */
+  async redeem(
+    rootId: string,
+    dto: { signedTransaction: string; platform?: string; productId?: string },
+  ) {
+    if (dto.platform === 'android') {
+      return this.redeemAndroid(rootId, dto.signedTransaction, dto.productId);
+    }
+    return this.redeemApple(rootId, dto.signedTransaction);
+  }
+
+  /** iOS StoreKit 2 redemption. */
+  private async redeemApple(rootId: string, signedTransaction: string) {
     const decoded = await this.verify(signedTransaction);
 
     if (!decoded.productId) {
@@ -127,6 +144,81 @@ export class IapService implements OnModuleInit {
       newEssenceBalance:  sanctum.veilEssence,
       transactionId:      decoded.transactionId,
       environment:        decoded.environment,
+    };
+  }
+
+  /** Android Play Billing redemption. Verifies the purchase token via
+   *  the Play Developer API, dedups on the Google orderId, and credits
+   *  essence atomically. The client acknowledges/consumes the purchase
+   *  after this returns (these are consumables). */
+  private async redeemAndroid(rootId: string, purchaseToken: string, productId?: string) {
+    if (!this.google.enabled) {
+      throw new BadRequestException('Android purchases are not available yet.');
+    }
+    if (!productId) {
+      throw new BadRequestException('productId is required for Android purchases.');
+    }
+    const essence = ESSENCE_BY_SKU[productId];
+    if (essence == null) {
+      throw new BadRequestException(`Unknown SKU: ${productId}`);
+    }
+
+    let info;
+    try {
+      info = await this.google.verifyProduct(productId, purchaseToken);
+    } catch (e) {
+      this.logger.warn(`Play verification failed: ${(e as Error).message}`);
+      throw new BadRequestException('Purchase verification failed.');
+    }
+    if (info.purchaseState !== 0) {
+      throw new BadRequestException(`Purchase not in a granted state (state=${info.purchaseState}).`);
+    }
+    if (!info.orderId) {
+      throw new BadRequestException('Purchase has no orderId.');
+    }
+
+    // Idempotency on Google's orderId.
+    const existing = await this.prisma.iapPurchase.findUnique({
+      where: { googleOrderId: info.orderId },
+    });
+    if (existing) {
+      throw new ConflictException({
+        message:         'Transaction already redeemed.',
+        alreadyRedeemed: true,
+        essenceGranted:  existing.essenceGranted,
+        transactionId:   existing.googleOrderId,
+      });
+    }
+
+    const { sanctum } = await this.prisma.$transaction(async (tx) => {
+      const purchase = await tx.iapPurchase.create({
+        data: {
+          rootId,
+          sku:                 productId,
+          essenceGranted:      essence,
+          platform:            'android',
+          googleOrderId:       info.orderId,
+          googlePurchaseToken: purchaseToken,
+        },
+      });
+      const sanctum = await tx.sanctumState.upsert({
+        where:  { rootId },
+        create: { rootId, veilEssence: essence },
+        update: { veilEssence: { increment: essence } },
+      });
+      return { purchase, sanctum };
+    });
+
+    this.logger.log(
+      `IAP redeemed (android): root=${rootId} sku=${productId} essence=+${essence} order=${info.orderId}`,
+    );
+
+    return {
+      sku:               productId,
+      essenceGranted:    essence,
+      newEssenceBalance: sanctum.veilEssence,
+      transactionId:     info.orderId,
+      environment:       'Production',
     };
   }
 

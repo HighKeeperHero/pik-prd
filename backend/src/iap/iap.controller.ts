@@ -34,6 +34,6 @@ export class IapController {
 
   @Post('redeem')
   async redeem(@Req() req: AuthedRequest, @Body() body: RedeemIapDto) {
-    return this.iap.redeem(requireHeroId(req), body.signedTransaction);
+    return this.iap.redeem(requireHeroId(req), body);
   }
 }
