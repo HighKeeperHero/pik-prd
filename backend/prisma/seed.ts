@@ -70,6 +70,11 @@ async function main() {
     { id: 'title_five_sessions', displayName: 'PROVEN', category: 'session', description: 'Completed 5 sessions' },
     { id: 'title_node_master', displayName: 'NODE MASTER', category: 'session', description: 'Completed all nodes in a session' },
     { id: 'title_multi_source', displayName: 'REALM WALKER', category: 'meta', description: 'Progressed from 2+ sources' },
+    // Veil encounter titles — granted by veil.service on seals. Without
+    // these rows the _maybeGrantTitle calls silently no-op'd.
+    { id: 'first_veil_seal', displayName: 'FIRST SEAL', category: 'veil', description: 'Sealed your first Veil tear' },
+    { id: 'dormant_rift_sealed', displayName: 'DORMANT RIFT SEALED', category: 'veil', description: 'Sealed a dormant (T3) tear' },
+    { id: 'convergence_survived', displayName: 'CONVERGENCE SURVIVED', category: 'veil', description: 'Survived a double (T4) convergence tear' },
   ];
 
   for (const t of titles) {
