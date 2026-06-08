@@ -40,7 +40,7 @@ import { LevelingModule }   from './leveling/leveling.module';    // ← Phase 2
 import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Sprint 31 (XR interop seam: USDZ assets)
 import { MemoriaModule }    from './memoria/memoria.module';          // ← Sprint 32 (Tier 2 identity-collection)
 
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
 @Controller('api')
 class HealthController {
@@ -61,7 +61,11 @@ class HealthController {
       await this.prisma.$queryRaw`SELECT 1`;
       return { status: 'ok', db: 'ok', timestamp: new Date().toISOString() };
     } catch {
-      return { status: 'degraded', db: 'down', timestamp: new Date().toISOString() };
+      // 503 so a status-code uptime monitor catches DB outages, not just
+      // process-down.
+      throw new ServiceUnavailableException({
+        status: 'degraded', db: 'down', timestamp: new Date().toISOString(),
+      });
     }
   }
 }
