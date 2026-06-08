@@ -39,6 +39,13 @@ async function main() {
     { key: 'pik.dashboard_port', value: '8090', description: 'PIK Dashboard port (informational)' },
     { key: 'pik.default_link_scope', value: 'xp fate_markers titles', description: 'Default consent scope for new source links' },
     { key: 'pik.session_token_ttl_secs', value: '3600', description: 'Auth session token TTL in seconds' },
+    // Phase 2 Arc B slice 4 — procedural Veil generation (live-tunable).
+    { key: 'veil.procedural_enabled', value: 'true', description: 'Use procedural population-weighted tear generation (false = legacy stored-row path)' },
+    { key: 'veil.density_factor', value: '1.0', description: 'Global multiplier on pop_cell weight → tears per cell' },
+    { key: 'veil.floor_tears', value: '3', description: 'Minimum tears for any cell that has a pop_cell row (blanket coverage)' },
+    { key: 'veil.cell_deg', value: '0.05', description: 'Procedural grid cell size in degrees (~5.5 km). Must match the seeded pop_cell grid' },
+    { key: 'veil.cooldown_hours', value: '6', description: 'Hours a sealed procedural tear stays gone before its slot regenerates' },
+    { key: 'veil.rotation_hours', value: '24', description: 'Position-rotation window for procedural tears (id/tier stay fixed)' },
   ];
 
   for (const c of configs) {

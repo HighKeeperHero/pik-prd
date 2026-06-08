@@ -4,6 +4,9 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
 import { LevelingService, type XpAward } from '../leveling/leveling.service';
+import { ConfigService } from '../config/config.service';
+import { TearGenService, type GenParams, type GenTear } from './tear-gen.service';
+import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
 
 // Phase 2 Arc A — XP granted per tear tier on a successful seal.
 // Source of truth: docs/roadmap/phase-2.md.
@@ -69,6 +72,21 @@ const TIER_RADIAL_BANDS: Record<string, { min: number; max: number }> = {
 
 const TEAR_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24h
 
+// Phase 2 Arc B slice 4 — procedural generation defaults. These are
+// fallbacks only; live values come from ConfigService (veil.* keys)
+// so ops can tune density / cooldown without a redeploy. The seed
+// script scales `pop_cell.weight` to ≈ desired tears-per-cell, so
+// densityFactor is just a global multiplier (default 1.0).
+const PROC_DEFAULTS = {
+  enabled:       true,
+  cellDeg:       CELL_DEG_DEFAULT, // 0.05° (~5.5 km)
+  densityFactor: 1.0,
+  floorTears:    3,   // min tears for any cell that has a pop_cell row
+  maxPerCell:    40,  // payload cap for dense metros
+  cooldownHours: 6,   // sealed tear stays gone this long
+  rotationHours: 24,  // position-rotation window
+};
+
 /** Great-circle distance between two lat/lon points, km. */
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R    = 6371;
@@ -123,6 +141,8 @@ export class VeilService {
     private readonly prisma:       PrismaService,
     private readonly huntTracker:  HuntTrackerService,
     private readonly leveling:     LevelingService,
+    private readonly config:       ConfigService,
+    private readonly tearGen:      TearGenService,
   ) {}
 
   // ── Record a battle outcome ───────────────────────────────────────────────
@@ -633,6 +653,128 @@ export class VeilService {
     fateLevel:     number,
     radiusKmOverride?: number,
   ) {
+    const cfg = await this.config.getAll().catch(() => ({} as Record<string, unknown>));
+    const enabledRaw = cfg['veil.procedural_enabled'];
+    const proceduralOn =
+      enabledRaw === undefined
+        ? PROC_DEFAULTS.enabled
+        : enabledRaw === true || enabledRaw === 'true' || enabledRaw === 1;
+    if (!proceduralOn) {
+      return this.getNearbyTearsStored(lat, lon, fateLevel, radiusKmOverride);
+    }
+
+    const num = (k: string, d: number) => {
+      const v = cfg[k];
+      return typeof v === 'number' && !Number.isNaN(v) ? v : d;
+    };
+    const cellDeg = num('veil.cell_deg', PROC_DEFAULTS.cellDeg);
+    const params: GenParams = {
+      cellDeg,
+      densityFactor: num('veil.density_factor', PROC_DEFAULTS.densityFactor),
+      floorTears:    num('veil.floor_tears', PROC_DEFAULTS.floorTears),
+      maxPerCell:    PROC_DEFAULTS.maxPerCell,
+      rotationMs:    num('veil.rotation_hours', PROC_DEFAULTS.rotationHours) * 3_600_000,
+    };
+
+    const band      = bandForFateLevel(fateLevel);
+    const radius_km = radiusKmOverride ?? band.radius_km;
+
+    // Bounding box → grid cell index ranges (same overshoot as the
+    // stored path so the haversine filter doesn't clip edge tears).
+    const latDelta = (radius_km / 111) * 1.05;
+    const lonDelta = (radius_km / (111 * Math.cos((lat * Math.PI) / 180))) * 1.05;
+    const lo = cellIndices(lat - latDelta, lon - lonDelta, cellDeg);
+    const hi = cellIndices(lat + latDelta, lon + lonDelta, cellDeg);
+    const latIdxMin = Math.min(lo.latIdx, hi.latIdx);
+    const latIdxMax = Math.max(lo.latIdx, hi.latIdx);
+    const lonIdxMin = Math.min(lo.lonIdx, hi.lonIdx);
+    const lonIdxMax = Math.max(lo.lonIdx, hi.lonIdx);
+
+    const idxByKey = new Map<string, { latIdx: number; lonIdx: number }>();
+    for (let li = latIdxMin; li <= latIdxMax; li++) {
+      for (let oi = lonIdxMin; oi <= lonIdxMax; oi++) {
+        idxByKey.set(makeCellKey(li, oi), { latIdx: li, lonIdx: oi });
+      }
+    }
+    const cellKeys = [...idxByKey.keys()];
+
+    // Population weights for the overlapping cells. No rows ⇒ this area
+    // isn't covered by the grid (open ocean, or the grid isn't seeded
+    // yet) ⇒ fall back to the stored-row path so the map is never empty
+    // where it shouldn't be.
+    const popCells = await this.prisma.popCell.findMany({
+      where: { cellKey: { in: cellKeys } },
+    });
+    if (popCells.length === 0) {
+      return this.getNearbyTearsStored(lat, lon, fateLevel, radiusKmOverride);
+    }
+
+    // Generate per cell, then drop tears whose seal is still cooling.
+    const nowMs = Date.now();
+    let generated: GenTear[] = [];
+    for (const pc of popCells) {
+      const idx = idxByKey.get(pc.cellKey);
+      if (!idx) continue;
+      generated = generated.concat(
+        this.tearGen.genCellTears(idx.latIdx, idx.lonIdx, pc.weight, pc.regionLabel, params, nowMs),
+      );
+    }
+    const seals = await this.prisma.tearSeal.findMany({
+      where: { cellKey: { in: cellKeys }, cooldownUntil: { gt: new Date(nowMs) } },
+      select: { tearId: true },
+    });
+    const sealed = new Set(seals.map((s) => s.tearId));
+
+    // Distance filter + per-tier slice by the fate band's mix —
+    // identical selection logic to the stored path below.
+    const RADIUS_TOLERANCE_KM = 0.05;
+    const withDist = generated
+      .filter((t) => !sealed.has(t.tearId))
+      .map((t) => ({ ...t, distance_km: haversineKm(lat, lon, t.lat, t.lon) }))
+      .filter((t) => t.distance_km <= radius_km + RADIUS_TOLERANCE_KM);
+
+    const byTier: Record<string, typeof withDist> = { T1: [], T2: [], T3: [], T4: [] };
+    for (const t of withDist) if (byTier[t.tier]) byTier[t.tier].push(t);
+    for (const tier of Object.keys(byTier)) {
+      byTier[tier].sort((a, b) => a.distance_km - b.distance_km);
+    }
+    const tiers: Array<keyof typeof band.mix> = ['T1', 'T2', 'T3', 'T4'];
+    const selected = tiers.flatMap((tier) => {
+      const target = Math.round(band.total * band.mix[tier]);
+      return byTier[tier].slice(0, target);
+    });
+    selected.sort((a, b) => a.distance_km - b.distance_km);
+
+    const spawnedIso = new Date(nowMs).toISOString();
+    return {
+      tears: selected.map((t) => ({
+        tear_id:      t.tearId,
+        lat:          t.lat,
+        lon:          t.lon,
+        tier:         t.tier,
+        type:         TIER_TO_TYPE[t.tier] ?? 'minor',
+        status:       'active',
+        distance_km:  Math.round(t.distance_km * 100) / 100,
+        region_label: t.regionLabel,
+        spawned_at:   spawnedIso,
+        expires_at:   null as string | null,
+      })),
+      total:     selected.length,
+      radius_km,
+      band_mix:  band.mix,
+    };
+  }
+
+  /** Legacy stored-row path. Used as the fallback when procedural
+   *  generation is disabled (veil.procedural_enabled=false) or no
+   *  population grid covers the queried area. Unchanged from the
+   *  original implementation. */
+  private async getNearbyTearsStored(
+    lat:           number,
+    lon:           number,
+    fateLevel:     number,
+    radiusKmOverride?: number,
+  ) {
     const band      = bandForFateLevel(fateLevel);
     const radius_km = radiusKmOverride ?? band.radius_km;
 
@@ -752,6 +894,27 @@ export class VeilService {
    *  is won with a world_tear_id. Idempotent — re-sealing an
    *  already-sealed tear is a no-op (returns false). */
   async sealWorldTear(tearId: string, rootId: string): Promise<boolean> {
+    // Procedural tears carry a "{cellKey}#{slot}" id and have no active
+    // row to mutate. Record the seal in tear_seal with a cooldown; the
+    // generator excludes it until the cooldown elapses, after which the
+    // slot regenerates (density self-heals — no replacement insert).
+    if (tearId.includes('#')) {
+      const cellKey = tearId.split('#')[0];
+      const cfg = await this.config.getAll().catch(() => ({} as Record<string, unknown>));
+      const cooldownHours =
+        typeof cfg['veil.cooldown_hours'] === 'number' && !Number.isNaN(cfg['veil.cooldown_hours'])
+          ? (cfg['veil.cooldown_hours'] as number)
+          : PROC_DEFAULTS.cooldownHours;
+      const cooldownUntil = new Date(Date.now() + cooldownHours * 3_600_000);
+      await this.prisma.tearSeal.upsert({
+        where:  { tearId },
+        create: { tearId, cellKey, sealedByRootId: rootId, cooldownUntil },
+        update: { sealedByRootId: rootId, sealedAt: new Date(), cooldownUntil },
+      });
+      return true;
+    }
+
+    // Legacy stored-row path (UUID ids from the original seed).
     const tear = await this.prisma.worldTear.findUnique({ where: { id: tearId } });
     if (!tear || tear.status !== 'active') return false;
 

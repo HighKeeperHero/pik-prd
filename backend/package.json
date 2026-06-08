@@ -14,7 +14,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "seed:pop": "ts-node scripts/seed-pop-grid.ts",
+    "verify:tear-gen": "ts-node scripts/verify-tear-gen.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

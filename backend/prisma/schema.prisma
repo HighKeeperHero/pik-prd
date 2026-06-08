@@ -1024,3 +1024,44 @@ model WorldTear {
   @@index([regionLabel, status])
   @@map("world_tears")
 }
+
+// ============================================================
+// PROCEDURAL VEIL GENERATION (Phase 2 Arc B — slice 4)
+// ============================================================
+
+// Precomputed population-weighted grid. One row per ~0.05° land
+// cell that has (or is near) population. `weight` drives how many
+// tears that cell procedurally spawns; absent cells (open ocean /
+// far wilderness) generate ~none. Seeded offline from GeoNames
+// cities1000 by scripts/seed-pop-grid.ts — NOT a migration (too
+// large for `migrate deploy`). Read-only at request time: a single
+// PK `IN (...)` lookup per /tears/nearby call.
+model PopCell {
+  cellKey     String  @id @map("cell_key")        // "{latIdx}:{lonIdx}" at CELL_DEG resolution
+  weight      Float                               // population-derived density multiplier
+  regionLabel String? @map("region_label")        // nearest-city slug, e.g. 'folsom-ca' — analytics only
+  centerLat   Float   @map("center_lat")          // cell center, for debugging / map overlays
+  centerLon   Float   @map("center_lon")
+
+  @@map("pop_cell")
+}
+
+// Seal overlay for procedurally-generated tears. Generated tears
+// have no active row to mutate, so a seal is recorded here and the
+// generator EXCLUDES any tear_id whose cooldown hasn't elapsed.
+// After cooldown the slot regenerates (density self-heals). Legacy
+// stored-row seals still live on world_tears (see veil.service
+// sealWorldTear branch). `sealedByRootId` is a loose string (no FK)
+// to preserve the existing soft-fail intent — a missing root must
+// never block a seal.
+model TearSeal {
+  tearId         String   @id @map("tear_id")     // "{cellKey}#{slot}"
+  cellKey        String   @map("cell_key")
+  sealedAt       DateTime @default(now()) @map("sealed_at")
+  sealedByRootId String?  @map("sealed_by_root_id")
+  cooldownUntil  DateTime @map("cooldown_until")
+
+  @@index([cooldownUntil])
+  @@index([cellKey])
+  @@map("tear_seal")
+}

@@ -1,0 +1,12 @@
+This product includes data created by GeoNames (https://www.geonames.org/),
+used under the Creative Commons Attribution 4.0 License
+(https://creativecommons.org/licenses/by/4.0/).
+
+Specifically: backend/data/cities1000.csv is derived from the GeoNames
+"cities1000" export (places with population >= 1000), trimmed to the
+columns lat, lon, population, name, country, admin1. It is used to seed
+the population-weighted grid (pop_cell) that drives procedural Veil
+tear generation (scripts/seed-pop-grid.ts).
+
+No changes were made to the underlying geographic facts; only column
+selection and formatting.
