@@ -101,6 +101,16 @@ export class WorkshopService {
     return RECIPES.map(({ item_id: _unused, ...rest }) => rest);
   }
 
+  // GET /api/users/:rootId/workshop/stock — the player's craft currency:
+  // Nexus balance + component counts (what recipes are paid with).
+  async getStock(rootId: string) {
+    const nexusRow = await this.prisma.playerNexus.findUnique({ where: { rootId } });
+    const compRows = await this.prisma.playerComponents.findMany({ where: { rootId } });
+    const components: Record<string, number> = {};
+    compRows.forEach(c => { components[c.componentType] = c.quantity; });
+    return { nexus: nexusRow?.balance ?? 0, components };
+  }
+
   // POST /api/users/:rootId/workshop/craft
   async craftItem(rootId: string, recipeId: string) {
     const recipe = RECIPE_MAP.get(recipeId);

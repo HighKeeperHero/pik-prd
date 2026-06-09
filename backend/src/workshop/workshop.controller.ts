@@ -18,6 +18,15 @@ export class WorkshopController {
     return this.workshop.getRecipes();
   }
 
+  @Get('users/:root_id/workshop/stock')
+  @UseGuards(AccountGuard)
+  async getStock(@Param('root_id') rootId: string, @Req() req: any): Promise<any> {
+    if (req.heroId !== rootId) {
+      return { status: 'error', message: 'Unauthorized' };
+    }
+    return this.workshop.getStock(rootId);
+  }
+
   @Post('users/:root_id/workshop/craft')
   @UseGuards(AccountGuard)
   async craftItem(
