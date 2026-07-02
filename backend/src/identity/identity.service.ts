@@ -422,6 +422,8 @@ export class IdentityService {
         display_name: user.personas[0]?.displayName ?? user.heroName, // Fate Name
         hero_name: user.heroName,
         origin: user.origin,
+        // Sprint 33 — Character Creation appearance (drives the Profile portrait).
+        appearance: (user as any).appearance ?? null,
         fate_alignment: user.fateAlignment,
         equipped_title: user.equippedTitle ?? null,
         // Sprint 31 — Reliquary Mark (cosmetic). NULL = default

@@ -1,6 +1,6 @@
 // src/fate-account/dto/auth.dto.ts
 
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsObject } from 'class-validator';
 
 export class RegisterDto {
   @IsEmail()
@@ -45,6 +45,20 @@ export class CreateHeroDto {
   @IsOptional()
   @IsString()
   origin?: string;
+
+  // Sprint 33 — Character Creation appearance ({ gender, ancestry, region,
+  // kit, hairstyle }); stored as JSON, drives the Profile portrait.
+  @IsOptional()
+  @IsObject()
+  appearance?: Record<string, unknown>;
+
+  // Awakening narrative fields — previously dropped by this DTO (the frontend
+  // has always sent them). RootIdentity already has the columns.
+  @IsOptional() @IsString() region?: string;
+  @IsOptional() @IsString() wound?: string;
+  @IsOptional() @IsString() calling?: string;
+  @IsOptional() @IsString() virtue?: string;
+  @IsOptional() @IsString() vice?: string;
 }
 
 export class UpdateHeroAlignmentDto {

@@ -88,6 +88,9 @@ model RootIdentity {
   calling               String?
   virtue                String?
   vice                  String?
+  // Sprint 33 — Character Creation appearance (streamed-scene selection:
+  // { gender, ancestry, region, kit, hairstyle }). Drives the Profile portrait.
+  appearance            Json?
   awakeningCompletedAt  DateTime? @map("awakening_completed_at")
   // Sprint 28 — Expo push token (single token per hero in v1.0;
   // multi-device support is a separate push_devices table later).

@@ -219,6 +219,14 @@ export class FateAccountService {
           heroName: dto.hero_name,
           fateAlignment: 'NONE',
           origin: dto.origin ?? null,
+          // Sprint 33 — persist Character Creation + Awakening narrative
+          // (region/wound/calling/virtue/vice were previously dropped).
+          region: dto.region ?? null,
+          wound: dto.wound ?? null,
+          calling: dto.calling ?? null,
+          virtue: dto.virtue ?? null,
+          vice: dto.vice ?? null,
+          appearance: (dto.appearance as any) ?? undefined,
           enrolledBy: 'self:codex-pwa',
         },
       });
@@ -412,6 +420,7 @@ export class FateAccountService {
       fate_level: hero.fateLevel,
       fate_xp: hero.fateXp,
       origin: hero.origin,
+      appearance: hero.appearance ?? null,
       enrolled_at: hero.enrolledAt?.toISOString(),
       equipped_title: hero.equippedTitle ?? null,
       titles: (hero.titles ?? []).map((ut: any) => ({
