@@ -16,7 +16,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { AccountGuard } from '../auth/guards/account.guard';
-import { SanctumService } from './sanctum.service';
+import { SanctumService, type UpgradeTrack } from './sanctum.service';
 import { SwearOathDto } from './dto/swear-oath.dto';
 
 type AuthedRequest = Request & { accountId: string; heroId: string | null };
@@ -68,5 +68,18 @@ export class SanctumController {
   @Post('augury/draw')
   async drawAugury(@Req() req: AuthedRequest) {
     return this.sanctum.drawAugury(requireHeroId(req));
+  }
+
+  // 2026-07-06 — restoration upgrade commit (the UPGRADE button).
+  // Body: { track: 'sanctum' | 'library' | 'forge' }. Validates
+  // points thresholds + wing prerequisites; 409 with a player-
+  // readable message when a gate is unmet. Returns updated state.
+  @Post('upgrade')
+  async upgrade(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
+    const track = body?.track as UpgradeTrack;
+    if (!['sanctum', 'library', 'forge'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge');
+    }
+    return this.sanctum.upgrade(requireHeroId(req), track);
   }
 }

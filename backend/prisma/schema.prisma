@@ -630,6 +630,18 @@ model SanctumState {
   // Sprint 30 Slice 5.2 — daily Augury Draw (3-card weighted reveal).
   lastAuguryDate     String?   @map("last_augury_date")      // 'YYYY-MM-DD' UTC
   totalAuguries      Int       @default(0) @map("total_auguries")
+  // 2026-07-06 — committed restoration levels. Progress POINTS are
+  // computed from lifetime counters (never stored); committing a
+  // level is an explicit player action (the UPGRADE button),
+  // validated server-side by SanctumService.upgrade() against the
+  // points thresholds + wing-level prerequisites. Hearth/Altar
+  // columns are reserved — their progression tracks ship with
+  // their interiors.
+  sanctumLevel       Int       @default(1) @map("sanctum_level")
+  libraryLevel       Int       @default(1) @map("library_level")
+  forgeLevel         Int       @default(1) @map("forge_level")
+  hearthLevel        Int       @default(1) @map("hearth_level")
+  altarLevel         Int       @default(1) @map("altar_level")
   updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
 
   root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)

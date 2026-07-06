@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "sanctum_state" ADD COLUMN     "altar_level" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "forge_level" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "hearth_level" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "library_level" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "sanctum_level" INTEGER NOT NULL DEFAULT 1;
+
