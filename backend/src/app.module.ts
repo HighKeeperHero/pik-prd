@@ -39,6 +39,7 @@ import { IapModule }        from './iap/iap.module';              // ← Sprint 
 import { LevelingModule }   from './leveling/leveling.module';    // ← Phase 2 Arc A (hero XP curve)
 import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Sprint 31 (XR interop seam: USDZ assets)
 import { MemoriaModule }    from './memoria/memoria.module';          // ← Sprint 32 (Tier 2 identity-collection)
+import { LoreModule }       from './lore/lore.module';                // ← 2026-07-06 Lore Archive collection
 
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
@@ -124,6 +125,7 @@ class HealthController {
     LevelingModule,       // ← Phase 2 Arc A (hero XP curve)
     RelicMarksModule,     // ← Sprint 31 (XR interop seam: USDZ assets)
     MemoriaModule,        // ← Sprint 32 (Tier 2 identity-collection)
+    LoreModule,           // ← 2026-07-06 Lore Archive collection
   ],
   controllers: [HealthController],
   providers: [

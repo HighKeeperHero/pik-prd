@@ -6,6 +6,7 @@ import { HuntTrackerService } from '../quest/hunt-tracker.service';
 import { LevelingService, type XpAward } from '../leveling/leveling.service';
 import { ConfigService } from '../config/config.service';
 import { TearGenService, type GenParams, type GenTear } from './tear-gen.service';
+import { LoreService, type LoreFound } from '../lore/lore.service';
 import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
 
 // Phase 2 Arc A — XP granted per tear tier on a successful seal.
@@ -143,6 +144,7 @@ export class VeilService {
     private readonly leveling:     LevelingService,
     private readonly config:       ConfigService,
     private readonly tearGen:      TearGenService,
+    private readonly lore:         LoreService,
   ) {}
 
   // ── Record a battle outcome ───────────────────────────────────────────────
@@ -287,6 +289,13 @@ export class VeilService {
       }
     }
 
+    // Lore Archive drop — a won seal may recover a lore entry
+    // (tier-keyed chance, rarity-weighted pick; never throws).
+    let loreFound: LoreFound | null = null;
+    if (outcome === 'won') {
+      loreFound = await this.lore.maybeDropOnSeal(rootId, tearType);
+    }
+
     return {
       encounter_id:      encounter.id,
       outcome,
@@ -297,6 +306,7 @@ export class VeilService {
       quests_completed:  questsCompleted,
       is_first_seal:     isFirstSeal,
       xp_award:          xpAward,
+      lore_found:        loreFound,
     };
   }
 

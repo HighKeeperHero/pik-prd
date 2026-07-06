@@ -7,9 +7,10 @@ import { ConfigService } from '../config/config.service';
 import { TearGenService } from './tear-gen.service';
 import { VenturesModule } from '../quest/ventures.module';
 import { LevelingModule } from '../leveling/leveling.module';
+import { LoreModule } from '../lore/lore.module';
 
 @Module({
-  imports:     [VenturesModule, LevelingModule],
+  imports:     [VenturesModule, LevelingModule, LoreModule],
   controllers: [VeilController],
   providers:   [VeilService, PrismaService, ConfigService, TearGenService],
   exports:     [VeilService],

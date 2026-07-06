@@ -16,6 +16,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:studio": "prisma studio",
     "seed:pop": "ts-node scripts/seed-pop-grid.ts",
+    "seed:lore": "ts-node scripts/seed-lore.ts",
     "seed:test-event": "ts-node scripts/seed-test-event.ts",
     "verify:tear-gen": "ts-node scripts/verify-tear-gen.ts",
     "db:backup": "bash scripts/backup-db.sh"

@@ -132,6 +132,7 @@ model RootIdentity {
   fateFox                  FateFox?                    // Sprint 31 — Fate Fox companion (one per hero)
   memoria                  PlayerMemoria[]             // Sprint 32 — Memoria identity-collection
   sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
+  loreFinds                HeroLore[]                  // 2026-07-06 — Lore Archive collection
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -704,6 +705,47 @@ model PlayerMemoria {
   @@unique([rootId, memoriaId])
   @@index([rootId])
   @@map("player_memoria")
+}
+
+// ============================================================
+// LORE ARCHIVE — 2026-07-06 collection quest
+//
+// A Pokémon-Go-style collection: heroes recover lore entries by
+// sealing tears out in the world (rarity-weighted drop of a not-
+// yet-found entry). The catalog lives in the DB so new entries
+// ship without a redeploy (same platform move as AuguryCard).
+// Library restoration on the client is weighted by finds.
+// Parallel to — not replacing — the future Hero Echo system.
+// ============================================================
+model LoreEntry {
+  id           String   @id @map("lore_id")       // slug 'veil_first_tear'
+  title        String                               // 'THE FIRST TEAR'
+  category     String                               // 'veil'|'regions'|'rites'|'bestiary'|'orders'
+  rarity       String   @default("common")          // common|uncommon|rare|epic|legendary
+  body         String                               // entry text, mythic register
+  glyph        String   @default("◈")               // grid glyph
+  displayOrder Int      @default(0) @map("display_order")
+  active       Boolean  @default(true)              // disable without deleting
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  finds        HeroLore[]
+
+  @@map("lore_entries")
+}
+
+model HeroLore {
+  id      String   @id @default(uuid()) @map("hero_lore_id")
+  rootId  String   @map("root_id")
+  loreId  String   @map("lore_id")
+  foundAt DateTime @default(now()) @map("found_at")
+  source  String?                                    // 'tear_seal' | future hooks
+
+  root    RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  entry   LoreEntry    @relation(fields: [loreId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, loreId])
+  @@index([rootId])
+  @@map("hero_lore")
 }
 
 // ============================================================
