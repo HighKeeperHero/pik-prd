@@ -71,6 +71,21 @@ interface AuguryCard {
   };
 }
 
+// Fairness gates (2026-07-07, Tim's directive): the Augury must
+// never obsolete other XP/essence sources. High-rarity cards carry
+// ×4/×8/×16 magnitudes — meaningful jackpots at levels where a
+// level costs thousands of XP, but early on a single legendary
+// (128+ XP) would trivialize the curve (Fate 1→2 is 80 XP). So
+// rarities unlock with Fate level; below the gate the hero's deck
+// simply doesn't contain them and the remaining weights renormalize
+// by construction. Daily frequency stays untouched — the ritual is
+// the point; the ceiling is what scales.
+const AUGURY_RARITY_LEVEL_GATES: Record<string, number> = {
+  rare:      5,
+  epic:      10,
+  legendary: 20,
+};
+
 function weightedPickCard(deck: AuguryCard[]): AuguryCard {
   const totalWeight = deck.reduce((sum, c) => sum + c.weight, 0);
   let r = Math.random() * totalWeight;
@@ -385,7 +400,18 @@ export class SanctumService {
         'No active Augury cards. Run the seed migration before drawing.',
       );
     }
-    const deck: AuguryCard[] = rows.map((r) => ({
+
+    // Level-lock high rarities (fairness gates above). Uses the same
+    // derived Fate level the response reports.
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId }, select: { fateXp: true },
+    });
+    const fateLevel = levelFromXp(hero?.fateXp ?? 0);
+    const eligible = rows.filter(
+      (r) => fateLevel >= (AUGURY_RARITY_LEVEL_GATES[r.rarity] ?? 0),
+    );
+
+    const deck: AuguryCard[] = eligible.map((r) => ({
       id:      r.id,
       name:    r.name,
       flavor:  r.flavor,
