@@ -22,6 +22,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { LevelingService, levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
+import { LoreService, type LoreFound } from '../lore/lore.service';
 
 export type OathOption = 'forge' | 'lore' | 'veil';
 const VALID_OATHS: ReadonlyArray<OathOption> = ['forge', 'lore', 'veil'];
@@ -64,6 +65,9 @@ interface AuguryCard {
     essence?: number;
     fate_xp?: number;
     cache?:   { type: string; rarity: string };
+    /** Scholar archetype (2026-07-07 tarot deck) — grants one
+     *  rarity-weighted uncollected Lore Archive entry. */
+    lore?:    boolean;
   };
 }
 
@@ -143,6 +147,7 @@ export class SanctumService {
   constructor(
     private readonly prisma:   PrismaService,
     private readonly leveling: LevelingService,
+    private readonly lore:     LoreService,
   ) {}
 
   async getOrCreateState(rootId: string) {
@@ -433,6 +438,16 @@ export class SanctumService {
       grantedCaches.push({ cache_id: cache.id, cache_type: cache.cacheType, rarity: cache.rarity });
     }
 
+    // Scholar cards — each grants one Lore Archive entry (rarity-
+    // weighted, never-throws; null once the archive is complete).
+    const loreFound: LoreFound[] = [];
+    for (const card of cards) {
+      if (card.rewards.lore) {
+        const found = await this.lore.grantRandom(rootId, 'augury');
+        if (found) loreFound.push(found);
+      }
+    }
+
     const xpAward      = totalXp > 0 ? await this.leveling.grantXp(rootId, totalXp) : null;
     const withProgress = await this.attachProgression(rootId, updated);
     return {
@@ -448,6 +463,7 @@ export class SanctumService {
       essence_granted: totalEssence,
       fate_xp_granted: totalXp,
       caches_granted:  grantedCaches,
+      lore_found:      loreFound,
     };
   }
 }

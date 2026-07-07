@@ -90,10 +90,17 @@ export class LoreService {
    *  null (no hit / collection already complete). Never throws —
    *  a lore drop must not fail a seal. */
   async maybeDropOnSeal(rootId: string, tearType: string): Promise<LoreFound | null> {
-    try {
-      const chance = DROP_CHANCE_BY_TEAR_TIER[tearType] ?? 0.35;
-      if (Math.random() > chance) return null;
+    const chance = DROP_CHANCE_BY_TEAR_TIER[tearType] ?? 0.35;
+    if (Math.random() > chance) return null;
+    return this.grantRandom(rootId, 'tear_seal');
+  }
 
+  /** Grant one rarity-weighted not-yet-found entry (no chance roll —
+   *  callers decide when a grant is due, e.g. the Scholar augury
+   *  card). Returns null when the archive is complete. Never throws —
+   *  a lore grant must not fail its parent action. */
+  async grantRandom(rootId: string, source: string): Promise<LoreFound | null> {
+    try {
       const [defs, finds] = await Promise.all([
         this.prisma.loreEntry.findMany({ where: { active: true } }),
         this.prisma.heroLore.findMany({ where: { rootId }, select: { loreId: true } }),
@@ -111,7 +118,7 @@ export class LoreService {
       }
 
       await this.prisma.heroLore.create({
-        data: { rootId, loreId: pick.id, source: 'tear_seal' },
+        data: { rootId, loreId: pick.id, source },
       });
 
       return {
@@ -123,8 +130,7 @@ export class LoreService {
         body:     pick.body,
       };
     } catch (err) {
-      // Unique-violation race (double-tap seals) or transient DB issue —
-      // swallow; the seal result matters more than the lore roll.
+      // Unique-violation race or transient DB issue — swallow.
       return null;
     }
   }
