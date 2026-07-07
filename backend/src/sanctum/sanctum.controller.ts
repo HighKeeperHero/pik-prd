@@ -77,8 +77,8 @@ export class SanctumController {
   @Post('upgrade')
   async upgrade(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
     const track = body?.track as UpgradeTrack;
-    if (!['sanctum', 'library', 'forge'].includes(track)) {
-      throw new BadRequestException('track must be sanctum | library | forge');
+    if (!['sanctum', 'library', 'forge', 'altar'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge | altar');
     }
     return this.sanctum.upgrade(requireHeroId(req), track);
   }

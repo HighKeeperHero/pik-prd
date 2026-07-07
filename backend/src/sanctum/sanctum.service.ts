@@ -87,7 +87,7 @@ function todayUtc(): string {
 // mirror the client's src/screens/Sanctum/restoration.ts (kept
 // local by convention — same pattern as Memoria's RANK_TIERS).
 
-export type UpgradeTrack = 'sanctum' | 'library' | 'forge';
+export type UpgradeTrack = 'sanctum' | 'library' | 'forge' | 'altar';
 
 const SANCTUM_MAX_LEVEL = 20;
 const WING_MAX_LEVEL    = 10;
@@ -110,6 +110,11 @@ const LIBRARY_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
  *  until they seed, every hero's forge points are 0 and the forge
  *  cannot advance past L1). Same curve shape as the library. */
 const FORGE_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
+
+/** Cumulative altar works to REACH an altar level. Altar points
+ *  will come from the Reliquary + Hero Echo mechanics (TBG); until
+ *  they ship, points are 0 and the altar holds at L1. */
+const ALTAR_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
 
 /** Wing-level prerequisites to REACH each sanctum level — the keep
  *  cannot outgrow its wings (Kingshot-style main-building gating).
@@ -216,6 +221,20 @@ export class SanctumService {
       }
       const updated = await this.prisma.sanctumState.update({
         where: { rootId }, data: { libraryLevel: next },
+      });
+      return this.attachProgression(rootId, updated);
+    }
+
+    if (track === 'altar') {
+      const next = raw.altarLevel + 1;
+      if (next > WING_MAX_LEVEL) throw new ConflictException('The Altar is fully restored.');
+      // Altar works = Reliquary + Hero Echo completions (TBG).
+      const altarWorks = 0;
+      if (altarWorks < (ALTAR_CUM_COSTS[next] ?? Infinity)) {
+        throw new ConflictException('The altar is silent — no devotions have been offered.');
+      }
+      const updated = await this.prisma.sanctumState.update({
+        where: { rootId }, data: { altarLevel: next },
       });
       return this.attachProgression(rootId, updated);
     }
