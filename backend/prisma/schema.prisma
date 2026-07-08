@@ -462,9 +462,18 @@ model PlayerSession {
 
 model QuestTemplate {
   id          String    @id @default(uuid()) @map("quest_id")
+  slug        String?   @unique
   name        String
   description String?
   questType   String    @map("quest_type")
+  // cadence: 'venue' (legacy Sprint 7.3 board) | 'daily' | 'weekly' | 'story'
+  cadence     String    @default("venue")
+  // story chains: chainKey groups steps, chainStep orders them;
+  // step n+1 materializes when step n is claimed
+  chainKey    String?   @map("chain_key")
+  chainStep   Int?      @map("chain_step")
+  // tag feeds external counters (e.g. 'forge_work' → Forge restoration points)
+  tag         String?
   objectives  Json
   rewards     Json
   minLevel    Int       @default(1) @map("min_level")
@@ -478,6 +487,8 @@ model QuestTemplate {
 
   @@index([status])
   @@index([questType])
+  @@index([cadence, status])
+  @@index([chainKey])
   @@map("quest_templates")
 }
 
@@ -485,16 +496,21 @@ model PlayerQuest {
   id          String    @id @default(uuid()) @map("player_quest_id")
   rootId      String    @map("root_id")
   questId     String    @map("quest_id")
+  // 'once' for story/venue; 'YYYY-MM-DD' for daily; 'YYYY-Wnn' for weekly
+  periodKey   String    @default("once") @map("period_key")
+  // active → completed → claimed (rewards granted at claim for cadence quests)
   status      String    @default("active")
   progress    Json      @default("[]")
   startedAt   DateTime  @default(now()) @map("started_at")
   completedAt DateTime? @map("completed_at")
+  claimedAt   DateTime? @map("claimed_at")
 
   root     RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
   quest    QuestTemplate @relation(fields: [questId], references: [id], onDelete: Cascade)
 
-  @@unique([rootId, questId])
+  @@unique([rootId, questId, periodKey])
   @@index([rootId, status])
+  @@index([rootId, periodKey])
   @@index([questId])
   @@map("player_quests")
 }

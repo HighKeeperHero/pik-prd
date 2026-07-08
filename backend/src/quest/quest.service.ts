@@ -168,9 +168,9 @@ export class QuestService {
     if (user.fateLevel < template.minLevel) throw new BadRequestException(`Requires level ${template.minLevel}`);
     if (template.maxLevel && user.fateLevel > template.maxLevel) throw new BadRequestException(`Max level ${template.maxLevel}`);
 
-    // Check for existing
+    // Check for existing (venue quests always live in the 'once' period)
     const existing = await this.prisma.playerQuest.findUnique({
-      where: { rootId_questId: { rootId, questId } },
+      where: { rootId_questId_periodKey: { rootId, questId, periodKey: 'once' } },
     });
     if (existing) {
       if (existing.status === 'active') throw new ConflictException('Quest already active');
@@ -219,14 +219,14 @@ export class QuestService {
 
   async abandonQuest(rootId: string, questId: string) {
     const pq = await this.prisma.playerQuest.findUnique({
-      where: { rootId_questId: { rootId, questId } },
+      where: { rootId_questId_periodKey: { rootId, questId, periodKey: 'once' } },
       include: { quest: true },
     });
     if (!pq) throw new NotFoundException(`No active quest found`);
     if (pq.status !== 'active') throw new BadRequestException(`Quest is not active`);
 
     await this.prisma.playerQuest.delete({
-      where: { rootId_questId: { rootId, questId } },
+      where: { rootId_questId_periodKey: { rootId, questId, periodKey: 'once' } },
     });
 
     await this.events.log({

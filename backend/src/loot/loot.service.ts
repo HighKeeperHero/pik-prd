@@ -20,6 +20,7 @@ import { SseService } from '../sse/sse.service';
 import { GearService } from '../gear/gear.service';
 import { LootEngineService } from './loot-engine.service';
 import { LevelingService } from '../leveling/leveling.service';
+import { QuestLogService } from '../quest/quest-log.service';
 
 // Phase 2 Arc A — XP grant per cache rarity tier on open.
 // Source: docs/roadmap/phase-2.md.
@@ -72,6 +73,7 @@ export class LootService {
     private readonly gear:       GearService,
     private readonly lootEngine: LootEngineService,
     private readonly leveling:   LevelingService,
+    private readonly questLog:   QuestLogService,
   ) {}
 
   // ── GRANT A CACHE ─────────────────────────────────────────
@@ -162,10 +164,18 @@ export class LootService {
     const ENGINE_CACHE_TYPES = ['veil_minor', 'veil_shade', 'veil_dormant', 'veil_double'];
     const useEngine = ENGINE_CACHE_TYPES.includes(cache.cacheType);
 
-    if (useEngine) {
-      return this._openCacheViaEngine(rootId, cache, effectiveLevel);
-    }
-    return this._openCacheViaTable(rootId, cache, effectiveLevel);
+    const result = useEngine
+      ? await this._openCacheViaEngine(rootId, cache, effectiveLevel)
+      : await this._openCacheViaTable(rootId, cache, effectiveLevel);
+
+    // Sprint 32 — cadence quest progress. Counted by the CACHE's own
+    // rarity (what the player opened), not the rolled reward's.
+    const questUpdates = await this.questLog.recordEvent(rootId, {
+      type: 'cache_open',
+      rarity: cache.rarity,
+    });
+
+    return { ...result, quest_updates: questUpdates };
   }
 
   // ── Engine path (veil caches) ─────────────────────────────────────────────

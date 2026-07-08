@@ -7,9 +7,10 @@ import { FateAccountModule } from '../fate-account/fate-account.module';
 import { AccountGuard } from '../auth/guards/account.guard';
 import { LevelingModule } from '../leveling/leveling.module';
 import { LoreModule } from '../lore/lore.module';
+import { QuestModule } from '../quest/quest.module';
 
 @Module({
-  imports:     [AuthModule, FateAccountModule, LevelingModule, LoreModule],
+  imports:     [AuthModule, FateAccountModule, LevelingModule, LoreModule, QuestModule],
   controllers: [SanctumController],
   providers:   [SanctumService, PrismaService, AccountGuard],
   exports:     [SanctumService],

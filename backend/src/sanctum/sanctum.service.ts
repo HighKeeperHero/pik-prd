@@ -23,6 +23,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { LevelingService, levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
 import { LoreService, type LoreFound } from '../lore/lore.service';
+import { QuestLogService, type QuestProgressUpdate } from '../quest/quest-log.service';
 
 export type OathOption = 'forge' | 'lore' | 'veil';
 const VALID_OATHS: ReadonlyArray<OathOption> = ['forge', 'lore', 'veil'];
@@ -163,7 +164,30 @@ export class SanctumService {
     private readonly prisma:   PrismaService,
     private readonly leveling: LevelingService,
     private readonly lore:     LoreService,
+    private readonly questLog: QuestLogService,
   ) {}
+
+  /** Sprint 32 — quest hooks. Fires the ritual's own quest event,
+   *  plus 'ritual_day' when this ritual closes out all four for the
+   *  UTC day (the "perfect day" objective). recordEvent never throws. */
+  private async afterRitual(
+    rootId: string,
+    ritual: 'hearth' | 'oath' | 'trial' | 'augury',
+    state: { lastHearthClaim: string | null; oathTodayDate: string | null;
+             lastTrialComplete: string | null; lastAuguryDate: string | null },
+  ): Promise<QuestProgressUpdate[]> {
+    const updates = await this.questLog.recordEvent(rootId, { type: ritual });
+    const today = todayUtc();
+    const allFour =
+      state.lastHearthClaim === today &&
+      state.oathTodayDate === today &&
+      state.lastTrialComplete === today &&
+      state.lastAuguryDate === today;
+    if (allFour) {
+      updates.push(...await this.questLog.recordEvent(rootId, { type: 'ritual_day' }));
+    }
+    return updates;
+  }
 
   async getOrCreateState(rootId: string) {
     const existing = await this.prisma.sanctumState.findUnique({ where: { rootId } });
@@ -229,6 +253,7 @@ export class SanctumService {
       const updated = await this.prisma.sanctumState.update({
         where: { rootId }, data: { sanctumLevel: next },
       });
+      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
       return this.attachProgression(rootId, updated);
     }
 
@@ -242,6 +267,7 @@ export class SanctumService {
       const updated = await this.prisma.sanctumState.update({
         where: { rootId }, data: { libraryLevel: next },
       });
+      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
       return this.attachProgression(rootId, updated);
     }
 
@@ -256,24 +282,26 @@ export class SanctumService {
       const updated = await this.prisma.sanctumState.update({
         where: { rootId }, data: { altarLevel: next },
       });
+      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
       return this.attachProgression(rootId, updated);
     }
 
     if (track === 'forge') {
       const next = raw.forgeLevel + 1;
       if (next > WING_MAX_LEVEL) throw new ConflictException('The Forge is fully restored.');
-      // Forge works = Crafting + Smelting quest completions. Content
-      // TBG — until those quests seed, points are 0 and the forge
-      // holds at L1. (Resonance floors for upper forge levels are
-      // enforced client-side v1; move here once a server-side
-      // resonance read exists.)
-      const forgeWorks = 0;
+      // Forge works = claimed quests tagged forge_work (Sprint 32 —
+      // Crafting + Smelting quests ride the cadence engine).
+      // (Resonance floors for upper forge levels are enforced
+      // client-side v1; move here once a server-side resonance
+      // read exists.)
+      const forgeWorks = await this.questLog.countTaggedClaims(rootId, 'forge_work');
       if (forgeWorks < (FORGE_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The forge is cold — no works have been completed.');
       }
       const updated = await this.prisma.sanctumState.update({
         where: { rootId }, data: { forgeLevel: next },
       });
+      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
       return this.attachProgression(rootId, updated);
     }
 
@@ -295,8 +323,9 @@ export class SanctumService {
       },
     });
     const xpAward     = await this.leveling.grantXp(rootId, XP_HEARTH);
+    const questUpdates = await this.afterRitual(rootId, 'hearth', updated);
     const withProgress = await this.attachProgression(rootId, updated);
-    return { ...withProgress, xp_award: xpAward };
+    return { ...withProgress, xp_award: xpAward, quest_updates: questUpdates };
   }
 
   async swearOath(rootId: string, option: OathOption) {
@@ -317,8 +346,9 @@ export class SanctumService {
       },
     });
     const xpAward      = await this.leveling.grantXp(rootId, XP_OATH);
+    const questUpdates = await this.afterRitual(rootId, 'oath', updated);
     const withProgress = await this.attachProgression(rootId, updated);
-    return { ...withProgress, xp_award: xpAward };
+    return { ...withProgress, xp_award: xpAward, quest_updates: questUpdates };
   }
 
   /** Awarded amount for hearth claim — exposed so the controller can echo it back. */
@@ -362,10 +392,12 @@ export class SanctumService {
       },
     });
     const xpAward      = await this.leveling.grantXp(rootId, XP_TRIAL);
+    const questUpdates = await this.afterRitual(rootId, 'trial', updated);
     const withProgress = await this.attachProgression(rootId, updated);
     return {
       ...withProgress,
       xp_award: xpAward,
+      quest_updates: questUpdates,
       essence_granted: essence,
       score:           Math.floor(score),
       best:            newBest,
@@ -475,10 +507,16 @@ export class SanctumService {
     }
 
     const xpAward      = totalXp > 0 ? await this.leveling.grantXp(rootId, totalXp) : null;
+    const questUpdates = await this.afterRitual(rootId, 'augury', updated);
+    // Scholar lore drops advance collect_lore objectives too.
+    for (let i = 0; i < loreFound.length; i++) {
+      questUpdates.push(...await this.questLog.recordEvent(rootId, { type: 'lore_find' }));
+    }
     const withProgress = await this.attachProgression(rootId, updated);
     return {
       ...withProgress,
       xp_award:        xpAward,
+      quest_updates:   questUpdates,
       cards: cards.map((c) => ({
         id:      c.id,
         name:    c.name,

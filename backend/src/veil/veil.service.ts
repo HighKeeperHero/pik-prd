@@ -7,6 +7,7 @@ import { LevelingService, type XpAward } from '../leveling/leveling.service';
 import { ConfigService } from '../config/config.service';
 import { TearGenService, type GenParams, type GenTear } from './tear-gen.service';
 import { LoreService, type LoreFound } from '../lore/lore.service';
+import { QuestLogService, type QuestProgressUpdate } from '../quest/quest-log.service';
 import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
 
 // Phase 2 Arc A — XP granted per tear tier on a successful seal.
@@ -16,6 +17,15 @@ const XP_BY_TEAR_TIER: Record<string, number> = {
   wander:  100,
   dormant: 250,
   double:  500,
+};
+
+// Sprint 32 — numeric tier rank for cadence quest objectives
+// (seal_tears tier_min gates: dormant-or-stronger = tier_min 3).
+const TEAR_TIER_RANK: Record<string, number> = {
+  minor:   1,
+  wander:  2,
+  dormant: 3,
+  double:  4,
 };
 
 // Phase 2 Arc B — Geo rift density (level-banded tier weights).
@@ -145,6 +155,7 @@ export class VeilService {
     private readonly config:       ConfigService,
     private readonly tearGen:      TearGenService,
     private readonly lore:         LoreService,
+    private readonly questLog:    QuestLogService,
   ) {}
 
   // ── Record a battle outcome ───────────────────────────────────────────────
@@ -296,6 +307,17 @@ export class VeilService {
       loreFound = await this.lore.maybeDropOnSeal(rootId, tearType);
     }
 
+    // Sprint 32 — cadence quest progress (daily/weekly/story log).
+    // Tear tiers: minor 1 · wander 2 · dormant 3 · double 4.
+    const questUpdates: QuestProgressUpdate[] = [];
+    if (outcome === 'won') {
+      const tier = TEAR_TIER_RANK[tearType] ?? 1;
+      questUpdates.push(...await this.questLog.recordEvent(rootId, { type: 'tear_seal', tier }));
+      if (loreFound) {
+        questUpdates.push(...await this.questLog.recordEvent(rootId, { type: 'lore_find' }));
+      }
+    }
+
     return {
       encounter_id:      encounter.id,
       outcome,
@@ -304,6 +326,7 @@ export class VeilService {
       convergence_event: activeEvents.length > 0 ? activeEvents[0].name : undefined,
       cache_earned:      cacheEarned,
       quests_completed:  questsCompleted,
+      quest_updates:     questUpdates,
       is_first_seal:     isFirstSeal,
       xp_award:          xpAward,
       lore_found:        loreFound,
@@ -410,7 +433,7 @@ export class VeilService {
     });
     for (const t of templates) {
       await this.prisma.playerQuest.upsert({
-        where:  { rootId_questId: { rootId, questId: t.id } },
+        where:  { rootId_questId_periodKey: { rootId, questId: t.id, periodKey: 'once' } },
         create: { rootId, questId: t.id, status: 'active', progress: [] },
         update: {},
       });
