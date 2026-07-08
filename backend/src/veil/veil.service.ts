@@ -608,6 +608,31 @@ export class VeilService {
     }));
   }
 
+  /** 2026-07-08 — convergence outlook for the Veilfront nav pin:
+   *  running events PLUS events scheduled within the next 14 days,
+   *  each tagged 'active' | 'scheduled' with starts_at so the client
+   *  can pulse the pin and count down to the opening. */
+  async getUpcomingEvents() {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + 14 * 24 * 3600 * 1000);
+    const events = await this.prisma.convergenceEvent.findMany({
+      where: { status: 'active', endsAt: { gte: now }, startsAt: { lte: horizon } },
+      orderBy: { startsAt: 'asc' },
+    });
+    return events.map(e => ({
+      event_id:         e.id,
+      name:             e.name,
+      description:      e.description,
+      flavor_text:      e.flavorText,
+      affected_tiers:   e.affectedTiers,
+      shard_multiplier: e.shardMultiplier,
+      cache_bonus:      e.cacheBonus,
+      starts_at:        e.startsAt.getTime(),
+      ends_at:          e.endsAt.getTime(),
+      status:           e.startsAt <= now ? 'active' : 'scheduled',
+    }));
+  }
+
   // ── Paginated battle history ──────────────────────────────────────────────
   async getEncounters(rootId: string, limit = 20) {
     const rows = await this.prisma.tearEncounter.findMany({

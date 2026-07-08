@@ -77,6 +77,14 @@ export class VeilController {
     return this.veilService.getActiveEvents();
   }
 
+  // GET /api/veil/events/upcoming — active + scheduled (≤14 days out),
+  // with starts_at + status, for the Veilfront convergence pin.
+  @Get('events/upcoming')
+  @SkipThrottle()
+  async getUpcomingEvents() {
+    return this.veilService.getUpcomingEvents();
+  }
+
   // GET /api/veil/tears/nearby?lat=X&lon=Y&fate_level=N&radius_km=R
   // Phase 2 Arc B — returns a tier-weighted slice of nearby active
   // world tears per docs/roadmap/phase-2.md. radius_km is optional;
