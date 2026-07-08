@@ -62,6 +62,21 @@ export class SanctumController {
     return this.sanctum.completeTrial(requireHeroId(req), score);
   }
 
+  // 2026-07-08 — Rite of Purification (replaces the Wisp Harvest).
+  // Body: { purity: 0-100, nodes_purified?, corruption_removed? }.
+  // Server grades (S/A/B/C) and scales essence by Sanctum level.
+  @Post('rite/complete')
+  async completeRite(
+    @Req() req: AuthedRequest,
+    @Body() body: { purity?: number; nodes_purified?: number; corruption_removed?: number },
+  ) {
+    return this.sanctum.completeRite(requireHeroId(req), {
+      purity:            Number(body?.purity ?? 0),
+      nodesPurified:     Number(body?.nodes_purified ?? 0),
+      corruptionRemoved: Number(body?.corruption_removed ?? 0),
+    });
+  }
+
   // Sprint 30 / Slice 5.2 — Augury Draw.
   // No body. Server-side weighted pick of 3 cards from AUGURY_DECK.
   // Returns the cards + aggregated essence/xp/cache grants.

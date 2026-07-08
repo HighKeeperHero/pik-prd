@@ -56,7 +56,11 @@ export type QuestEvent =
   | { type: 'wing_upgrade'; track: string }
   | { type: 'chapter_complete'; chapter: number }
   | { type: 'craft' }
-  | { type: 'smelt' };
+  | { type: 'smelt' }
+  // 2026-07-08 — Rite of Purification result (grade + tallies for
+  // the weekly challenges; the plain 'trial' event still fires for
+  // completion objectives).
+  | { type: 'rite'; grade: string; purity: number; nodes: number; corruption: number };
 
 export interface CadenceObjective {
   id: string;
@@ -329,6 +333,12 @@ export class QuestLogService {
         return event.type === 'chapter_complete' && event.chapter === (obj.chapter ?? obj.target) ? obj.target : 0;
       case 'craft_works':      return event.type === 'craft' ? 1 : 0;
       case 'smelt_works':      return event.type === 'smelt' ? 1 : 0;
+      // Rite of Purification weekly challenges — tally-type
+      // objectives advance by the event's counts, not by 1.
+      case 'rite_s_grades':      return event.type === 'rite' && event.grade === 'S' ? 1 : 0;
+      case 'perfect_purity':     return event.type === 'rite' && event.purity >= 100 ? 1 : 0;
+      case 'purify_nodes':       return event.type === 'rite' ? event.nodes : 0;
+      case 'cleanse_corruption': return event.type === 'rite' ? event.corruption : 0;
       case 'reach_level':
         // Any event can surface a level threshold already met.
         return fateLevel >= obj.target ? obj.target : 0;

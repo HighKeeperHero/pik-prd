@@ -45,6 +45,30 @@ const TRIAL_ESSENCE_PER_CATCH = 1;
 const TRIAL_ESSENCE_MAX       = 20;
 const XP_TRIAL                = 10;
 
+// 2026-07-08 — the Rite of Purification (Veilfire Purification)
+// replaces the Wisp Harvest as the daily Sanctum minigame. Same
+// daily gate + lifetime counters as the trial (restoration math
+// unchanged); rewards scale with GRADE × SANCTUM LEVEL instead of
+// a flat catch cap.
+//   Grade thresholds (final Sanctum Purity %): S 98+ · A 90+ ·
+//   B 75+ · C below. Every hero completes the Rite — grades are
+//   degrees of restoration, not pass/fail.
+//   Economy: base table × (1 + RITE_LEVEL_MULT·(sanctumLevel−1)).
+//   Values deliberately conservative vs the design spec's examples
+//   — tune with the economy pass, not here in passing.
+const RITE_GRADE_BASE: Record<'S' | 'A' | 'B' | 'C', number> = {
+  S: 40, A: 30, B: 20, C: 12,
+};
+const RITE_LEVEL_MULT = 0.25;
+const XP_RITE         = 15;
+
+export function riteGradeFor(purity: number): 'S' | 'A' | 'B' | 'C' {
+  if (purity >= 98) return 'S';
+  if (purity >= 90) return 'A';
+  if (purity >= 75) return 'B';
+  return 'C';
+}
+
 // Sprint 30 Slice 5.2 — Augury Draw.
 //   * Three cards per day, weighted by rarity.
 //   * Total weights: ~58% common / 31% uncommon / 9% rare / 1.5% epic /
@@ -401,6 +425,70 @@ export class SanctumService {
       essence_granted: essence,
       score:           Math.floor(score),
       best:            newBest,
+    };
+  }
+
+  /** 2026-07-08 — the Rite of Purification. One rite per UTC day
+   *  per hero (same gate + counters as the trial it replaces, so
+   *  restoration points keep flowing through totalTrials). The
+   *  client reports final purity (0–100) plus node/corruption
+   *  tallies for the weekly challenge objectives; the server owns
+   *  grading and the reward math. */
+  async completeRite(
+    rootId: string,
+    input: { purity: number; nodesPurified?: number; corruptionRemoved?: number },
+  ) {
+    const purity = Math.round(input.purity);
+    if (!Number.isFinite(purity) || purity < 0 || purity > 100) {
+      throw new BadRequestException('purity must be 0–100.');
+    }
+    const today = todayUtc();
+    const state = await this.getOrCreateState(rootId);
+    if ((state as { lastTrialComplete?: string | null }).lastTrialComplete === today) {
+      throw new ConflictException('The Rite has already been performed today.');
+    }
+
+    const grade = riteGradeFor(purity);
+    const sanctumLevel = (state as { sanctumLevel?: number }).sanctumLevel ?? 1;
+    const essence = Math.round(
+      RITE_GRADE_BASE[grade] * (1 + RITE_LEVEL_MULT * (sanctumLevel - 1)),
+    );
+    const newBest = Math.max(
+      (state as { bestTrialScore?: number }).bestTrialScore ?? 0,
+      purity,
+    );
+
+    const updated = await this.prisma.sanctumState.update({
+      where: { rootId },
+      data: {
+        veilEssence:       { increment: essence },
+        lastTrialComplete: today,
+        totalTrials:       { increment: 1 },
+        bestTrialScore:    newBest,   // best PURITY now — same column
+      },
+    });
+
+    const xpAward = await this.leveling.grantXp(rootId, XP_RITE);
+    // 'trial' drives the daily quest + perfect-day; 'rite' carries
+    // the grade/purity/tallies for the weekly challenges.
+    const questUpdates = await this.afterRitual(rootId, 'trial', updated);
+    questUpdates.push(...await this.questLog.recordEvent(rootId, {
+      type:       'rite',
+      grade,
+      purity,
+      nodes:      Math.max(0, Math.round(input.nodesPurified ?? 0)),
+      corruption: Math.max(0, Math.round(input.corruptionRemoved ?? 0)),
+    }));
+
+    const withProgress = await this.attachProgression(rootId, updated);
+    return {
+      ...withProgress,
+      xp_award:        xpAward,
+      quest_updates:   questUpdates,
+      grade,
+      purity,
+      essence_granted: essence,
+      best_purity:     newBest,
     };
   }
 

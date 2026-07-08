@@ -75,10 +75,10 @@ const QUESTS: QuestSeed[] = [
     rewards: { xp: 15 },
   },
   {
-    slug: 'daily_trial', name: 'Wisp Harvest',
-    description: 'The brazier hungers. Catch what drifts through the Veil Trial.',
+    slug: 'daily_trial', name: 'The Rite of Purification',
+    description: 'Corruption spread through the leylines overnight. Restore the flow before you ride out.',
     cadence: 'daily', sortOrder: 40,
-    objectives: [{ id: 'o1', type: 'complete_trial', label: 'Complete the Veil Trial', target: 1 }],
+    objectives: [{ id: 'o1', type: 'complete_trial', label: 'Perform the Rite of Purification', target: 1 }],
     rewards: { xp: 15 },
   },
   {
@@ -127,10 +127,38 @@ const QUESTS: QuestSeed[] = [
   },
   {
     slug: 'weekly_trials', name: 'Steady Hands',
-    description: 'Five trials, five days of practice. The wisps notice.',
+    description: 'Five rites, five dawns of practice. The leylines remember a careful hand.',
     cadence: 'weekly', sortOrder: 40,
-    objectives: [{ id: 'o1', type: 'complete_trial', label: 'Complete 5 Veil Trials', target: 5 }],
+    objectives: [{ id: 'o1', type: 'complete_trial', label: 'Perform 5 Rites of Purification', target: 5 }],
     rewards: { xp: 100 },
+  },
+  {
+    slug: 'weekly_master_purifier', name: 'Master Purifier',
+    description: 'Perfection is a habit. Earn five S-grade rites.',
+    cadence: 'weekly', sortOrder: 42, minLevel: 4,
+    objectives: [{ id: 'o1', type: 'rite_s_grades', label: 'Earn 5 S-grade Rites', target: 5 }],
+    rewards: { xp: 300, cache_rarity: 'epic' },
+  },
+  {
+    slug: 'weekly_perfect_harmony', name: 'Perfect Harmony',
+    description: 'Total restoration — not a thread of corruption left. Three times.',
+    cadence: 'weekly', sortOrder: 44, minLevel: 4,
+    objectives: [{ id: 'o1', type: 'perfect_purity', label: 'Reach 100% Purity 3 times', target: 3 }],
+    rewards: { xp: 350, essence: 40 },
+  },
+  {
+    slug: 'weekly_leyline_guardian', name: 'Leyline Guardian',
+    description: 'The network is long and the week is short. Walk all of it.',
+    cadence: 'weekly', sortOrder: 46,
+    objectives: [{ id: 'o1', type: 'purify_nodes', label: 'Purify 500 leyline nodes', target: 500 }],
+    rewards: { xp: 200, essence: 25 },
+  },
+  {
+    slug: 'weekly_cleanse_veil', name: 'Cleanse the Veil',
+    description: 'What presses in by night, you burn away by day.',
+    cadence: 'weekly', sortOrder: 48,
+    objectives: [{ id: 'o1', type: 'cleanse_corruption', label: 'Remove 3,000 corruption', target: 3000 }],
+    rewards: { xp: 250, cache_rarity: 'rare' },
   },
   {
     slug: 'weekly_perfect_days', name: 'Rhythm of the Keep',
@@ -177,10 +205,10 @@ const QUESTS: QuestSeed[] = [
     rewards: { xp: 50 },
   },
   {
-    slug: 'story_first_trial', name: 'Wisps in the Dark',
-    description: 'The brazier draws them. Your hands do the rest.',
+    slug: 'story_first_trial', name: 'The First Rite',
+    description: 'The leylines dimmed overnight. Kneel at the Veilfire and restore them.',
     cadence: 'story', chainKey: 'awakening_trail', chainStep: 4, sortOrder: 40,
-    objectives: [{ id: 'o1', type: 'complete_trial', label: 'Complete your first Veil Trial', target: 1 }],
+    objectives: [{ id: 'o1', type: 'complete_trial', label: 'Perform your first Rite of Purification', target: 1 }],
     rewards: { xp: 50 },
   },
   {
