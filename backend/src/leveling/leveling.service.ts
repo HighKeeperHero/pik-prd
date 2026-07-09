@@ -1,32 +1,53 @@
 // ============================================================
 // PIK — Leveling Service
 //
-// Fate XP curve per Phase 2 roadmap (docs/roadmap/phase-2.md):
-//   xp_to_next_level(n) = floor(80 * n ^ 1.5)
-//
-// Front-loaded easy, exponentially harder. Daily-active player
-// targeted to reach L40 in 10-12 weeks. The single source of
-// truth — don't reimplement the curve elsewhere. Inject this
-// service.
+// Fate XP curve per Phase 2 roadmap (docs/roadmap/phase-2.md,
+// retuned 2026-07-09 — see the era constants below for the
+// income math). The single source of truth — don't reimplement
+// the curve elsewhere. Inject this service.
 //
 // Per canon (heroes-veritas-native:docs/canon/progression.md):
 // Fate XP is the account-wide progression number. Drives
 // Adventurer Rank and all content gates. Combat power is
 // Resonance, which is gear-derived and computed separately.
 //
-// Reference cumulative XP:
-//   L5  -> 1,500
-//   L10 -> 7,000
-//   L20 -> 36,000
-//   L30 -> 100,000
-//   L40 -> 210,000
+// Reference cumulative XP (exact, from the era formulas):
+//   L5  -> 169        (day one)
+//   L10 -> 1,107      (~day 2-3)
+//   L20 -> 6,704      (~2 weeks)
+//   L30 -> 18,888     (~5-6 weeks)
+//   L40 -> 39,201     (~11 weeks — the Job Quest gate)
+//   L50 -> 79,503     (~5-6 months — the Fate Fox gate)
+//   L60 -> 184,041    (~12 months — the cap)
+// (Regenerate via xpToReach if constants change.)
 // ============================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
-const BASE = 80;
-const EXP  = 1.5;
+// ── The two-era curve (retuned 2026-07-09) ──────────────────
+// Grounded in measured income: a committed daily player earns
+// ~500-620 XP/day (rituals ~85 + daily quests ~135 + tear seals
+// ~200 + amortized weeklies ~200). The old 80·n^1.5 put L40 at
+// ~304k XP ≈ 20 months — 5x the stated 10-12 week target.
+//
+// Industry grammar for a daily-habit geo RPG (Pokémon GO caps,
+// Genshin Adventure Ranks): a fast onboarding pop, a smooth
+// progression era to the big unlock, then a compounding veteran
+// era where the last third of the ladder holds most of the XP.
+//
+//   Era 1 (1-39):  xp(n) = floor(10 · n^1.5)      — progression
+//   Era 2 (40-59): xp(n) = floor(xp(40) · 1.1^(n-40)) — veteran
+//
+// Calendar pacing at ~500 XP/day:
+//   L5 day one (with the story-quest burst) · L10 ~day 2-3 ·
+//   L20 ~2 weeks · L40 (Job) ~11 weeks · L50 (Fox) ~5-6 months ·
+//   L60 (cap) ~12 months.
+const E1_BASE   = 10;
+const E1_EXP    = 1.5;
+const E2_START  = 40;                                        // veteran era begins
+const E2_STEP   = Math.floor(E1_BASE * Math.pow(E2_START, E1_EXP)); // 2,529
+const E2_GROWTH = 1.10;                                      // +10% per level
 
 /** Hard cap (Tim, 2026-07-09): Fate XP stops generating at L60.
  *  Cumulative XP clamps at xpToReach(60) — no overflow banking.
@@ -38,7 +59,8 @@ export const MAX_FATE_LEVEL = 60;
  *  cap — there is no next level to fund. */
 export function xpForLevel(level: number): number {
   if (level < 1 || level >= MAX_FATE_LEVEL) return 0;
-  return Math.floor(BASE * Math.pow(level, EXP));
+  if (level < E2_START) return Math.floor(E1_BASE * Math.pow(level, E1_EXP));
+  return Math.floor(E2_STEP * Math.pow(E2_GROWTH, level - E2_START));
 }
 
 /** Cumulative XP required to reach level N from level 1. */
@@ -46,7 +68,7 @@ export function xpToReach(level: number): number {
   if (level <= 1) return 0;
   let total = 0;
   for (let n = 1; n < level && n < MAX_FATE_LEVEL; n++) {
-    total += Math.floor(BASE * Math.pow(n, EXP));
+    total += xpForLevel(n);
   }
   return total;
 }
