@@ -8,6 +8,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { Prisma, SourceLink } from '@prisma/client';
@@ -740,6 +741,18 @@ export class IdentityService {
       throw new BadRequestException(
         'Fox name must be between 2 and 32 characters.',
       );
+    }
+
+    // Delta 2026-07-09: naming is sealed until Fate 50 — the name
+    // arrives through the Calling ("A Distant Calling" until then).
+    // /api/fox is the canonical path now; this legacy route carries
+    // the same gate so no client can name early.
+    const gate = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { fateLevel: true },
+    });
+    if ((gate?.fateLevel ?? 1) < 50) {
+      throw new ForbiddenException('Whatever calls to you remains silent.');
     }
 
     const existing = await this.prisma.fateFox.findUnique({ where: { rootId } });
