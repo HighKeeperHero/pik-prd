@@ -21,7 +21,8 @@
     "seed:test-event": "ts-node scripts/seed-test-event.ts",
     "verify:tear-gen": "ts-node scripts/verify-tear-gen.ts",
     "db:backup": "bash scripts/backup-db.sh",
-    "seed:quests": "ts-node scripts/seed-quests.ts"
+    "seed:quests": "ts-node scripts/seed-quests.ts",
+    "flags": "ts-node scripts/flags.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

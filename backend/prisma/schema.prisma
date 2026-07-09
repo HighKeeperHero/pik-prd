@@ -1143,3 +1143,18 @@ model TearSeal {
   @@index([cellKey])
   @@map("tear_seal")
 }
+
+// Feature flags — runtime feature control per release channel
+// (2026-07-09, alpha pipeline). Resolution: a channel-specific row
+// ('alpha', 'preview', …) overrides the default row (channel '').
+// Unknown keys fall back to client-side defaults (fail-open).
+model FeatureFlag {
+  id        String   @id @default(uuid())
+  key       String
+  channel   String   @default("")   // '' = all channels
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([key, channel])
+  @@map("feature_flags")
+}
