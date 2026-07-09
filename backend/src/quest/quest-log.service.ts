@@ -63,7 +63,9 @@ export type QuestEvent =
   | { type: 'rite'; grade: string; purity: number; nodes: number; corruption: number }
   // 2026-07-09 — Fate Fox / Silent Witness beats (L50 chain):
   // investigate | follow | shrine | calling | bond.
-  | { type: 'fox'; beat: string };
+  | { type: 'fox'; beat: string }
+  // 2026-07-10 — Chapter I 'Arms of the Covenant' (first equip).
+  | { type: 'gear_equip' };
 
 export interface CadenceObjective {
   id: string;
@@ -340,6 +342,7 @@ export class QuestLogService {
       case 'smelt_works':      return event.type === 'smelt' ? 1 : 0;
       // Rite of Purification weekly challenges — tally-type
       // objectives advance by the event's counts, not by 1.
+      case 'equip_gear':         return event.type === 'gear_equip' ? 1 : 0;
       case 'fox_investigate':    return event.type === 'fox' && event.beat === 'investigate' ? 1 : 0;
       case 'fox_follow':         return event.type === 'fox' && event.beat === 'follow' ? 1 : 0;
       case 'fox_shrine':         return event.type === 'fox' && event.beat === 'shrine' ? 1 : 0;

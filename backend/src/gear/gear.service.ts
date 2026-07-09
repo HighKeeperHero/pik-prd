@@ -6,6 +6,7 @@
 import {
   Injectable, NotFoundException, BadRequestException, Logger,
 } from '@nestjs/common';
+import { QuestLogService } from '../quest/quest-log.service';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
@@ -46,6 +47,7 @@ export class GearService {
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
     private readonly huntTracker: HuntTrackerService,
+    private readonly questLog: QuestLogService,
   ) {}
 
   // ── ADD TO INVENTORY ──────────────────────────────────────
@@ -74,6 +76,9 @@ export class GearService {
     });
     if (existing) await this.prisma.playerEquipment.delete({ where: { id: existing.id } });
     await this.prisma.playerEquipment.create({ data: { rootId, slot, inventoryId } });
+    // 2026-07-10 — Chapter I 'Arms of the Covenant' advances on
+    // first equip (recordEvent never throws).
+    await this.questLog.recordEvent(rootId, { type: 'gear_equip' });
     await this.events.log({
       rootId, eventType: 'gear.item_equipped',
       payload: { inventory_id: inventoryId, item_id: invItem.item.id, item_name: invItem.item.name, slot, replaced: existing ? { item_id: existing.inventory.item.id, item_name: existing.inventory.item.name } : null },

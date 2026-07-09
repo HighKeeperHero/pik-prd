@@ -185,146 +185,230 @@ const QUESTS: QuestSeed[] = [
     rewards: { xp: 150, materials: { ore: 2 } },
   },
 
-  // ── STORY — the Awakening Trail (post-Chapter-1 onboarding) ──
+  // ── STORY — Chapter I: The Remembering (Quest_Chpt1-5 v1.0) ──
+  // The awakening trail IS Chapter I now (2026-07-10): one chain,
+  // one story, matching the Sanctum's awakening beats. Old trail
+  // slugs are reused so existing heroes keep their claimed steps.
+  // Judgment calls vs the doc: Q6+Q7 merged into one seal quest;
+  // 'Home Again' rests at the Hearth; the cache beat stays (loot
+  // dopamine + forge-prep economy); titles deferred (no catalog).
   {
-    slug: 'story_first_seal', name: 'The First Mending',
-    description: 'You have seen what the Veil does when it opens. Close one.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 5, sortOrder: 50,
-    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal your first Veil tear', target: 1 }],
-    rewards: { xp: 100 },
+    slug: 'story_ch1_cinematic', name: 'The Remembering',
+    description: 'Darkness. A hand reaching. You are known to me — remember.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 1, sortOrder: 5,
+    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Witness the Remembering', target: 1, chapter: 1 }],
+    rewards: { xp: 60 },
   },
   {
-    slug: 'story_first_hearth', name: 'Smoke Rising',
-    description: 'Your Sanctum stands, but it is cold. Light it.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 6, sortOrder: 60,
-    objectives: [{ id: 'o1', type: 'tend_hearth', label: 'Tend the Hearth for the first time', target: 1 }],
-    rewards: { xp: 50, essence: 10 },
-  },
-  {
-    slug: 'story_first_oath', name: 'The Words That Bind',
-    description: 'Stand at the altar and choose what you serve today.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 3, sortOrder: 30,
-    objectives: [{ id: 'o1', type: 'swear_oath', label: 'Swear your first Oath', target: 1 }],
-    rewards: { xp: 50 },
-  },
-  {
-    slug: 'story_first_trial', name: 'The First Rite',
-    description: 'The leylines dimmed overnight. Kneel at the Veilfire and restore them.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 1, sortOrder: 10,
+    slug: 'story_first_trial', name: 'An Ember Remains',
+    description: 'The Sanctum remembers its Keeper. The Veilfire is cold — kneel, and light it.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 2, sortOrder: 10,
     objectives: [{ id: 'o1', type: 'complete_trial', label: 'Perform your first Rite of Purification', target: 1 }],
-    rewards: { xp: 50 },
+    rewards: { xp: 75, essence: 100 },
   },
   {
-    slug: 'story_first_augury', name: 'Three Cards Turned',
-    description: 'In the Library, the Oracular waits with the day’s spread.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 2, sortOrder: 20,
+    slug: 'story_first_augury', name: 'Echoes of Memory',
+    description: 'Knowledge alone cannot defend this world — but it is where defense begins. The cards wait in the Library.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 3, sortOrder: 20,
     objectives: [{ id: 'o1', type: 'complete_augury', label: 'Complete your first Augury reading', target: 1 }],
-    rewards: { xp: 50 },
-  },
-  {
-    slug: 'story_first_cache', name: 'What the Veil Left',
-    description: 'Sealed and humming. It belongs to you now — open it.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 4, sortOrder: 40,
-    objectives: [{ id: 'o1', type: 'open_caches', label: 'Open your first Fate Cache', target: 1 }],
     rewards: { xp: 75 },
   },
   {
-    slug: 'story_reach_l3', name: 'A Thread Lengthens',
-    description: 'The world is beginning to know your name. Reach Fate Level 3.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 7, sortOrder: 70,
+    slug: 'story_first_oath', name: 'The First Oath',
+    description: 'Every Hero begins with an oath. Stand at the altar and choose what you serve.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 4, sortOrder: 30,
+    objectives: [{ id: 'o1', type: 'swear_oath', label: 'Swear your first Oath', target: 1 }],
+    rewards: { xp: 75 },
+  },
+  {
+    slug: 'story_ch1_equip', name: 'Arms of the Covenant',
+    description: 'Steel serves only those who carry purpose. Take up arms.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 5, sortOrder: 40,
+    objectives: [{ id: 'o1', type: 'equip_gear', label: 'Equip your first piece of gear', target: 1 }],
+    rewards: { xp: 100, materials: { veilglass: 2, leywood: 1 } },
+  },
+  {
+    slug: 'story_first_seal', name: 'Into the Veil',
+    description: 'A Tear has formed. Left unattended, more will follow — close it.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 6, sortOrder: 50,
+    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal your first Veil tear', target: 1 }],
+    rewards: { xp: 150, essence: 25 },
+  },
+  {
+    slug: 'story_first_cache', name: 'What the Veil Left',
+    description: 'One Tear has closed. Something sealed and humming remains — it belongs to you now.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 7, sortOrder: 60,
+    objectives: [{ id: 'o1', type: 'open_caches', label: 'Open your first Fate Cache', target: 1 }],
+    rewards: { xp: 100 },
+  },
+  {
+    slug: 'story_first_hearth', name: 'Home Again',
+    description: 'The Sanctum endures because Heroes answer its call. Rest — tomorrow, the Veil will open again.',
+    cadence: 'story', chainKey: 'chapter_one', chainStep: 8, sortOrder: 70,
+    objectives: [{ id: 'o1', type: 'tend_hearth', label: 'Tend the Hearth', target: 1 }],
+    rewards: { xp: 150, cache_rarity: 'uncommon' },
+  },
+
+  // ── STORY — Chapter II: The Gathering Storm ─────────────────
+  // One Tear was never the danger. It was the warning. Doc's
+  // stamina (Q4) and weapon-upgrade (Q5) reference unbuilt systems
+  // — substituted with the restoration build (stewardship) and
+  // lore recovery; revisit when those systems ship.
+  {
+    slug: 'story_reach_l3', name: 'The First Echo',
+    description: 'Every victory leaves its mark. Heroes do not seek power — they become worthy of it.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 1, minLevel: 3, sortOrder: 110,
     objectives: [{ id: 'o1', type: 'reach_level', label: 'Reach Fate Level 3', target: 3 }],
     rewards: { xp: 100 },
   },
   {
+    slug: 'story_ch2_seals', name: 'Echoes Across the Realm',
+    description: 'A road is safe again. A caravan reaches shelter. A family survives the night — because you walked out.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 2, minLevel: 3, sortOrder: 120,
+    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal 3 Veil tears', target: 3 }],
+    rewards: { xp: 150, essence: 30 },
+  },
+  {
+    slug: 'story_ch2_rarity', name: 'Veil Patterns',
+    description: 'Not every wound in the world is equal. Some Tears are shallow. Others reach deeper.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 3, minLevel: 3, sortOrder: 130,
+    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal 2 Wander-or-deeper tears', target: 2, tier_min: 2 }],
+    rewards: { xp: 150, materials: { veilglass: 3 } },
+  },
+  {
     slug: 'story_first_upgrade', name: 'Stone Upon Stone',
-    description: 'Enough rites are banked to raise the keep. Commit your first restoration upgrade.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 8, sortOrder: 80,
-    objectives: [{ id: 'o1', type: 'upgrade_wings', label: 'Commit a restoration upgrade', target: 1 }],
-    rewards: { xp: 150, cache_rarity: 'uncommon' },
+    description: 'The Sanctum does not stand because of stone. Still — raise the stone.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 4, minLevel: 3, sortOrder: 140,
+    objectives: [{ id: 'o1', type: 'upgrade_wings', label: 'Complete a restoration build', target: 1 }],
+    rewards: { xp: 150, materials: { ore: 1 } },
+  },
+  {
+    slug: 'story_ch2_lore', name: 'A World Worth Saving',
+    description: 'The roads hold. Farms endure. Lanterns burn again in village windows. Recover the record of it.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 5, minLevel: 3, sortOrder: 150,
+    objectives: [{ id: 'o1', type: 'collect_lore', label: 'Recover a Lore Archive entry', target: 1 }],
+    rewards: { xp: 100 },
+  },
+  {
+    slug: 'story_ch2_elite', name: 'Darkness Responds',
+    description: 'The Veil has felt your resistance. Now it answers.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 6, minLevel: 3, sortOrder: 160,
+    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal a Dormant-or-deeper tear', target: 1, tier_min: 3 }],
+    rewards: { xp: 200, cache_rarity: 'rare' },
+  },
+  {
+    slug: 'story_ch2', name: 'The Gathering Storm',
+    description: 'One Tear was a warning. Three were a pattern. The Elite was an answer. The Veil is not merely breaking — it is listening.',
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 7, minLevel: 3, sortOrder: 170,
+    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Read the closing Chronicle of Chapter II', target: 1, chapter: 2 }],
+    rewards: { xp: 200, essence: 50 },
   },
 
-  // ── STORY — Chapter II chain (activates when Ch.2 ships) ────
+  // ── STORY — Chapters III–V (DRAFT until their systems ship) ──
+  // III Echoes of the Fallen → Hero Echo system (design now exists
+  //     in Quest_Chpt1-5; HeroEchoScreen is a scaffold).
+  // IV  The Hero's Path → Virtue tracks (unbuilt).
+  // V   Chronicles of Elysendar → Library collections (partial).
+  // Draft = invisible server-side; the client shows their locked
+  // chapter headers. Flip each to active as its system lands.
   {
-    slug: 'story_ch2', name: 'Chapter II',
-    description: 'The story continues. Read Chapter II of the Awakening.',
-    cadence: 'story', chainKey: 'chapter_two', chainStep: 1, sortOrder: 110,
-    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Complete Chapter II', target: 1, chapter: 2 }],
-    rewards: { xp: 200 },
+    slug: 'story_ch3', name: 'Voices Within the Codex',
+    description: 'Not every Hero passed beyond remembrance. Some remain. Listen.',
+    cadence: 'story', chainKey: 'chapter_three', chainStep: 1,
+    status: 'draft', minLevel: 8, sortOrder: 210,
+    objectives: [{ id: 'o1', type: 'hero_echo', label: 'Witness your first Hero Echo', target: 1 }],
+    rewards: { xp: 250 },
   },
   {
-    slug: 'story_ch2_seals', name: 'Proof of Resolve',
-    description: 'What the chapter asked of you, the world now demands. Five tears.',
-    cadence: 'story', chainKey: 'chapter_two', chainStep: 2, sortOrder: 120,
-    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal 5 Veil tears', target: 5 }],
+    slug: 'story_ch3_hall', name: 'The Hall Remembers',
+    description: 'Portraits. Names. Homelands. Deeds. The Hall of Heroes keeps what the Veil could not take.',
+    cadence: 'story', chainKey: 'chapter_three', chainStep: 2,
+    status: 'draft', minLevel: 8, sortOrder: 220,
+    objectives: [{ id: 'o1', type: 'hero_echo', label: 'Recover 2 more Hero Echoes', target: 2 }],
+    rewards: { xp: 250 },
+  },
+  {
+    slug: 'story_ch3_legacy', name: 'Echoes of the Fallen',
+    description: 'Kingdoms endure because Heroes stood. Heroes endure because they are remembered.',
+    cadence: 'story', chainKey: 'chapter_three', chainStep: 3,
+    status: 'draft', minLevel: 8, sortOrder: 230,
+    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Read the restored Chronicle', target: 1, chapter: 3 }],
+    rewards: { xp: 300, cache_rarity: 'rare' },
+  },
+  {
+    slug: 'story_ch4_path', name: 'The Measure of a Hero',
+    description: 'Steel wins battles. Character wins ages.',
+    cadence: 'story', chainKey: 'chapter_four', chainStep: 1,
+    status: 'draft', minLevel: 12, sortOrder: 310,
+    objectives: [{ id: 'o1', type: 'virtue_focus', label: 'Choose your first Virtue Focus', target: 1 }],
+    rewards: { xp: 300 },
+  },
+  {
+    slug: 'story_ch4_final', name: 'The Hero\'s Path',
+    description: 'Heroes are not remembered because destiny chose them — but because, day after day, they chose the harder path.',
+    cadence: 'story', chainKey: 'chapter_four', chainStep: 2,
+    status: 'draft', minLevel: 12, sortOrder: 320,
+    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Read the closing Chronicle', target: 1, chapter: 4 }],
+    rewards: { xp: 350, cache_rarity: 'epic' },
+  },
+  {
+    slug: 'story_ch5_realms', name: 'The Four Great Realms',
+    description: 'Kingvale. The Wylds. The Origin Sands. Lochmaw. To defend Elysendar, one must first know it.',
+    cadence: 'story', chainKey: 'chapter_five', chainStep: 1,
+    status: 'draft', minLevel: 16, sortOrder: 410,
+    objectives: [{ id: 'o1', type: 'collect_lore', label: 'Recover 4 Regional Chronicles', target: 4 }],
+    rewards: { xp: 400 },
+  },
+  {
+    slug: 'story_ch5_final', name: 'The Ancient Name',
+    description: 'Kingdoms rose. Kingdoms fell. Heroes came and passed. Yet throughout every age, one name endured.',
+    cadence: 'story', chainKey: 'chapter_five', chainStep: 2,
+    status: 'draft', minLevel: 16, sortOrder: 420,
+    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Read the final Chronicle', target: 1, chapter: 5 }],
+    rewards: { xp: 500, cache_rarity: 'epic', materials: { ore: 3 } },
+  },
+
+  // Tombstones — superseded pre-doc entries retire as drafts so
+  // existing rows deactivate on reseed (upsert never deletes).
+  {
+    slug: 'story_reach_l5', name: 'The Forge Stirs',
+    description: '(superseded by Chapter II)',
+    cadence: 'story', chainKey: 'legacy_retired', chainStep: 1,
+    status: 'draft', sortOrder: 900,
+    objectives: [{ id: 'o1', type: 'reach_level', label: 'Reach Fate Level 5', target: 5 }],
     rewards: { xp: 150 },
   },
   {
     slug: 'story_ch2_l5', name: 'The Forge Stirs',
-    description: 'At the fifth level of Fate, something sealed in your Sanctum wakes.',
-    cadence: 'story', chainKey: 'chapter_two', chainStep: 3, sortOrder: 130,
+    description: '(superseded by Chapter II)',
+    cadence: 'story', chainKey: 'legacy_retired', chainStep: 2,
+    status: 'draft', sortOrder: 901,
     objectives: [{ id: 'o1', type: 'reach_level', label: 'Reach Fate Level 5', target: 5 }],
-    rewards: { xp: 200, cache_rarity: 'rare' },
-  },
-
-  // ── STORY — Chapter III chain (activates when Ch.3 ships) ───
-  {
-    slug: 'story_ch3', name: 'Chapter III',
-    description: 'The story deepens. Read Chapter III of the Awakening.',
-    cadence: 'story', chainKey: 'chapter_three', chainStep: 1, sortOrder: 210,
-    objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Complete Chapter III', target: 1, chapter: 3 }],
-    rewards: { xp: 200 },
+    rewards: { xp: 150 },
   },
   {
     slug: 'story_ch3_dormant', name: 'Where It Runs Deepest',
-    description: 'Find a dormant tear — the old kind — and seal it.',
-    cadence: 'story', chainKey: 'chapter_three', chainStep: 2, sortOrder: 220,
-    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal a Dormant or Double tear', target: 1, tier_min: 3 }],
-    rewards: { xp: 250 },
+    description: '(superseded by Chapter II)',
+    cadence: 'story', chainKey: 'legacy_retired', chainStep: 3,
+    status: 'draft', sortOrder: 902,
+    objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal 2 Dormant tears', target: 2, tier_min: 3 }],
+    rewards: { xp: 200 },
   },
   {
     slug: 'story_ch3_l8', name: 'A Name Spoken Twice',
-    description: 'Reach Fate Level 8. The barrow-keepers are starting to say it.',
-    cadence: 'story', chainKey: 'chapter_three', chainStep: 3, sortOrder: 230,
+    description: '(superseded by Chapter II)',
+    cadence: 'story', chainKey: 'legacy_retired', chainStep: 4,
+    status: 'draft', sortOrder: 903,
     objectives: [{ id: 'o1', type: 'reach_level', label: 'Reach Fate Level 8', target: 8 }],
-    rewards: { xp: 300, cache_rarity: 'rare' },
-  },
-
-  // ── FORGE WORKS — feed Forge restoration (tag: forge_work) ──
-  // Two ACTIVE preparation works so the Forge can advance during
-  // alpha (to L3) before Crafting/Smelting mechanics ship. The
-  // real craft/smelt works are seeded as DRAFTS — flip to active
-  // when those mechanics land.
-  {
-    slug: 'forge_prep_fuel', name: 'Feed the Forge',
-    description: 'A cold forge wants fuel. Open three caches and set their residue aside.',
-    cadence: 'story', chainKey: 'forge_works', chainStep: 1, tag: 'forge_work',
-    minLevel: 5, sortOrder: 310,
-    objectives: [{ id: 'o1', type: 'open_caches', label: 'Open 3 Fate Caches', target: 3 }],
-    rewards: { xp: 100 },
+    rewards: { xp: 250 },
   },
   {
-    slug: 'forge_prep_coals', name: 'Stoke the Coals',
-    description: 'The forge answers a kept house. Two perfect ritual days.',
-    cadence: 'story', chainKey: 'forge_works', chainStep: 2, tag: 'forge_work',
-    minLevel: 5, sortOrder: 320,
-    objectives: [{ id: 'o1', type: 'ritual_days', label: 'Complete 2 perfect ritual days', target: 2 }],
-    rewards: { xp: 150 },
-  },
-  {
-    slug: 'forge_work_smelt_1', name: 'First Pour',
-    description: 'Smelt raw Veil residue into a usable ingot.',
-    cadence: 'story', chainKey: 'forge_works', chainStep: 3, tag: 'forge_work',
-    status: 'draft', minLevel: 5, sortOrder: 330,
-    objectives: [{ id: 'o1', type: 'smelt_works', label: 'Complete a smelting work', target: 1 }],
-    rewards: { xp: 150 },
-  },
-  {
-    slug: 'forge_work_craft_1', name: 'Maker’s Mark',
-    description: 'Craft your first piece at the Veil Forge.',
-    cadence: 'story', chainKey: 'forge_works', chainStep: 4, tag: 'forge_work',
-    status: 'draft', minLevel: 5, sortOrder: 340,
-    objectives: [{ id: 'o1', type: 'craft_works', label: 'Complete a crafting work', target: 1 }],
-    rewards: { xp: 200, cache_rarity: 'rare' },
+    slug: 'story_reach_l8', name: 'A Name Spoken Twice',
+    description: '(superseded)',
+    cadence: 'story', chainKey: 'legacy_retired', chainStep: 5,
+    status: 'draft', sortOrder: 904,
+    objectives: [{ id: 'o1', type: 'reach_level', label: 'Reach Fate Level 8', target: 8 }],
+    rewards: { xp: 250 },
   },
 
   // ── STORY — The Silent Witness (Fate Fox, L50) ──────────────

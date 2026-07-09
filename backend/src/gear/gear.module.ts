@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { GearController } from './gear.controller';
 import { GearService } from './gear.service';
+import { QuestModule } from '../quest/quest.module';
 import { EventsModule } from '../events/events.module';
 import { AuthModule } from '../auth/auth.module';
 import { FateAccountModule } from '../fate-account/fate-account.module';
@@ -9,7 +10,7 @@ import { AccountGuard } from '../auth/guards/account.guard';
 import { VenturesModule } from '../quest/ventures.module';
 
 @Module({
-  imports: [EventsModule, AuthModule, FateAccountModule, VenturesModule],
+  imports: [EventsModule, AuthModule, FateAccountModule, VenturesModule, QuestModule],
   controllers: [GearController],
   providers: [GearService, AccountGuard],
   exports: [GearService],
