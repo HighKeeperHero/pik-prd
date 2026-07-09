@@ -211,7 +211,7 @@ const QUESTS: QuestSeed[] = [
     description: 'Knowledge alone cannot defend this world — but it is where defense begins. The cards wait in the Library.',
     cadence: 'story', chainKey: 'chapter_one', chainStep: 3, sortOrder: 20,
     objectives: [{ id: 'o1', type: 'complete_augury', label: 'Complete your first Augury reading', target: 1 }],
-    rewards: { xp: 75 },
+    rewards: { xp: 75, title_id: 'title_awakened' },
   },
   {
     slug: 'story_first_oath', name: 'The First Oath',
@@ -301,7 +301,7 @@ const QUESTS: QuestSeed[] = [
     description: 'One Tear was a warning. Three were a pattern. The Elite was an answer. The Veil is not merely breaking — it is listening.',
     cadence: 'story', chainKey: 'chapter_two', chainStep: 7, minLevel: 3, sortOrder: 170,
     objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Read the closing Chronicle of Chapter II', target: 1, chapter: 2 }],
-    rewards: { xp: 200, essence: 50 },
+    rewards: { xp: 200, essence: 50, title_id: 'title_tearwarden' },
   },
 
   // ── STORY — Chapters III–V (DRAFT until their systems ship) ──

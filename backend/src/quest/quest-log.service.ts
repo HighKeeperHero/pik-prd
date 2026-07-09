@@ -205,7 +205,25 @@ export class QuestLogService {
       chains.set(t.chainKey, list);
     }
 
-    for (const [, steps] of chains) {
+    // 2026-07-10 — the campaign reads in order: a chapter chain
+    // materializes only when the PREVIOUS chapter's final step is
+    // claimed (Quest_Chpt1-5: "Trigger: Chapter N-1 Complete").
+    // minLevel remains an additional pacing floor. Rows already
+    // materialized under the old rules are untouched.
+    const CHAPTER_SEQUENCE = [
+      'chapter_one', 'chapter_two', 'chapter_three', 'chapter_four', 'chapter_five',
+    ];
+    const chainComplete = (key: string): boolean => {
+      const steps = chains.get(key);
+      if (!steps || steps.length === 0) return false;
+      return steps.every(s => claimedIds.has(s.id));
+    };
+
+    for (const [key, steps] of chains) {
+      const seqIdx = CHAPTER_SEQUENCE.indexOf(key);
+      if (seqIdx > 0 && !chainComplete(CHAPTER_SEQUENCE[seqIdx - 1])) {
+        continue; // the previous chapter is still being written
+      }
       steps.sort((a, b) => (a.chainStep ?? 0) - (b.chainStep ?? 0));
       for (const step of steps) {
         if (claimedIds.has(step.id)) continue; // done — look at the next step

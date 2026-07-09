@@ -75,6 +75,9 @@ async function main() {
     { id: 'first_veil_seal', displayName: 'FIRST SEAL', category: 'veil', description: 'Sealed your first Veil tear' },
     { id: 'dormant_rift_sealed', displayName: 'DORMANT RIFT SEALED', category: 'veil', description: 'Sealed a dormant (T3) tear' },
     { id: 'convergence_survived', displayName: 'CONVERGENCE SURVIVED', category: 'veil', description: 'Survived a double (T4) convergence tear' },
+    // Chapter campaign titles (Quest_Chpt1-5, 2026-07-10).
+    { id: 'title_awakened', displayName: 'AWAKENED', category: 'story', description: 'Completed the Remembering — Chapter I' },
+    { id: 'title_tearwarden', displayName: 'TEARWARDEN', category: 'story', description: 'Weathered the Gathering Storm — Chapter II' },
   ];
 
   for (const t of titles) {
