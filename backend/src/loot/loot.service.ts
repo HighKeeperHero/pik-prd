@@ -23,18 +23,22 @@ import { LevelingService } from '../leveling/leveling.service';
 import { QuestLogService } from '../quest/quest-log.service';
 
 // Phase 2 Arc A — XP grant per cache rarity tier on open.
-// Source: docs/roadmap/phase-2.md.
+// Halved 2026-07-10 (recalibration vs measured income): at
+// 100-600 XP a single cache out-paid a week of rites, and cache
+// supply is plentiful — caches now reward alongside the daily
+// rituals, not above them. Loot + essence stay the real payout.
+// Source of truth: docs/roadmap/phase-2.md §locked-parameters.
 const XP_BY_CACHE_RARITY: Record<string, number> = {
-  common:    100,
-  uncommon:  200,
-  rare:      300,
-  'rare+':   350,
-  epic:      400,
-  legendary: 500,
-  artifact:  600,
+  common:    50,
+  uncommon:  100,
+  rare:      150,
+  'rare+':   175,
+  epic:      200,
+  legendary: 250,
+  artifact:  300,
 };
 function xpForCacheRarity(rarity: string): number {
-  return XP_BY_CACHE_RARITY[rarity?.toLowerCase()] ?? 100;
+  return XP_BY_CACHE_RARITY[rarity?.toLowerCase()] ?? 50;
 }
 
 /** Cache rarity determines the visual treatment and drop pool weighting */

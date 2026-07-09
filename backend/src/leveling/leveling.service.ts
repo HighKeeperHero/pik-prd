@@ -11,42 +11,47 @@
 // Adventurer Rank and all content gates. Combat power is
 // Resonance, which is gear-derived and computed separately.
 //
-// Reference cumulative XP (exact, from the era formulas):
-//   L5  -> 169        (day one)
-//   L10 -> 1,107      (~day 2-3)
-//   L20 -> 6,704      (~2 weeks)
-//   L30 -> 18,888     (~5-6 weeks)
-//   L40 -> 39,201     (~11 weeks — the Job Quest gate)
-//   L50 -> 79,503     (~5-6 months — the Fate Fox gate)
-//   L60 -> 184,041    (~12 months — the cap)
+// Reference cumulative XP (exact, from the era formulas; calendar
+// at ~1,000 XP/day committed):
+//   L5  -> 339        (day one)
+//   L10 -> 2,217      (~day 2-3)
+//   L20 -> 13,418     (~2 weeks)
+//   L30 -> 37,792     (~5-6 weeks)
+//   L40 -> 78,423     (~11 weeks — the Job Quest gate)
+//   L50 -> 159,045    (~5-6 months — the Fate Fox gate)
+//   L60 -> 368,166    (~12 months — the cap)
 // (Regenerate via xpToReach if constants change.)
 // ============================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
-// ── The two-era curve (retuned 2026-07-09) ──────────────────
-// Grounded in measured income: a committed daily player earns
-// ~500-620 XP/day (rituals ~85 + daily quests ~135 + tear seals
-// ~200 + amortized weeklies ~200). The old 80·n^1.5 put L40 at
-// ~304k XP ≈ 20 months — 5x the stated 10-12 week target.
+// ── The two-era curve (recalibrated 2026-07-10) ─────────────
+// v2 (07-09) anchored to ~500 XP/day but MISSED cache-open XP
+// (100-600/open, halved same day in loot.service) and lowballed
+// uncapped tear-seal volume — Tim's 13-day inconsistent test char
+// averaged ~585/day, matching a corrected COMMITTED income of
+// ~1,000 XP/day (rituals ~95 + daily quests ~135 + weeklies ~225
+// + tear seals ~300 + caches ~250 post-halving). Base doubles to
+// keep the same calendar targets at the real income.
 //
 // Industry grammar for a daily-habit geo RPG (Pokémon GO caps,
 // Genshin Adventure Ranks): a fast onboarding pop, a smooth
 // progression era to the big unlock, then a compounding veteran
 // era where the last third of the ladder holds most of the XP.
 //
-//   Era 1 (1-39):  xp(n) = floor(10 · n^1.5)      — progression
+//   Era 1 (1-39):  xp(n) = floor(20 · n^1.5)      — progression
 //   Era 2 (40-59): xp(n) = floor(xp(40) · 1.1^(n-40)) — veteran
 //
-// Calendar pacing at ~500 XP/day:
+// Calendar pacing at ~1,000 XP/day committed (inconsistent play
+// runs ~half speed):
 //   L5 day one (with the story-quest burst) · L10 ~day 2-3 ·
 //   L20 ~2 weeks · L40 (Job) ~11 weeks · L50 (Fox) ~5-6 months ·
 //   L60 (cap) ~12 months.
-const E1_BASE   = 10;
+const E1_BASE   = 20;
 const E1_EXP    = 1.5;
 const E2_START  = 40;                                        // veteran era begins
-const E2_STEP   = Math.floor(E1_BASE * Math.pow(E2_START, E1_EXP)); // 2,529
+const E2_STEP   = Math.floor(E1_BASE * Math.pow(E2_START, E1_EXP)); // 5,059
 const E2_GROWTH = 1.10;                                      // +10% per level
 
 /** Hard cap (Tim, 2026-07-09): Fate XP stops generating at L60.
@@ -130,7 +135,10 @@ export class LevelingService {
     const prevXp    = hero.fateXp ?? 0;
     if (prevXp >= capXp) return null;
     const newXp     = Math.min(prevXp + totalGain, capXp);
-    const newLevel  = levelFromXp(newXp);
+    // Monotonic guard (2026-07-10): recalibrations can RAISE the
+    // thresholds under an existing hero — a level, once reached,
+    // is never taken back. XP keeps accruing; the curve catches up.
+    const newLevel  = Math.max(hero.fateLevel ?? 1, levelFromXp(newXp));
     const leveledUp = newLevel > (hero.fateLevel ?? 1);
 
     await this.prisma.rootIdentity.update({
