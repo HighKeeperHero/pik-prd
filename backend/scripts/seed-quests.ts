@@ -323,6 +323,51 @@ const QUESTS: QuestSeed[] = [
     objectives: [{ id: 'o1', type: 'craft_works', label: 'Complete a crafting work', target: 1 }],
     rewards: { xp: 200, cache_rarity: 'rare' },
   },
+
+  // ── STORY — The Silent Witness (Fate Fox, L50) ──────────────
+  // No popup, no fanfare: at 50 the chain simply appears, and the
+  // Sanctum is wrong. Beats fire from /api/fox endpoints; the
+  // Calling and the bond are quests IV and V.
+  {
+    slug: 'fox_echoes', name: 'Echoes in the Dark',
+    description: 'The Veilfire burned silent last night. Something crossed the courtyard without touching the ground.',
+    cadence: 'story', chainKey: 'silent_witness', chainStep: 1,
+    minLevel: 50, sortOrder: 410,
+    objectives: [{ id: 'o1', type: 'fox_investigate', label: 'Investigate the presence in the Sanctum', target: 1 }],
+    rewards: { xp: 300 },
+  },
+  {
+    slug: 'fox_footsteps', name: 'Footsteps Unseen',
+    description: 'Golden prints, gone when you kneel to them. They leave the Sanctum walking — patient, unhurried, certain you will follow.',
+    cadence: 'story', chainKey: 'silent_witness', chainStep: 2,
+    minLevel: 50, sortOrder: 420,
+    objectives: [{ id: 'o1', type: 'fox_follow', label: 'Follow the golden footprints', target: 1 }],
+    rewards: { xp: 300 },
+  },
+  {
+    slug: 'fox_shrine', name: 'The Forgotten Shrine',
+    description: 'Broken statues. Fox carvings older than the keep. A dormant altar that remembers being tended.',
+    cadence: 'story', chainKey: 'silent_witness', chainStep: 3,
+    minLevel: 50, sortOrder: 430,
+    objectives: [{ id: 'o1', type: 'fox_shrine', label: 'Restore the Shrine of First Companions', target: 1 }],
+    rewards: { xp: 400 },
+  },
+  {
+    slug: 'fox_calling', name: 'The Calling',
+    description: 'The shrine does not ask questions. It shows you memories — and simply watches what you do.',
+    cadence: 'story', chainKey: 'silent_witness', chainStep: 4,
+    minLevel: 50, sortOrder: 440,
+    objectives: [{ id: 'o1', type: 'fox_calling', label: 'Answer the shrine’s memories', target: 1 }],
+    rewards: { xp: 400 },
+  },
+  {
+    slug: 'fox_bond', name: 'Into the Veil',
+    description: 'No enemies. No sound. Just stars, fog, and the eyes that have watched since your first step.',
+    cadence: 'story', chainKey: 'silent_witness', chainStep: 5,
+    minLevel: 50, sortOrder: 450,
+    objectives: [{ id: 'o1', type: 'fox_bond', label: 'Meet what has always walked beside you', target: 1 }],
+    rewards: { xp: 500, cache_rarity: 'epic' },
+  },
 ];
 
 async function main() {

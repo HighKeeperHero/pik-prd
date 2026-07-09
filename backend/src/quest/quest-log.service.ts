@@ -60,7 +60,10 @@ export type QuestEvent =
   // 2026-07-08 — Rite of Purification result (grade + tallies for
   // the weekly challenges; the plain 'trial' event still fires for
   // completion objectives).
-  | { type: 'rite'; grade: string; purity: number; nodes: number; corruption: number };
+  | { type: 'rite'; grade: string; purity: number; nodes: number; corruption: number }
+  // 2026-07-09 — Fate Fox / Silent Witness beats (L50 chain):
+  // investigate | follow | shrine | calling | bond.
+  | { type: 'fox'; beat: string };
 
 export interface CadenceObjective {
   id: string;
@@ -335,6 +338,11 @@ export class QuestLogService {
       case 'smelt_works':      return event.type === 'smelt' ? 1 : 0;
       // Rite of Purification weekly challenges — tally-type
       // objectives advance by the event's counts, not by 1.
+      case 'fox_investigate':    return event.type === 'fox' && event.beat === 'investigate' ? 1 : 0;
+      case 'fox_follow':         return event.type === 'fox' && event.beat === 'follow' ? 1 : 0;
+      case 'fox_shrine':         return event.type === 'fox' && event.beat === 'shrine' ? 1 : 0;
+      case 'fox_calling':        return event.type === 'fox' && event.beat === 'calling' ? 1 : 0;
+      case 'fox_bond':           return event.type === 'fox' && event.beat === 'bond' ? 1 : 0;
       case 'rite_s_grades':      return event.type === 'rite' && event.grade === 'S' ? 1 : 0;
       case 'perfect_purity':     return event.type === 'rite' && event.purity >= 100 ? 1 : 0;
       case 'purify_nodes':       return event.type === 'rite' ? event.nodes : 0;

@@ -41,6 +41,7 @@ import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Spri
 import { MemoriaModule }    from './memoria/memoria.module';          // ← Sprint 32 (Tier 2 identity-collection)
 import { LoreModule }       from './lore/lore.module';                // ← 2026-07-06 Lore Archive collection
 import { FlagsModule }      from './flags/flags.module';              // ← 2026-07-09 alpha release pipeline
+import { FoxModule }        from './fox/fox.module';                  // ← 2026-07-09 Fate Fox Calling (L50)
 
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
@@ -128,6 +129,7 @@ class HealthController {
     MemoriaModule,        // ← Sprint 32 (Tier 2 identity-collection)
     LoreModule,           // ← 2026-07-06 Lore Archive collection
     FlagsModule,          // ← 2026-07-09 alpha release pipeline
+    FoxModule,            // ← 2026-07-09 Fate Fox Calling (L50)
   ],
   controllers: [HealthController],
   providers: [

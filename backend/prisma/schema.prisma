@@ -682,6 +682,20 @@ model FateFox {
   name      String
   bondedAt  DateTime @default(now()) @map("bonded_at")
 
+  // ── The Calling (2026-07-09) — the fox is REVEALED, not built.
+  // Virtue scoring assigns the archetype; the archetype fixes the
+  // immutable physical traits; the player customizes expression
+  // only (canon: the game chooses the soul, the player chooses
+  // the expression, the journey shapes the legend).
+  archetype         String?   // guardian|seeker|sage|ember|hearth|warden
+  virtueProfile     Json?     @map("virtue_profile")
+  immutableTraits   Json?     @map("immutable_traits")
+  customization     Json?     // furPrimary/furSecondary/eyeColor/collar/pendant/auraColor
+  bondLevel         Int       @default(1) @map("bond_level")
+  personalitySeed   String?   @map("personality_seed")
+  unlockedCosmetics Json      @default("[]") @map("unlocked_cosmetics")
+  revealedAt        DateTime? @map("revealed_at")
+
   root      RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@map("fate_foxes")
