@@ -28,9 +28,16 @@ import { PrismaService } from '../prisma.service';
 const BASE = 80;
 const EXP  = 1.5;
 
-/** XP required to go from level N to level N+1. */
+/** Hard cap (Tim, 2026-07-09): Fate XP stops generating at L60.
+ *  Cumulative XP clamps at xpToReach(60) — no overflow banking.
+ *  Content gates for this version: Forge L5 · Job Quest L40 ·
+ *  Fate Fox L50 · cap L60. */
+export const MAX_FATE_LEVEL = 60;
+
+/** XP required to go from level N to level N+1. Returns 0 at the
+ *  cap — there is no next level to fund. */
 export function xpForLevel(level: number): number {
-  if (level < 1) return 0;
+  if (level < 1 || level >= MAX_FATE_LEVEL) return 0;
   return Math.floor(BASE * Math.pow(level, EXP));
 }
 
@@ -38,16 +45,18 @@ export function xpForLevel(level: number): number {
 export function xpToReach(level: number): number {
   if (level <= 1) return 0;
   let total = 0;
-  for (let n = 1; n < level; n++) total += xpForLevel(n);
+  for (let n = 1; n < level && n < MAX_FATE_LEVEL; n++) {
+    total += Math.floor(BASE * Math.pow(n, EXP));
+  }
   return total;
 }
 
 /** Derive level from cumulative XP. Walks the curve from 1
- *  upward. The curve is monotonic so this terminates quickly. */
+ *  upward; clamps at MAX_FATE_LEVEL. */
 export function levelFromXp(xp: number): number {
   if (xp < 0) return 1;
   let level = 1;
-  while (xpToReach(level + 1) <= xp) level++;
+  while (level < MAX_FATE_LEVEL && xpToReach(level + 1) <= xp) level++;
   return level;
 }
 
@@ -93,7 +102,12 @@ export class LevelingService {
     const foxBonus = hero.fateFox ? Math.floor(amount * 0.05) : 0;
     const totalGain = amount + foxBonus;
 
-    const newXp     = (hero.fateXp ?? 0) + totalGain;
+    // L60 cap: XP stops generating — clamp cumulative XP at the
+    // cap's threshold. A fully-capped hero gets no award at all.
+    const capXp     = xpToReach(MAX_FATE_LEVEL);
+    const prevXp    = hero.fateXp ?? 0;
+    if (prevXp >= capXp) return null;
+    const newXp     = Math.min(prevXp + totalGain, capXp);
     const newLevel  = levelFromXp(newXp);
     const leveledUp = newLevel > (hero.fateLevel ?? 1);
 
@@ -108,13 +122,13 @@ export class LevelingService {
 
     const baseForLevel = xpToReach(newLevel);
     return {
-      xp_gained:        totalGain,
+      xp_gained:        newXp - prevXp,   // may be truncated at the cap
       fate_xp:          newXp,
       fate_level:       newLevel,
       leveled_up:       leveledUp,
       fox_bonus:        foxBonus,
       xp_in_level:      newXp - baseForLevel,
-      xp_to_next_level: xpForLevel(newLevel),
+      xp_to_next_level: xpForLevel(newLevel),   // 0 at the cap
     };
   }
 }
