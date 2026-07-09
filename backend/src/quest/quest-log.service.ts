@@ -81,6 +81,8 @@ export interface CadenceRewards {
   essence?: number;
   cache_rarity?: string;
   title_id?: string;
+  /** 2026-07-10 — build materials (weekly quests = ore's source). */
+  materials?: Record<string, number>;
 }
 
 export interface QuestProgressUpdate {
@@ -403,6 +405,19 @@ export class QuestLogService {
         update: {},
         create: { rootId, titleId: rewards.title_id },
       });
+    }
+
+    // 2026-07-10 restoration economy — quests may pay build
+    // materials (weekly quests are Sanctified Ore's only source).
+    if (rewards.materials) {
+      for (const [material, count] of Object.entries(rewards.materials)) {
+        if (!count || count <= 0) continue;
+        await this.prisma.materialStock.upsert({
+          where:  { rootId_material: { rootId, material } },
+          create: { rootId, material, count },
+          update: { count: { increment: count } },
+        });
+      }
     }
 
     await this.prisma.playerQuest.update({

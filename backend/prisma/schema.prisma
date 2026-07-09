@@ -1158,6 +1158,37 @@ model TearSeal {
   @@map("tear_seal")
 }
 
+// ============================================================
+// RESTORATION ECONOMY (2026-07-10) — upgrades cost essence +
+// materials and take real-world time. One in-flight build per
+// (root, track), enforced in code; completion is CLAIMED (the
+// ceremony beat), never auto-applied. Loose rootId strings like
+// tear_seal — a missing root must never block reads.
+// ============================================================
+model SanctumBuild {
+  id          String    @id @default(uuid())
+  rootId      String    @map("root_id")
+  track       String
+  toLevel     Int       @map("to_level")
+  essence     Int       // cost snapshot at start
+  materials   Json      @default("{}")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  readyAt     DateTime  @map("ready_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([rootId])
+  @@map("sanctum_builds")
+}
+
+model MaterialStock {
+  rootId   String @map("root_id")
+  material String // veilglass | leywood | ore
+  count    Int    @default(0)
+
+  @@id([rootId, material])
+  @@map("material_stocks")
+}
+
 // Feature flags — runtime feature control per release channel
 // (2026-07-09, alpha pipeline). Resolution: a channel-specific row
 // ('alpha', 'preview', …) overrides the default row (channel '').

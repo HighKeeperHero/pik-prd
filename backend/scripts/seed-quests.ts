@@ -48,7 +48,10 @@ type QuestSeed = {
     id: string; type: string; label: string; target: number;
     tier_min?: number; rarity_min?: string; track?: string; chapter?: number;
   }>;
-  rewards: { xp?: number; essence?: number; cache_rarity?: string; title_id?: string };
+  rewards: {
+    xp?: number; essence?: number; cache_rarity?: string; title_id?: string;
+    materials?: Record<string, number>;   // 2026-07-10 restoration economy
+  };
 };
 
 const QUESTS: QuestSeed[] = [
@@ -165,7 +168,7 @@ const QUESTS: QuestSeed[] = [
     description: 'Four perfect ritual days in one week. This is what upkeep means.',
     cadence: 'weekly', sortOrder: 50,
     objectives: [{ id: 'o1', type: 'ritual_days', label: 'Complete 4 perfect ritual days', target: 4 }],
-    rewards: { xp: 300, cache_rarity: 'epic' },
+    rewards: { xp: 300, cache_rarity: 'epic', materials: { ore: 2 } },
   },
   {
     slug: 'weekly_caches', name: 'Seals Broken',
@@ -179,21 +182,21 @@ const QUESTS: QuestSeed[] = [
     description: 'Commit one restoration upgrade — the keep or any wing.',
     cadence: 'weekly', sortOrder: 70,
     objectives: [{ id: 'o1', type: 'upgrade_wings', label: 'Commit a restoration upgrade', target: 1 }],
-    rewards: { xp: 150 },
+    rewards: { xp: 150, materials: { ore: 2 } },
   },
 
   // ── STORY — the Awakening Trail (post-Chapter-1 onboarding) ──
   {
     slug: 'story_first_seal', name: 'The First Mending',
     description: 'You have seen what the Veil does when it opens. Close one.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 1, sortOrder: 10,
+    cadence: 'story', chainKey: 'awakening_trail', chainStep: 5, sortOrder: 50,
     objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal your first Veil tear', target: 1 }],
     rewards: { xp: 100 },
   },
   {
     slug: 'story_first_hearth', name: 'Smoke Rising',
     description: 'Your Sanctum stands, but it is cold. Light it.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 2, sortOrder: 20,
+    cadence: 'story', chainKey: 'awakening_trail', chainStep: 6, sortOrder: 60,
     objectives: [{ id: 'o1', type: 'tend_hearth', label: 'Tend the Hearth for the first time', target: 1 }],
     rewards: { xp: 50, essence: 10 },
   },
@@ -207,21 +210,21 @@ const QUESTS: QuestSeed[] = [
   {
     slug: 'story_first_trial', name: 'The First Rite',
     description: 'The leylines dimmed overnight. Kneel at the Veilfire and restore them.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 4, sortOrder: 40,
+    cadence: 'story', chainKey: 'awakening_trail', chainStep: 1, sortOrder: 10,
     objectives: [{ id: 'o1', type: 'complete_trial', label: 'Perform your first Rite of Purification', target: 1 }],
     rewards: { xp: 50 },
   },
   {
     slug: 'story_first_augury', name: 'Three Cards Turned',
     description: 'In the Library, the Oracular waits with the day’s spread.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 5, sortOrder: 50,
+    cadence: 'story', chainKey: 'awakening_trail', chainStep: 2, sortOrder: 20,
     objectives: [{ id: 'o1', type: 'complete_augury', label: 'Complete your first Augury reading', target: 1 }],
     rewards: { xp: 50 },
   },
   {
     slug: 'story_first_cache', name: 'What the Veil Left',
     description: 'Sealed and humming. It belongs to you now — open it.',
-    cadence: 'story', chainKey: 'awakening_trail', chainStep: 6, sortOrder: 60,
+    cadence: 'story', chainKey: 'awakening_trail', chainStep: 4, sortOrder: 40,
     objectives: [{ id: 'o1', type: 'open_caches', label: 'Open your first Fate Cache', target: 1 }],
     rewards: { xp: 75 },
   },

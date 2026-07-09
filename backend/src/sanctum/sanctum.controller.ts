@@ -97,4 +97,15 @@ export class SanctumController {
     }
     return this.sanctum.upgrade(requireHeroId(req), track);
   }
+
+  // 2026-07-10 — restoration economy: upgrade STARTS a timed build
+  // (essence + materials deducted); this claims a finished one.
+  @Post('upgrade/complete')
+  async completeBuild(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
+    const track = body?.track as UpgradeTrack;
+    if (!['sanctum', 'library', 'forge', 'altar'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge | altar');
+    }
+    return this.sanctum.completeBuild(requireHeroId(req), track);
+  }
 }

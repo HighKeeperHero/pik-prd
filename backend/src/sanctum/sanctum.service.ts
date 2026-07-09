@@ -182,6 +182,73 @@ const SANCTUM_PREREQS: Record<number, { library?: number; forge?: number; hearth
   20: { library: 10, forge: 9 },
 };
 
+// ── Restoration economy (2026-07-10, Tim's spec) ────────────
+// Upgrades keep their progress-point gates and ADD: a Veil
+// Essence cost, material costs, and a real-world build timer.
+// One build in flight per (root, track); completion is CLAIMED.
+export type Material = 'veilglass' | 'leywood' | 'ore';
+export const MATERIAL_LABEL: Record<Material, string> = {
+  veilglass: 'Veilglass Shard',
+  leywood:   'Leywood',
+  ore:       'Sanctified Ore',
+};
+
+/** Cost + duration to BUILD a track to `toLevel`. Tuned against
+ *  essence income ~30-60/day and material drops (shards from tear
+ *  seals + caches, leywood from caches, ore from weekly quests):
+ *  wing L2 ≈ a first-day build (15m), wing L10 ≈ 8h + weeks of
+ *  materials, sanctum L20 ≈ 14h + the full economy. */
+export function buildCost(track: UpgradeTrack, toLevel: number): {
+  essence: number;
+  materials: Partial<Record<Material, number>>;
+  minutes: number;
+} {
+  const n = toLevel - 1;
+  if (track === 'sanctum') {
+    return {
+      essence:   20 * n,
+      materials: { veilglass: n, ...(toLevel >= 8 ? { ore: Math.floor(toLevel / 4) } : {}) },
+      minutes:   Math.round(10 * Math.pow(n, 1.5)),
+    };
+  }
+  return {
+    essence:   30 * n,
+    materials: {
+      veilglass: 2 * n,
+      leywood:   n,
+      ...(toLevel >= 5 ? { ore: toLevel - 4 } : {}),
+    },
+    minutes: Math.round(15 * Math.pow(n, 1.6)),
+  };
+}
+
+// ── The Sanctum awakens (2026-07-10, Tim's beats) ───────────
+// Stations wake in narrative order as the player acts + levels:
+//   courtyard (always) → Veilfire cold-but-present → lighting it
+//   opens the LIBRARY → learning from the Codex (first augury)
+//   wakes the ALTAR → swearing the Oath rekindles the FORGE →
+//   restoring the Forge (L2) reveals the VEILFRONT's first tear.
+// NOTE: Tim's one-liner said Library>Forge>Altar, but his beats
+// require Library→Altar→Forge (the Oath lives at the Altar) —
+// beats win; flip AWAKENING_LEVELS + the chain below if not.
+const AWAKENING_LEVELS = { library: 2, altar: 3, forge: 5 };
+
+function awakeningFlags(
+  raw: { totalTrials: number; totalAuguries: number; totalOathsSworn: number; forgeLevel: number },
+  fateLevel: number,
+) {
+  const library   = raw.totalTrials >= 1 && fateLevel >= AWAKENING_LEVELS.library;
+  const altar     = library && raw.totalAuguries >= 1 && fateLevel >= AWAKENING_LEVELS.altar;
+  const forge     = altar && raw.totalOathsSworn >= 1 && fateLevel >= AWAKENING_LEVELS.forge;
+  const veilfront = forge && raw.forgeLevel >= 2;
+  return { veilfire: true, library, altar, forge, veilfront };
+}
+
+const TRACKS: UpgradeTrack[] = ['sanctum', 'library', 'forge', 'altar'];
+const LEVEL_COL: Record<UpgradeTrack, 'sanctumLevel' | 'libraryLevel' | 'forgeLevel' | 'altarLevel'> = {
+  sanctum: 'sanctumLevel', library: 'libraryLevel', forge: 'forgeLevel', altar: 'altarLevel',
+};
+
 @Injectable()
 export class SanctumService {
   constructor(
@@ -230,13 +297,40 @@ export class SanctumService {
       select: { fateXp: true, fateLevel: true },
     });
     const fateXp       = hero?.fateXp ?? 0;
-    // Derive Fate level fresh from XP — the stored fateLevel may lag
-    // if a non-LevelingService path granted XP without recomputing.
-    const fateLevel    = levelFromXp(fateXp);
-    const xpInLevel    = fateXp - xpToReach(fateLevel);
+    // Derive Fate level fresh from XP, but never below the stored
+    // level — the same monotonic promise grantXp makes (2026-07-10:
+    // recalibrations must not visibly de-level anyone).
+    const fateLevel    = Math.max(hero?.fateLevel ?? 1, levelFromXp(fateXp));
+    const xpInLevel    = Math.max(0, fateXp - xpToReach(fateLevel));
     const xpToNextLvl  = xpForLevel(fateLevel);
+
+    // ── Restoration economy + awakening payload (2026-07-10) ──
+    const s = state as unknown as {
+      totalTrials: number; totalAuguries: number; totalOathsSworn: number;
+      sanctumLevel: number; libraryLevel: number; forgeLevel: number; altarLevel: number;
+    };
+    const [materials, activeBuilds] = await Promise.all([
+      this.materialStocks(rootId),
+      this.prisma.sanctumBuild.findMany({
+        where: { rootId, completedAt: null },
+        select: { track: true, toLevel: true, startedAt: true, readyAt: true },
+      }),
+    ]);
+    const levelOf: Record<UpgradeTrack, number> = {
+      sanctum: s.sanctumLevel, library: s.libraryLevel,
+      forge: s.forgeLevel, altar: s.altarLevel,
+    };
+    const nextBuilds = Object.fromEntries(TRACKS.map(t => {
+      const max = t === 'sanctum' ? SANCTUM_MAX_LEVEL : WING_MAX_LEVEL;
+      return [t, levelOf[t] >= max ? null : buildCost(t, levelOf[t] + 1)];
+    }));
+
     return {
       ...state,
+      awakening:   awakeningFlags(s, fateLevel),
+      materials,
+      builds:      activeBuilds,
+      next_builds: nextBuilds,
       fateLevel,
       fateXp,
       xpInLevel,
@@ -244,14 +338,14 @@ export class SanctumService {
     };
   }
 
-  /** Commit a restoration level-up. Validates (a) enough progress
-   *  points for the next level, (b) wing-level prerequisites for the
-   *  sanctum track. Throws ConflictException with a player-readable
-   *  message when a gate is unmet. */
-  async upgrade(rootId: string, track: UpgradeTrack) {
-    const raw = await this.prisma.sanctumState.findUnique({ where: { rootId } })
-      ?? await this.prisma.sanctumState.create({ data: { rootId } });
-
+  /** Progress-point + prerequisite gates for a track's NEXT level.
+   *  Throws player-readable ConflictException when unmet; returns
+   *  the next level when the right has been earned. */
+  private async validateNext(
+    rootId: string,
+    raw: Awaited<ReturnType<typeof this.prisma.sanctumState.create>>,
+    track: UpgradeTrack,
+  ): Promise<number> {
     if (track === 'sanctum') {
       const next = raw.sanctumLevel + 1;
       if (next > SANCTUM_MAX_LEVEL) throw new ConflictException('The Sanctum is fully restored.');
@@ -274,13 +368,8 @@ export class SanctumService {
           throw new ConflictException(`The keep cannot outgrow its wings. Requires ${unmet.join(' · ')}.`);
         }
       }
-      const updated = await this.prisma.sanctumState.update({
-        where: { rootId }, data: { sanctumLevel: next },
-      });
-      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
-      return this.attachProgression(rootId, updated);
+      return next;
     }
-
     if (track === 'library') {
       const next = raw.libraryLevel + 1;
       if (next > WING_MAX_LEVEL) throw new ConflictException('The Library is fully restored.');
@@ -288,48 +377,108 @@ export class SanctumService {
       if (finds < (LIBRARY_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('Not enough of the Archive has been recovered.');
       }
-      const updated = await this.prisma.sanctumState.update({
-        where: { rootId }, data: { libraryLevel: next },
-      });
-      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
-      return this.attachProgression(rootId, updated);
+      return next;
     }
-
     if (track === 'altar') {
       const next = raw.altarLevel + 1;
       if (next > WING_MAX_LEVEL) throw new ConflictException('The Altar is fully restored.');
-      // Altar works = Reliquary + Hero Echo completions (TBG).
-      const altarWorks = 0;
+      const altarWorks = 0;   // Reliquary + Hero Echo completions (TBG)
       if (altarWorks < (ALTAR_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The altar is silent — no devotions have been offered.');
       }
-      const updated = await this.prisma.sanctumState.update({
-        where: { rootId }, data: { altarLevel: next },
-      });
-      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
-      return this.attachProgression(rootId, updated);
+      return next;
     }
-
     if (track === 'forge') {
       const next = raw.forgeLevel + 1;
       if (next > WING_MAX_LEVEL) throw new ConflictException('The Forge is fully restored.');
-      // Forge works = claimed quests tagged forge_work (Sprint 32 —
-      // Crafting + Smelting quests ride the cadence engine).
-      // (Resonance floors for upper forge levels are enforced
-      // client-side v1; move here once a server-side resonance
-      // read exists.)
       const forgeWorks = await this.questLog.countTaggedClaims(rootId, 'forge_work');
       if (forgeWorks < (FORGE_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The forge is cold — no works have been completed.');
       }
-      const updated = await this.prisma.sanctumState.update({
-        where: { rootId }, data: { forgeLevel: next },
-      });
-      await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
-      return this.attachProgression(rootId, updated);
+      return next;
+    }
+    throw new BadRequestException(`Unknown upgrade track: ${track}`);
+  }
+
+  /** START a restoration build (2026-07-10 economy): the progress
+   *  gates earn the RIGHT; essence + materials pay the PRICE; the
+   *  timer is the WORK. One build in flight per track. */
+  async upgrade(rootId: string, track: UpgradeTrack) {
+    const raw = await this.prisma.sanctumState.findUnique({ where: { rootId } })
+      ?? await this.prisma.sanctumState.create({ data: { rootId } });
+
+    const next = await this.validateNext(rootId, raw, track);
+
+    const active = await this.prisma.sanctumBuild.findFirst({
+      where: { rootId, track, completedAt: null },
+    });
+    if (active) throw new ConflictException('Work on this wing is already underway.');
+
+    const cost = buildCost(track, next);
+    if (raw.veilEssence < cost.essence) {
+      throw new ConflictException(`The work needs ${cost.essence} Veil Essence.`);
+    }
+    const stocks = await this.materialStocks(rootId);
+    for (const [m, c] of Object.entries(cost.materials)) {
+      if ((stocks[m as Material] ?? 0) < (c ?? 0)) {
+        throw new ConflictException(`The work needs ${c} ${MATERIAL_LABEL[m as Material]}.`);
+      }
     }
 
-    throw new BadRequestException(`Unknown upgrade track: ${track}`);
+    const readyAt = new Date(Date.now() + cost.minutes * 60_000);
+    await this.prisma.$transaction([
+      this.prisma.sanctumState.update({
+        where: { rootId },
+        data:  { veilEssence: { decrement: cost.essence } },
+      }),
+      ...Object.entries(cost.materials).map(([m, c]) =>
+        this.prisma.materialStock.update({
+          where: { rootId_material: { rootId, material: m } },
+          data:  { count: { decrement: c ?? 0 } },
+        }),
+      ),
+      this.prisma.sanctumBuild.create({
+        data: {
+          rootId, track, toLevel: next,
+          essence: cost.essence, materials: cost.materials, readyAt,
+        },
+      }),
+    ]);
+
+    const updated = await this.prisma.sanctumState.findUnique({ where: { rootId } });
+    return this.attachProgression(rootId, updated!);
+  }
+
+  /** CLAIM a finished build — the ceremony beat. Commits the level
+   *  and fires the wing_upgrade quest event only now. */
+  async completeBuild(rootId: string, track: UpgradeTrack) {
+    const build = await this.prisma.sanctumBuild.findFirst({
+      where: { rootId, track, completedAt: null },
+      orderBy: { startedAt: 'asc' },
+    });
+    if (!build) throw new ConflictException('No work is underway here.');
+    if (build.readyAt.getTime() > Date.now()) {
+      throw new ConflictException('The work is not yet done.');
+    }
+    const updated = await this.prisma.$transaction(async tx => {
+      await tx.sanctumBuild.update({
+        where: { id: build.id },
+        data:  { completedAt: new Date() },
+      });
+      return tx.sanctumState.update({
+        where: { rootId },
+        data:  { [LEVEL_COL[track]]: build.toLevel },
+      });
+    });
+    await this.questLog.recordEvent(rootId, { type: 'wing_upgrade', track });
+    return this.attachProgression(rootId, updated);
+  }
+
+  private async materialStocks(rootId: string): Promise<Record<Material, number>> {
+    const rows = await this.prisma.materialStock.findMany({ where: { rootId } });
+    const stocks: Record<Material, number> = { veilglass: 0, leywood: 0, ore: 0 };
+    for (const r of rows) stocks[r.material as Material] = r.count;
+    return stocks;
   }
 
   async claimHearth(rootId: string) {

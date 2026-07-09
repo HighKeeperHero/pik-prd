@@ -298,6 +298,14 @@ export class VeilService {
       if (xpAmount > 0) {
         xpAward = await this.leveling.grantXp(rootId, xpAmount);
       }
+      // 2026-07-10 restoration economy — sealed tears shed
+      // Veilglass Shards (tier-keyed), the primary build material.
+      const shards = ({ minor: 1, wander: 1, dormant: 2, double: 3 } as Record<string, number>)[tearType] ?? 1;
+      await this.prisma.materialStock.upsert({
+        where:  { rootId_material: { rootId, material: 'veilglass' } },
+        create: { rootId, material: 'veilglass', count: shards },
+        update: { count: { increment: shards } },
+      }).catch(() => { /* materials are best-effort; a seal must never fail on them */ });
     }
 
     // Lore Archive drop — a won seal may recover a lore entry

@@ -277,6 +277,19 @@ export class LootService {
     // Common = 1, Uncommon = 2, ..., Artifact = 6.
     const xpAward = await this.leveling.grantXp(rootId, xpForCacheRarity(rewardRarity));
 
+    // 2026-07-10 restoration economy — caches carry build
+    // materials: Leywood always, +1 of each on rare-or-better.
+    // Caches are the pre-Veilfront material source (a new keeper
+    // must be able to reach Forge L2 before the map opens).
+    const rich = ['rare', 'rare+', 'epic', 'legendary', 'artifact'].includes(rewardRarity?.toLowerCase());
+    for (const [material, count] of [['leywood', rich ? 2 : 1], ['veilglass', rich ? 2 : 1]] as const) {
+      await this.prisma.materialStock.upsert({
+        where:  { rootId_material: { rootId, material } },
+        create: { rootId, material, count },
+        update: { count: { increment: count } },
+      }).catch(() => { /* best-effort */ });
+    }
+
     return {
       cache_id:     cache.id,
       cache_type:   cache.cacheType,
