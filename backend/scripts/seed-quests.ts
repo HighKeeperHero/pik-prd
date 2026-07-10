@@ -258,6 +258,10 @@ const QUESTS: QuestSeed[] = [
     slug: 'story_reach_l3', name: 'The First Echo',
     description: 'Every victory leaves its mark. Heroes do not seek power — they become worthy of it.',
     cadence: 'story', chainKey: 'chapter_two', chainStep: 1, minLevel: 3, sortOrder: 110,
+    // reach_level completes lazily: whatever gameplay event fires
+    // next after the hero crosses L3 (a banish, a seal, a ritual)
+    // carries the FULFILLED update — see matchEvent in
+    // quest-log.service.ts.
     objectives: [{ id: 'o1', type: 'reach_level', label: 'Reach Fate Level 3', target: 3 }],
     rewards: { xp: 100 },
   },

@@ -375,7 +375,13 @@ export class QuestLogService {
       case 'purify_nodes':       return event.type === 'rite' ? event.nodes : 0;
       case 'cleanse_corruption': return event.type === 'rite' ? event.corruption : 0;
       case 'reach_level':
-        // Any event can surface a level threshold already met.
+        // Any event can surface a level threshold already met —
+        // there is no level-up event, so the NEXT gameplay event
+        // after crossing the threshold completes the quest, and
+        // its quest_updates will attribute the fulfillment to an
+        // unrelated action (verified 2026-07-09: a fauna banish
+        // that tipped a hero past L3 returned "The First Echo"
+        // FULFILLED alongside the fauna quest advances).
         return fateLevel >= obj.target ? obj.target : 0;
       default:
         return 0;
