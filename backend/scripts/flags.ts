@@ -10,10 +10,16 @@
 //   DATABASE_URL="$(railway variables --json | jq -r .DATABASE_PUBLIC_URL)" \
 //     npm run flags -- set trail_whisper off --channel alpha
 //
-// Known keys the client gates on (defaults are fail-open true):
+// Known keys the client gates on (defaults are fail-open true
+// unless noted):
 //   quest_ledger   — the QUESTS pin + Commissions book
 //   trail_whisper  — the hub's serialized-tutorial whisper
 //   practice_rite  — the rite's practice mode on spent days
+//   fate_fox       — The Silent Witness beats (L50 gate server-side)
+//   battle_v2      — gesture battles + timing + gear calibration
+//   veil_fauna     — fauna markers + chase + bestiary shelf
+//                    (client default is FALSE — ships dark; flip
+//                    per channel to launch)
 // ============================================================
 import { PrismaClient } from '@prisma/client';
 
