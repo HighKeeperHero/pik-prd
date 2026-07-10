@@ -1,6 +1,6 @@
 // backend/src/veil/veil.service.ts
 // Phase 2: loot cache drops, quest progress tracking, convergence events
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
 import { LevelingService, type XpAward } from '../leveling/leveling.service';
@@ -8,6 +8,7 @@ import { ConfigService } from '../config/config.service';
 import { TearGenService, type GenParams, type GenTear } from './tear-gen.service';
 import { LoreService, type LoreFound } from '../lore/lore.service';
 import { QuestLogService, type QuestProgressUpdate } from '../quest/quest-log.service';
+import { FAUNA_SPECIES, FAUNA_BY_ID, masteryFor } from './fauna-catalog';
 import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
 
 // Phase 2 Arc A — XP granted per tear tier on a successful seal.
@@ -1001,5 +1002,132 @@ export class VeilService {
     });
 
     return true;
+  }
+
+  // ── Veil Fauna (2026-07-10) — what escaped the rifts ─────
+  // Spawns are DETERMINISTIC: hashed from (tear id, 3h slot,
+  // index), scattered ~100m around live tears. No spawn rows —
+  // the same trick as the procedural tears. Banishes persist per
+  // hero so a creature never pays twice in a slot.
+
+  private static readonly FAUNA_SLOT_MS = 3 * 3_600_000;
+
+  private static faunaHash(str: string): number {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return h >>> 0;
+  }
+
+  async getNearbyFauna(rootId: string | null, lat: number, lon: number, fateLevel: number) {
+    const { tears } = await this.getNearbyTears(lat, lon, fateLevel);
+    const slot = Math.floor(Date.now() / VeilService.FAUNA_SLOT_MS);
+    const tierOf: Record<string, number> = { minor: 1, wander: 2, dormant: 3, double: 4 };
+
+    const candidates: Array<{
+      fauna_id: string; species: string; name: string; tier: number;
+      reads: number; lat: number; lon: number; near_tear_id: string;
+    }> = [];
+    for (const t of tears) {
+      const tierNum = tierOf[t.type] ?? 1;
+      const h0 = VeilService.faunaHash(`${t.tear_id}#${slot}`);
+      const roll = h0 % 100;
+      const n = roll < 30 ? 0 : roll < 85 ? 1 : 2;   // ~55% one, 15% two
+      for (let i = 0; i < n; i++) {
+        const h = VeilService.faunaHash(`${t.tear_id}#${slot}#${i}`);
+        const pool = FAUNA_SPECIES.filter(
+          sp => sp.tier <= tierNum && sp.tier >= Math.max(1, tierNum - 1),
+        );
+        if (pool.length === 0) continue;
+        const sp = pool[h % pool.length];
+        candidates.push({
+          fauna_id: `${t.tear_id}#f${slot}.${i}`,
+          species:  sp.id,
+          name:     sp.name,
+          tier:     sp.tier,
+          reads:    sp.reads,
+          lat: t.lat + ((((h >> 8) % 200) - 100) / 100) * 0.0012,
+          lon: t.lon + ((((h >> 16) % 200) - 100) / 100) * 0.0012,
+          near_tear_id: t.tear_id,
+        });
+      }
+    }
+
+    const ids = candidates.map(c => c.fauna_id);
+    const gone = new Set<string>(
+      rootId && ids.length > 0
+        ? (await this.prisma.faunaBanish.findMany({
+            where: { rootId, faunaId: { in: ids } },
+            select: { faunaId: true },
+          })).map(b => b.faunaId)
+        : [],
+    );
+    const fauna = candidates.filter(c => !gone.has(c.fauna_id)).slice(0, 12);
+    return {
+      fauna,
+      total: fauna.length,
+      slot_ends_at: new Date((slot + 1) * VeilService.FAUNA_SLOT_MS).toISOString(),
+    };
+  }
+
+  /** Banish an escaped creature — grants XP (+ a shard on tier 3+),
+   *  tallies the bestiary, advances fauna quests. Idempotent per
+   *  (hero, fauna_id): a creature pays once. */
+  async banishFauna(rootId: string, faunaId: string, speciesId: string) {
+    const species = FAUNA_BY_ID[speciesId];
+    if (!species) throw new BadRequestException('Unknown creature.');
+    try {
+      await this.prisma.faunaBanish.create({ data: { rootId, faunaId, species: speciesId } });
+    } catch {
+      throw new ConflictException('It has already been banished.');
+    }
+
+    const record = await this.prisma.heroFauna.upsert({
+      where:  { rootId_species: { rootId, species: speciesId } },
+      create: { rootId, species: speciesId, count: 1 },
+      update: { count: { increment: 1 }, lastAt: new Date() },
+    });
+    const xpAward = await this.leveling.grantXp(rootId, species.xp);
+    if (species.tier >= 3) {
+      await this.prisma.materialStock.upsert({
+        where:  { rootId_material: { rootId, material: 'veilglass' } },
+        create: { rootId, material: 'veilglass', count: 1 },
+        update: { count: { increment: 1 } },
+      }).catch(() => { /* best-effort */ });
+    }
+    const questUpdates = await this.questLog.recordEvent(rootId, {
+      type: 'fauna', tier: species.tier,
+    });
+
+    return {
+      species:       speciesId,
+      name:          species.name,
+      count:         record.count,
+      mastery:       masteryFor(record.count),
+      xp_award:      xpAward,
+      quest_updates: questUpdates,
+    };
+  }
+
+  /** The bestiary — full catalog with the hero's tallies. Unseen
+   *  species return count 0 / mastery null (the client renders
+   *  them as silhouettes). */
+  async getBestiary(rootId: string) {
+    const rows = await this.prisma.heroFauna.findMany({ where: { rootId } });
+    const byId = new Map(rows.map(r => [r.species, r]));
+    return {
+      species: FAUNA_SPECIES.map(sp => {
+        const rec = byId.get(sp.id);
+        return {
+          id: sp.id, name: sp.name, tier: sp.tier, reads: sp.reads,
+          habitat: sp.habitat, lore: sp.lore,
+          count:   rec?.count ?? 0,
+          mastery: rec ? masteryFor(rec.count) : null,
+          first_at: rec?.firstAt?.toISOString() ?? null,
+        };
+      }),
+    };
   }
 }

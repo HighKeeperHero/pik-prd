@@ -65,7 +65,9 @@ export type QuestEvent =
   // investigate | follow | shrine | calling | bond.
   | { type: 'fox'; beat: string }
   // 2026-07-10 — Chapter I 'Arms of the Covenant' (first equip).
-  | { type: 'gear_equip' };
+  | { type: 'gear_equip' }
+  // 2026-07-10 — Veil Fauna banished (tier 1-4).
+  | { type: 'fauna'; tier: number };
 
 export interface CadenceObjective {
   id: string;
@@ -343,6 +345,8 @@ export class QuestLogService {
     switch (obj.type) {
       case 'seal_tears':
         return event.type === 'tear_seal' && event.tier >= (obj.tier_min ?? 1) ? 1 : 0;
+      case 'banish_fauna':
+        return event.type === 'fauna' && event.tier >= (obj.tier_min ?? 1) ? 1 : 0;
       case 'open_caches':
         return event.type === 'cache_open' &&
           rarityRank(event.rarity) >= rarityRank(obj.rarity_min ?? 'common') ? 1 : 0;

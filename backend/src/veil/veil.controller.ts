@@ -49,6 +49,44 @@ export class VeilController {
     });
   }
 
+  // ── Veil Fauna (2026-07-10) — escaped creatures near tears ──
+  // GET /api/veil/fauna/nearby?lat=X&lon=Y&fate_level=N&root_id=R
+  // root_id optional: with it, already-banished spawns are hidden.
+  @Get('fauna/nearby')
+  @SkipThrottle()
+  async getNearbyFauna(
+    @Query('lat') latStr: string,
+    @Query('lon') lonStr: string,
+    @Query('fate_level', new DefaultValuePipe(1), ParseIntPipe) fateLevel: number,
+    @Query('root_id') rootId?: string,
+  ) {
+    const lat = parseFloat(latStr);
+    const lon = parseFloat(lonStr);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      throw new BadRequestException('lat and lon must be finite numeric query params');
+    }
+    return this.veilService.getNearbyFauna(rootId ?? null, lat, lon, fateLevel);
+  }
+
+  // POST /api/veil/fauna/banish — { root_id, fauna_id, species }
+  @Post('fauna/banish')
+  @SkipThrottle()
+  async banishFauna(
+    @Body() body: { root_id?: string; fauna_id?: string; species?: string },
+  ) {
+    const { root_id, fauna_id, species } = body ?? {};
+    if (!root_id)  throw new BadRequestException('root_id is required');
+    if (!fauna_id) throw new BadRequestException('fauna_id is required');
+    if (!species)  throw new BadRequestException('species is required');
+    return this.veilService.banishFauna(root_id, fauna_id, species);
+  }
+
+  // GET /api/veil/fauna/bestiary/:rootId — the Library shelf.
+  @Get('fauna/bestiary/:rootId')
+  async getBestiary(@Param('rootId') rootId: string) {
+    return this.veilService.getBestiary(rootId);
+  }
+
   // GET /api/veil/encounters/:rootId?limit=20
   @Get('encounters/:rootId')
   async getEncounters(

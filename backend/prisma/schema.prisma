@@ -1189,6 +1189,33 @@ model MaterialStock {
   @@map("material_stocks")
 }
 
+// ============================================================
+// VEIL FAUNA (2026-07-10) — escaped creatures near tear sites.
+// Spawns are deterministic (hashed from tear id + time slot), so
+// only the hero's side persists: banish idempotence + bestiary
+// tallies. Loose rootId strings like tear_seal.
+// ============================================================
+model FaunaBanish {
+  rootId     String   @map("root_id")
+  faunaId    String   @map("fauna_id")
+  species    String
+  banishedAt DateTime @default(now()) @map("banished_at")
+
+  @@id([rootId, faunaId])
+  @@map("fauna_banish")
+}
+
+model HeroFauna {
+  rootId  String   @map("root_id")
+  species String
+  count   Int      @default(0)
+  firstAt DateTime @default(now()) @map("first_at")
+  lastAt  DateTime @default(now()) @map("last_at")
+
+  @@id([rootId, species])
+  @@map("hero_fauna")
+}
+
 // Feature flags — runtime feature control per release channel
 // (2026-07-09, alpha pipeline). Resolution: a channel-specific row
 // ('alpha', 'preview', …) overrides the default row (channel '').

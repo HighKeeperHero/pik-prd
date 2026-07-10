@@ -455,6 +455,23 @@ const QUESTS: QuestSeed[] = [
     objectives: [{ id: 'o1', type: 'fox_bond', label: 'Meet what has always walked beside you', target: 1 }],
     rewards: { xp: 500, cache_rarity: 'epic' },
   },
+
+  // ── VEIL FAUNA (2026-07-10) — DRAFTS until the client ships ─
+  // Flip status to 'active' when the fauna encounter screen lands.
+  {
+    slug: 'daily_fauna', name: 'What Slipped Through',
+    description: 'Escaped creatures wander near the tears. Send two back.',
+    cadence: 'daily', status: 'draft', sortOrder: 80,
+    objectives: [{ id: 'o1', type: 'banish_fauna', label: 'Banish 2 escaped creatures', target: 2 }],
+    rewards: { xp: 25 },
+  },
+  {
+    slug: 'weekly_fauna', name: 'Warden of the Small Things',
+    description: 'The rifts leak more than shadow. A week of diligence: ten creatures banished.',
+    cadence: 'weekly', status: 'draft', sortOrder: 80,
+    objectives: [{ id: 'o1', type: 'banish_fauna', label: 'Banish 10 escaped creatures', target: 10 }],
+    rewards: { xp: 150, materials: { veilglass: 3 } },
+  },
 ];
 
 async function main() {
