@@ -22,24 +22,12 @@ import { LootEngineService } from './loot-engine.service';
 import { LevelingService } from '../leveling/leveling.service';
 import { QuestLogService } from '../quest/quest-log.service';
 
-// Phase 2 Arc A — XP grant per cache rarity tier on open.
-// Halved 2026-07-10 (recalibration vs measured income): at
-// 100-600 XP a single cache out-paid a week of rites, and cache
-// supply is plentiful — caches now reward alongside the daily
-// rituals, not above them. Loot + essence stay the real payout.
-// Source of truth: docs/roadmap/phase-2.md §locked-parameters.
-const XP_BY_CACHE_RARITY: Record<string, number> = {
-  common:    50,
-  uncommon:  100,
-  rare:      150,
-  'rare+':   175,
-  epic:      200,
-  legendary: 250,
-  artifact:  300,
-};
-function xpForCacheRarity(rarity: string): number {
-  return XP_BY_CACHE_RARITY[rarity?.toLowerCase()] ?? 50;
-}
+// 2026-07-10 — cache opens grant NO XP at all (Tim). The old
+// per-rarity table (50-300, already halved once) meant opening a
+// cache — a reward container — paid 100-250 XP, which tipped
+// levels and read as "leveling grants XP" on the level-up
+// cinematic. XP comes from ACTIONS only (battles, rites, quests,
+// training); caches pay loot, essence, and materials.
 
 /** Cache rarity determines the visual treatment and drop pool weighting */
 const CACHE_RARITIES: Record<string, { minLevel: number; label: string }> = {
@@ -273,10 +261,6 @@ export class LootService {
       `[Engine] Cache opened: ${cache.rarity} ${cache.cacheType} → ${rewardRarity} ${rewardName} (${rootId})`
     );
 
-    // Phase 2 Arc A — XP grant scales with reward rarity tier.
-    // Common = 1, Uncommon = 2, ..., Artifact = 6.
-    const xpAward = await this.leveling.grantXp(rootId, xpForCacheRarity(rewardRarity));
-
     // 2026-07-10 restoration economy — caches carry build
     // materials: Leywood always, +1 of each on rare-or-better.
     // Caches are the pre-Veilfront material source (a new keeper
@@ -304,7 +288,9 @@ export class LootService {
         level_band:   engineResult?.level_band ?? null,
         item_power:   engineResult?.item_power ?? null,
       },
-      xp_award:     xpAward,
+      // No xp_award — cache opens stopped granting XP 2026-07-10;
+      // the client renders the XP line only when this is present.
+      xp_award:     null,
     };
   }
 
