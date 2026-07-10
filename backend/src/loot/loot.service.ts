@@ -318,6 +318,30 @@ export class LootService {
       },
     });
 
+    // 2026-07-10 — cache rarity gates the pool. The roll used to
+    // ignore cache.rarity entirely: a legendary cache rolled the
+    // same pool as a common one, so rarity was pure cosmetics.
+    // Keep only entries AT OR ABOVE the cache's tier. The earned
+    // rarity outranks the level gate: a fresh keeper who is
+    // granted a legendary cache gets a legendary reward, so when
+    // the level-eligible pool has nothing at tier, re-filter the
+    // WHOLE pool by tier before falling back to level-eligible.
+    const RARITY_RANK: Record<string, number> = {
+      common: 0, uncommon: 1, rare: 2, 'rare+': 3, epic: 4, legendary: 5, artifact: 6,
+    };
+    const cacheRank = RARITY_RANK[cache.rarity?.toLowerCase()] ?? 0;
+    const atTier = (pool: typeof entries) => pool.filter(
+      (e) => (RARITY_RANK[e.rarityTier?.toLowerCase()] ?? 0) >= cacheRank,
+    );
+    let tiered = atTier(entries);
+    if (tiered.length === 0 && cacheRank > 0) {
+      const fullPool = await this.prisma.lootTable.findMany({
+        where: { cacheType: cache.cacheType },
+      });
+      tiered = atTier(fullPool);
+    }
+    if (tiered.length > 0) entries = tiered;
+
     if (entries.length === 0) {
       entries = await this.prisma.lootTable.findMany({
         where:   { cacheType: cache.cacheType },
@@ -341,6 +365,12 @@ export class LootService {
 
     await this.applyReward(rootId, selected, cache.sourceId);
 
+    // Essence rewards surface their amount, engine-path style
+    // ("Fate Ember · 35 Veil Essence").
+    const rewardName = selected.rewardType === 'essence'
+      ? `${selected.displayName} · ${selected.rewardValue} Veil Essence`
+      : selected.displayName;
+
     const opened = await this.prisma.fateCache.update({
       where: { id: cache.id },
       data: {
@@ -348,7 +378,7 @@ export class LootService {
         openedAt:     new Date(),
         rewardType:   selected.rewardType,
         rewardValue:  selected.rewardValue,
-        rewardName:   selected.displayName,
+        rewardName,
         rewardRarity: selected.rarityTier,
       },
     });
@@ -366,7 +396,7 @@ export class LootService {
       changes: {
         reward_type:   selected.rewardType,
         reward_value:  selected.rewardValue,
-        reward_name:   selected.displayName,
+        reward_name:   rewardName,
         reward_rarity: selected.rarityTier,
         roll_weight:   selected.weight,
         total_weight:  totalWeight,
@@ -384,7 +414,7 @@ export class LootService {
       reward: {
         type:   selected.rewardType,
         value:  selected.rewardValue,
-        name:   selected.displayName,
+        name:   rewardName,
         rarity: selected.rarityTier,
       },
     };
@@ -511,17 +541,39 @@ export class LootService {
         break;
       }
 
+      // 2026-07-10 — Veil Essence rewards (replaces xp_boost in the
+      // level_up pool: level-ups must not generate XP). Mirrors the
+      // engine path's double-write: legacy veil_shards ledger plus
+      // sanctum_state.veil_essence, which is what the app surfaces.
+      case 'essence': {
+        const amount = parseInt(entry.rewardValue) || 0;
+        await this.prisma.veilShard.upsert({
+          where:  { rootId },
+          create: { rootId, balance: amount },
+          update: { balance: { increment: amount } },
+        });
+        await this.prisma.sanctumState.upsert({
+          where:  { rootId },
+          create: { rootId, veilEssence: amount },
+          update: { veilEssence: { increment: amount } },
+        });
+        break;
+      }
+
       case 'title': {
         try {
           await this.prisma.userTitle.create({
             data: { rootId, titleId: entry.rewardValue, sourceId },
           });
         } catch {
-          // Already holds the title — xp_boost fallback
-          await this.prisma.rootIdentity.update({
-            where: { id: rootId },
-            data: { fateXp: { increment: 100 } },
-          });
+          // Already holds the title — essence consolation. (Was a
+          // flat +100 XP, retired 2026-07-10 with the rest of the
+          // reward-generates-XP paths.)
+          await this.applyReward(
+            rootId,
+            { rewardType: 'essence', rewardValue: '50', displayName: 'Twice-Told Honor' },
+            sourceId,
+          );
         }
         break;
       }

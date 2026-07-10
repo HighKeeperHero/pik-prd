@@ -124,38 +124,73 @@ async function main() {
   console.log('');
   console.log('  Seeding loot tables...');
 
+  // 2026-07-10 — level-ups must not generate XP (Tim): a level-up
+  // cache paying xp_boost rewarded the reward, not the effort, and
+  // fed the next level directly. Level-up XP rewards became Veil
+  // Essence. Purge the retired xp_boost rows (their ids key off
+  // rewardValue, so upserts alone would strand them in prod).
+  await prisma.lootTable.deleteMany({
+    where: { cacheType: 'level_up', rewardType: 'xp_boost' },
+  });
+
   const lootEntries = [
     // ── Level Up Cache Pool ─────────────────────────────
-    { cacheType: 'level_up', rewardType: 'xp_boost',  rewardValue: '50',   displayName: 'Minor Fate Spark',        weight: 200, rarityTier: 'common',    minLevel: 1 },
-    { cacheType: 'level_up', rewardType: 'xp_boost',  rewardValue: '150',  displayName: 'Fate Ember',              weight: 100, rarityTier: 'uncommon',  minLevel: 1 },
+    // XP-free by design (see deleteMany above): essence, markers,
+    // titles, and the gear rows further down.
+    { cacheType: 'level_up', rewardType: 'essence',   rewardValue: '15',   displayName: 'Minor Fate Spark',        weight: 200, rarityTier: 'common',    minLevel: 1 },
+    { cacheType: 'level_up', rewardType: 'essence',   rewardValue: '35',   displayName: 'Fate Ember',              weight: 100, rarityTier: 'uncommon',  minLevel: 1 },
     { cacheType: 'level_up', rewardType: 'marker',    rewardValue: 'Felt the threads of fate shift and realign',   displayName: 'Fate Thread Marker',      weight: 80,  rarityTier: 'uncommon',  minLevel: 2 },
     { cacheType: 'level_up', rewardType: 'marker',    rewardValue: 'Glimpsed the weave between worlds',            displayName: 'Veil Sight Marker',       weight: 40,  rarityTier: 'rare',     minLevel: 3 },
-    { cacheType: 'level_up', rewardType: 'xp_boost',  rewardValue: '400',  displayName: 'Blazing Fate Core',       weight: 20,  rarityTier: 'epic',      minLevel: 5 },
+    { cacheType: 'level_up', rewardType: 'essence',   rewardValue: '90',   displayName: 'Blazing Fate Core',       weight: 20,  rarityTier: 'epic',      minLevel: 5 },
     { cacheType: 'level_up', rewardType: 'title',     rewardValue: 'title_fortune_favored', displayName: 'Fortune Favored',  weight: 5,   rarityTier: 'legendary', minLevel: 5 },
+    // Higher bands so a L10+ keeper stops rolling starter values.
+    { cacheType: 'level_up', rewardType: 'essence',   rewardValue: '70',   displayName: 'Kindled Fate Spark',      weight: 40,  rarityTier: 'rare',      minLevel: 10 },
+    { cacheType: 'level_up', rewardType: 'essence',   rewardValue: '150',  displayName: 'Fate Core, Awakened',     weight: 15,  rarityTier: 'epic',      minLevel: 20 },
+    { cacheType: 'level_up', rewardType: 'essence',   rewardValue: '300',  displayName: 'Crown of the Threshold',  weight: 4,   rarityTier: 'legendary', minLevel: 40 },
 
     // ── Boss Kill Cache Pool ────────────────────────────
+    // XP stays here: a boss kill is effort, not a reward loop.
     { cacheType: 'boss_kill', rewardType: 'xp_boost',  rewardValue: '100',  displayName: 'Veil Shard',              weight: 180, rarityTier: 'common',    minLevel: 1 },
     { cacheType: 'boss_kill', rewardType: 'marker',    rewardValue: 'Claimed a trophy from a fallen guardian',      displayName: 'Guardian Trophy Marker',  weight: 80,  rarityTier: 'uncommon',  minLevel: 1 },
     { cacheType: 'boss_kill', rewardType: 'xp_boost',  rewardValue: '250',  displayName: 'Veil Fragment',           weight: 60,  rarityTier: 'rare',      minLevel: 2 },
     { cacheType: 'boss_kill', rewardType: 'marker',    rewardValue: 'Tore a rift in the boundary between realms',   displayName: 'Rift Marker',            weight: 25,  rarityTier: 'epic',      minLevel: 3 },
     { cacheType: 'boss_kill', rewardType: 'title',     rewardValue: 'title_veil_touched',    displayName: 'Veil Touched',     weight: 10,  rarityTier: 'epic',      minLevel: 3 },
     { cacheType: 'boss_kill', rewardType: 'title',     rewardValue: 'title_fate_weaver',     displayName: 'Fate Weaver',      weight: 3,   rarityTier: 'legendary', minLevel: 7 },
+    { cacheType: 'boss_kill', rewardType: 'essence',   rewardValue: '150',  displayName: 'Guardian Heartstone',     weight: 15,  rarityTier: 'epic',      minLevel: 10 },
+    { cacheType: 'boss_kill', rewardType: 'essence',   rewardValue: '300',  displayName: 'Crownfall Relic',         weight: 3,   rarityTier: 'legendary', minLevel: 20 },
 
     // ── Milestone Cache Pool ────────────────────────────
+    { cacheType: 'milestone', rewardType: 'essence',   rewardValue: '20',   displayName: 'Waymark Ember',           weight: 80,  rarityTier: 'common',    minLevel: 1 },
     { cacheType: 'milestone', rewardType: 'xp_boost',  rewardValue: '200',  displayName: 'Mythic Ember',            weight: 120, rarityTier: 'uncommon',  minLevel: 1 },
     { cacheType: 'milestone', rewardType: 'marker',    rewardValue: 'Crossed a threshold that echoes through time', displayName: 'Threshold Marker',        weight: 60,  rarityTier: 'rare',     minLevel: 1 },
     { cacheType: 'milestone', rewardType: 'title',     rewardValue: 'title_mythic_aspirant', displayName: 'Mythic Aspirant',  weight: 15,  rarityTier: 'epic',     minLevel: 3 },
     { cacheType: 'milestone', rewardType: 'title',     rewardValue: 'title_legend_forged',   displayName: 'Legend Forged',    weight: 3,   rarityTier: 'legendary', minLevel: 8 },
+
+    // ── Quest Cache Pool (2026-07-10) ────────────────────
+    // The cadence quest system grants cacheType 'quest'
+    // (quest-log.service recordEvent → rewards.cache_rarity) but
+    // no pool was ever seeded — every quest cache open threw
+    // "No loot configured for cache type: quest". Full rarity
+    // ladder + level bands so any granted rarity opens on-tier.
+    { cacheType: 'quest', rewardType: 'essence',  rewardValue: '15',  displayName: 'Sealed Whisper',            weight: 160, rarityTier: 'common',    minLevel: 1 },
+    { cacheType: 'quest', rewardType: 'marker',   rewardValue: "Answered the ledger's call",                    displayName: 'Ledger Marker',    weight: 60,  rarityTier: 'common',    minLevel: 1 },
+    { cacheType: 'quest', rewardType: 'essence',  rewardValue: '35',  displayName: 'Oathbound Ember',           weight: 100, rarityTier: 'uncommon',  minLevel: 2 },
+    { cacheType: 'quest', rewardType: 'essence',  rewardValue: '70',  displayName: 'Charge Fulfilled',          weight: 50,  rarityTier: 'rare',      minLevel: 4 },
+    { cacheType: 'quest', rewardType: 'marker',   rewardValue: 'Kept a charge the Veil itself set',             displayName: 'Charge Marker',    weight: 30,  rarityTier: 'rare',      minLevel: 4 },
+    { cacheType: 'quest', rewardType: 'essence',  rewardValue: '140', displayName: 'Veilbound Trove',           weight: 20,  rarityTier: 'epic',      minLevel: 7 },
+    { cacheType: 'quest', rewardType: 'title',    rewardValue: 'title_mythic_aspirant', displayName: 'Mythic Aspirant',      weight: 8,   rarityTier: 'epic',      minLevel: 7 },
+    { cacheType: 'quest', rewardType: 'essence',  rewardValue: '280', displayName: 'The Ledger Repaid',         weight: 5,   rarityTier: 'legendary', minLevel: 10 },
+    { cacheType: 'quest', rewardType: 'title',    rewardValue: 'title_fate_weaver',     displayName: 'Fate Weaver',          weight: 2,   rarityTier: 'legendary', minLevel: 10 },
   ];
 
   for (const entry of lootEntries) {
+    const id = `loot-${entry.cacheType}-${entry.rewardValue.replace(/\s+/g, '-').substring(0, 30)}`;
     await prisma.lootTable.upsert({
-      where: { id: `loot-${entry.cacheType}-${entry.rewardValue.replace(/\s+/g, '-').substring(0, 30)}` },
-      update: {},
-      create: {
-        id: `loot-${entry.cacheType}-${entry.rewardValue.replace(/\s+/g, '-').substring(0, 30)}`,
-        ...entry,
-      },
+      where: { id },
+      // Sync on re-seed — with the old `update: {}` a weight or
+      // value retune never reached an environment that had the row.
+      update: { ...entry },
+      create: { id, ...entry },
     });
   }
   console.log(`  ✓ ${lootEntries.length} loot table entries`);
