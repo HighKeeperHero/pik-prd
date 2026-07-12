@@ -1,7 +1,7 @@
 {
   "name": "pik-backend",
   "version": "1.0.0",
-  "description": "PIK — Persistent Identity Kernel",
+  "description": "PIK \u2014 Persistent Identity Kernel",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -22,7 +22,8 @@
     "verify:tear-gen": "ts-node scripts/verify-tear-gen.ts",
     "db:backup": "bash scripts/backup-db.sh",
     "seed:quests": "ts-node scripts/seed-quests.ts",
-    "flags": "ts-node scripts/flags.ts"
+    "flags": "ts-node scripts/flags.ts",
+    "users": "ts-node scripts/users.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
