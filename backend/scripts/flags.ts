@@ -29,7 +29,10 @@ async function main() {
   const args = process.argv.slice(2);
   const cIdx = args.indexOf('--channel');
   const channel = cIdx >= 0 ? (args[cIdx + 1] ?? '') : '';
-  const pos = args.filter((_, i) => i !== cIdx && i !== cIdx + 1);
+  // cIdx is -1 when --channel is absent; without the guard the
+  // filter drops args[0] (i !== -1 + 1 = 0) and `set`/`rm` silently
+  // fall through to list mode.
+  const pos = cIdx < 0 ? args : args.filter((_, i) => i !== cIdx && i !== cIdx + 1);
 
   if (pos[0] === 'set') {
     const [, key, val] = pos;
