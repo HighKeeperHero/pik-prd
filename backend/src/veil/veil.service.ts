@@ -166,6 +166,26 @@ export class VeilService {
     const hero = await this.prisma.rootIdentity.findUnique({ where: { id: rootId } });
     if (!hero) throw new NotFoundException('Hero not found');
 
+    // 0. Idempotency — a repeat report of an already-sealed tear
+    // must not re-grant. The client once re-POSTed from the victory
+    // screen in an effect loop (hero-in-deps + refreshHero), farming
+    // tier XP indefinitely. The client now guards, but the server
+    // must be the authority: duplicate reports return a zeroed
+    // benign response and write nothing.
+    if (outcome === 'won' && worldTearId && (await this.isTearSealed(worldTearId))) {
+      return {
+        encounter_id:     'duplicate',
+        outcome,
+        shards:           0,
+        cache_earned:     null,
+        quests_completed: [],
+        quest_updates:    [],
+        is_first_seal:    false,
+        xp_award:         null,
+        lore_found:       null,
+      };
+    }
+
     // Sprint 28 — first-seal detection. We count prior wins BEFORE
     // inserting this encounter; if zero and the current outcome is
     // 'won', this seal is the player's first. The iOS client uses
@@ -954,6 +974,18 @@ export class VeilService {
         regionLabel,
       },
     });
+  }
+
+  /** True when the tear is currently sealed — procedural ids check
+   *  tear_seal cooldown, legacy UUID rows check status. Unknown ids
+   *  return false (legacy/unmoored encounters stay allowed). */
+  private async isTearSealed(tearId: string): Promise<boolean> {
+    if (tearId.includes('#')) {
+      const seal = await this.prisma.tearSeal.findUnique({ where: { tearId } });
+      return !!seal && seal.cooldownUntil > new Date();
+    }
+    const tear = await this.prisma.worldTear.findUnique({ where: { id: tearId } });
+    return !!tear && tear.status !== 'active';
   }
 
   /** Seal a tear and immediately spawn a replacement in the same
