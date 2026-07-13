@@ -520,11 +520,18 @@ export class QuestLogService {
     }
 
     if (rewards.title_id) {
-      await this.prisma.userTitle.upsert({
-        where: { rootId_titleId: { rootId, titleId: rewards.title_id } },
-        update: {},
-        create: { rootId, titleId: rewards.title_id },
-      });
+      // Titles are cosmetic — a missing reference row must not fail
+      // the claim (story_first_augury 500'd on title_awakened when
+      // the base seed had never run, 2026-07-13).
+      try {
+        await this.prisma.userTitle.upsert({
+          where: { rootId_titleId: { rootId, titleId: rewards.title_id } },
+          update: {},
+          create: { rootId, titleId: rewards.title_id },
+        });
+      } catch (err) {
+        this.logger.error(`title grant '${rewards.title_id}' failed for ${rootId}: ${(err as Error).message}`);
+      }
     }
 
     // 2026-07-10 restoration economy — quests may pay build
