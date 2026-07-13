@@ -86,14 +86,14 @@ export class SanctumController {
   }
 
   // 2026-07-06 — restoration upgrade commit (the UPGRADE button).
-  // Body: { track: 'sanctum' | 'library' | 'forge' }. Validates
+  // Body: { track: 'sanctum' | 'library' | 'forge' | 'altar' | 'hearth' }. Validates
   // points thresholds + wing prerequisites; 409 with a player-
   // readable message when a gate is unmet. Returns updated state.
   @Post('upgrade')
   async upgrade(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
     const track = body?.track as UpgradeTrack;
-    if (!['sanctum', 'library', 'forge', 'altar'].includes(track)) {
-      throw new BadRequestException('track must be sanctum | library | forge | altar');
+    if (!['sanctum', 'library', 'forge', 'altar', 'hearth'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge | altar | hearth');
     }
     return this.sanctum.upgrade(requireHeroId(req), track);
   }
@@ -103,8 +103,8 @@ export class SanctumController {
   @Post('upgrade/complete')
   async completeBuild(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
     const track = body?.track as UpgradeTrack;
-    if (!['sanctum', 'library', 'forge', 'altar'].includes(track)) {
-      throw new BadRequestException('track must be sanctum | library | forge | altar');
+    if (!['sanctum', 'library', 'forge', 'altar', 'hearth'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge | altar | hearth');
     }
     return this.sanctum.completeBuild(requireHeroId(req), track);
   }

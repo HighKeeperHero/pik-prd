@@ -131,7 +131,7 @@ function todayUtc(): string {
 // mirror the client's src/screens/Sanctum/restoration.ts (kept
 // local by convention — same pattern as Memoria's RANK_TIERS).
 
-export type UpgradeTrack = 'sanctum' | 'library' | 'forge' | 'altar';
+export type UpgradeTrack = 'sanctum' | 'library' | 'forge' | 'altar' | 'hearth';
 
 const SANCTUM_MAX_LEVEL = 20;
 const WING_MAX_LEVEL    = 10;
@@ -159,6 +159,12 @@ const FORGE_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
  *  will come from the Reliquary + Hero Echo mechanics (TBG); until
  *  they ship, points are 0 and the altar holds at L1. */
 const ALTAR_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
+
+/** Cumulative hearth works to REACH a hearth level (2026-07-13 —
+ *  the hearth track ships). Hearth works = daily tendings
+ *  (totalHearthClaims), the wing's own rite: same curve shape as
+ *  the other wings → L10 at 36 tendings (~5 weeks of dailies). */
+const HEARTH_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
 
 /** Wing-level prerequisites to REACH each sanctum level — the keep
  *  cannot outgrow its wings (Kingshot-style main-building gating).
@@ -244,9 +250,9 @@ function awakeningFlags(
   return { veilfire: true, library, altar, forge, veilfront };
 }
 
-const TRACKS: UpgradeTrack[] = ['sanctum', 'library', 'forge', 'altar'];
-const LEVEL_COL: Record<UpgradeTrack, 'sanctumLevel' | 'libraryLevel' | 'forgeLevel' | 'altarLevel'> = {
-  sanctum: 'sanctumLevel', library: 'libraryLevel', forge: 'forgeLevel', altar: 'altarLevel',
+const TRACKS: UpgradeTrack[] = ['sanctum', 'library', 'forge', 'altar', 'hearth'];
+const LEVEL_COL: Record<UpgradeTrack, 'sanctumLevel' | 'libraryLevel' | 'forgeLevel' | 'altarLevel' | 'hearthLevel'> = {
+  sanctum: 'sanctumLevel', library: 'libraryLevel', forge: 'forgeLevel', altar: 'altarLevel', hearth: 'hearthLevel',
 };
 
 @Injectable()
@@ -308,6 +314,7 @@ export class SanctumService {
     const s = state as unknown as {
       totalTrials: number; totalAuguries: number; totalOathsSworn: number;
       sanctumLevel: number; libraryLevel: number; forgeLevel: number; altarLevel: number;
+      hearthLevel: number;
     };
     const [materials, activeBuilds] = await Promise.all([
       this.materialStocks(rootId),
@@ -318,7 +325,7 @@ export class SanctumService {
     ]);
     const levelOf: Record<UpgradeTrack, number> = {
       sanctum: s.sanctumLevel, library: s.libraryLevel,
-      forge: s.forgeLevel, altar: s.altarLevel,
+      forge: s.forgeLevel, altar: s.altarLevel, hearth: s.hearthLevel,
     };
     const nextBuilds = Object.fromEntries(TRACKS.map(t => {
       const max = t === 'sanctum' ? SANCTUM_MAX_LEVEL : WING_MAX_LEVEL;
@@ -394,6 +401,14 @@ export class SanctumService {
       const forgeWorks = await this.questLog.countTaggedClaims(rootId, 'forge_work');
       if (forgeWorks < (FORGE_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The forge is cold — no works have been completed.');
+      }
+      return next;
+    }
+    if (track === 'hearth') {
+      const next = raw.hearthLevel + 1;
+      if (next > WING_MAX_LEVEL) throw new ConflictException('The Hearth is fully restored.');
+      if (raw.totalHearthClaims < (HEARTH_CUM_COSTS[next] ?? Infinity)) {
+        throw new ConflictException('The embers remember too few tendings.');
       }
       return next;
     }
