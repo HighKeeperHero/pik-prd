@@ -241,7 +241,11 @@ export class GearService {
     // Unique ID: base_item_id + timestamp + random suffix
     // Ensures every cache open produces a distinct GearItem row
     const itemId = `${engineResult.base_item_id}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const slotLower = engineResult.slot.toLowerCase();
+    // The engine catalog says 'Hands'; the equipment model's slot is
+    // 'arms' (client, resonance math, canon). Items minted 'hands'
+    // could never be equipped (Tim, 2026-07-13).
+    const rawSlot = engineResult.slot.toLowerCase();
+    const slotLower = rawSlot === 'hands' ? 'arms' : rawSlot;
 
     // Create the instanced GearItem row
     const item = await this.prisma.gearItem.create({

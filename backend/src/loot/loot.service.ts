@@ -152,8 +152,11 @@ export class LootService {
     if (!user) throw new NotFoundException('Identity not found');
     const effectiveLevel = user.fateLevel ?? 1;
 
-    // 3. Route to engine or legacy table based on cache type
-    const ENGINE_CACHE_TYPES = ['veil_minor', 'veil_shade', 'veil_dormant', 'veil_double'];
+    // 3. Route to engine or legacy table based on cache type.
+    // 'quest' rides the engine too (2026-07-13): quest-reward caches
+    // had no legacy loot-table rows anywhere ("no loot configured
+    // for cache type") and the family engine needs none.
+    const ENGINE_CACHE_TYPES = ['veil_minor', 'veil_shade', 'veil_dormant', 'veil_double', 'quest'];
     const useEngine = ENGINE_CACHE_TYPES.includes(cache.cacheType);
 
     const result = useEngine
