@@ -179,7 +179,10 @@ export class QuestLogService {
     const have = new Set(existing.map(e => `${e.questId}:${e.periodKey}`));
     const claimedIds = new Set(existing.filter(e => e.status === 'claimed').map(e => e.questId));
 
-    const toCreate: { rootId: string; questId: string; periodKey: string; progress: Prisma.InputJsonValue }[] = [];
+    const toCreate: {
+      rootId: string; questId: string; periodKey: string;
+      progress: Prisma.InputJsonValue; status?: string; completedAt?: Date;
+    }[] = [];
 
     const eligible = (t: { minLevel: number; maxLevel: number | null }) =>
       hero.fateLevel >= t.minLevel && (t.maxLevel === null || hero.fateLevel <= t.maxLevel);
@@ -194,11 +197,25 @@ export class QuestLogService {
 
     // Story: standalone quests materialize when eligible; chain
     // steps materialize when every earlier step is claimed.
+    // Story rows BACKFILL from the hero's history (2026-07-12):
+    // chain gating means the deed a step asks for may already be
+    // done — e.g. swear the oath before claiming the augury step
+    // and "swear your first oath" would sit unfulfillable for 24h
+    // (the daily consumed the ritual). Firsts are historical facts;
+    // credit them on materialization. Dailies/weeklies stay fresh —
+    // their period IS the point.
+    const storyRow = async (t: (typeof templates)[number]) => {
+      const { progress, allComplete } = await this.backfilledProgress(rootId, t, hero.fateLevel);
+      return {
+        rootId, questId: t.id, periodKey: 'once', progress,
+        ...(allComplete ? { status: 'completed', completedAt: new Date() } : {}),
+      };
+    };
     const chains = new Map<string, typeof templates>();
     for (const t of templates.filter(t => t.cadence === 'story')) {
       if (!t.chainKey) {
         if (eligible(t) && !have.has(`${t.id}:once`)) {
-          toCreate.push({ rootId, questId: t.id, periodKey: 'once', progress: this.freshProgress(t) });
+          toCreate.push(await storyRow(t));
         }
         continue;
       }
@@ -230,7 +247,7 @@ export class QuestLogService {
       for (const step of steps) {
         if (claimedIds.has(step.id)) continue; // done — look at the next step
         if (eligible(step) && !have.has(`${step.id}:once`)) {
-          toCreate.push({ rootId, questId: step.id, periodKey: 'once', progress: this.freshProgress(step) });
+          toCreate.push(await storyRow(step));
         }
         break; // first unclaimed step is the frontier; later steps stay locked
       }
@@ -239,6 +256,78 @@ export class QuestLogService {
     if (toCreate.length > 0) {
       await this.prisma.playerQuest.createMany({ data: toCreate, skipDuplicates: true });
     }
+  }
+
+  /** Seed a story step's progress from what the hero has ALREADY
+   *  done. One lazy read per source; objective types with no
+   *  historical record start at zero as before. */
+  private async backfilledProgress(
+    rootId: string,
+    t: { objectives: Prisma.JsonValue },
+    fateLevel: number,
+  ): Promise<{ progress: Prisma.InputJsonValue; allComplete: boolean }> {
+    const objectives = t.objectives as unknown as CadenceObjective[];
+    let sanctum: { totalHearthClaims: number; totalOathsSworn: number;
+                   totalTrials: number; totalAuguries: number } | null | undefined;
+    const getSanctum = async () => {
+      if (sanctum === undefined) {
+        sanctum = await this.prisma.sanctumState.findUnique({
+          where: { rootId },
+          select: { totalHearthClaims: true, totalOathsSworn: true, totalTrials: true, totalAuguries: true },
+        });
+      }
+      return sanctum;
+    };
+    const TIERS = ['minor', 'wander', 'dormant', 'double'];
+
+    const progress: ObjProgress[] = [];
+    for (const o of objectives) {
+      let current = 0;
+      switch (o.type) {
+        case 'tend_hearth':     current = (await getSanctum())?.totalHearthClaims ?? 0; break;
+        case 'swear_oath':      current = (await getSanctum())?.totalOathsSworn   ?? 0; break;
+        case 'complete_trial':  current = (await getSanctum())?.totalTrials       ?? 0; break;
+        case 'complete_augury': current = (await getSanctum())?.totalAuguries     ?? 0; break;
+        case 'reach_level':     current = fateLevel; break;
+        case 'seal_tears':
+          current = await this.prisma.tearEncounter.count({
+            where: {
+              rootId, outcome: 'won',
+              ...(o.tier_min && o.tier_min > 1
+                ? { tearType: { in: TIERS.slice(o.tier_min - 1) } }
+                : {}),
+            },
+          });
+          break;
+        case 'open_caches':
+          current = await this.prisma.fateCache.count({
+            where: {
+              rootId, status: 'opened',
+              ...(o.rarity_min && rarityRank(o.rarity_min) > 0
+                ? { rarity: { in: RARITY_ORDER.slice(rarityRank(o.rarity_min)) } }
+                : {}),
+            },
+          });
+          break;
+        case 'collect_lore':
+          current = await this.prisma.heroLore.count({ where: { rootId } });
+          break;
+        default:
+          current = 0; // no historical record for this type — starts fresh
+      }
+      current = Math.min(current, o.target);
+      const completed = current >= o.target;
+      progress.push({
+        objective_id: o.id,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+        current,
+      });
+    }
+    return {
+      progress: progress as unknown as Prisma.InputJsonValue,
+      allComplete: progress.length > 0 && progress.every(p => p.completed),
+    };
   }
 
   private freshProgress(t: { objectives: Prisma.JsonValue }): Prisma.InputJsonValue {
@@ -476,10 +565,55 @@ export class QuestLogService {
     };
   }
 
+  /** One-shot repair for story rows materialized BEFORE the
+   *  backfill existed (2026-07-12): an active story step whose deed
+   *  is already in the hero's history gets credited on the next
+   *  log fetch. Cheap — a hero has at most a couple of active
+   *  story frontiers. */
+  private async healStuckStoryRows(rootId: string): Promise<void> {
+    try {
+      const rows = await this.prisma.playerQuest.findMany({
+        where: {
+          rootId, status: 'active', periodKey: 'once',
+          quest: { cadence: 'story', status: 'active' },
+        },
+        include: { quest: true },
+      });
+      const hero = rows.length
+        ? await this.prisma.rootIdentity.findUnique({ where: { id: rootId }, select: { fateLevel: true } })
+        : null;
+      for (const row of rows) {
+        const { progress, allComplete } =
+          await this.backfilledProgress(rootId, row.quest, hero?.fateLevel ?? 1);
+        const prev = row.progress as unknown as ObjProgress[];
+        const next = progress as unknown as ObjProgress[];
+        // Only write when the backfill strictly improves on stored
+        // progress — never regress live event-driven counts.
+        const improved = next.some((n, i) => (n.current ?? 0) > (prev[i]?.current ?? 0));
+        if (!improved) continue;
+        const merged = next.map((n, i) => {
+          const p = prev[i];
+          return p && (p.current ?? 0) >= (n.current ?? 0) ? p : n;
+        });
+        const done = merged.every(m => m.completed);
+        await this.prisma.playerQuest.update({
+          where: { id: row.id },
+          data: {
+            progress: merged as unknown as Prisma.InputJsonValue,
+            ...(done ? { status: 'completed', completedAt: new Date() } : {}),
+          },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`healStuckStoryRows failed for ${rootId}: ${(err as Error).message}`);
+    }
+  }
+
   // ── LOG (client surface) ─────────────────────────────────
 
   async getLog(rootId: string) {
     await this.ensureLog(rootId);
+    await this.healStuckStoryRows(rootId);
 
     const now = new Date();
     const periods = ['once', todayUtc(), isoWeekKey(now)];
@@ -590,7 +724,15 @@ export class QuestLogService {
       payload: { chapter },
     });
 
-    const xpAward = await this.leveling.grantXp(rootId, QuestLogService.CHAPTER_XP);
+    // Chapter 1 is the onboarding cinematic — it auto-completes on
+    // the opening video, and the canonical 1,000 XP put every fresh
+    // hero at Fate 7 before their first tear (1000 XP lands between
+    // xpToReach(7)=855 and xpToReach(8)=1225 — Tim's 2026-07-12
+    // "new users display level 7" bug). The tutorial pays nothing;
+    // chapters you EARN keep the phase-2 locked 1,000.
+    const xpAward = chapter === 1
+      ? null
+      : await this.leveling.grantXp(rootId, QuestLogService.CHAPTER_XP);
     const questUpdates = await this.recordEvent(rootId, { type: 'chapter_complete', chapter });
 
     return { chapter, already_completed: false, xp_award: xpAward, quest_updates: questUpdates };
