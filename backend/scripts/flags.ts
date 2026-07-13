@@ -20,6 +20,8 @@
 //   veil_fauna     — fauna markers + chase + bestiary shelf
 //                    (client default is FALSE — ships dark; flip
 //                    per channel to launch)
+//   rift_distortions — element-keyed distortion modifiers in rift
+//                    containment (client default FALSE — ships dark)
 // ============================================================
 import { PrismaClient } from '@prisma/client';
 
