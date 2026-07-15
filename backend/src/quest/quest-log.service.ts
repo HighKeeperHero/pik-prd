@@ -187,12 +187,19 @@ export class QuestLogService {
     const eligible = (t: { minLevel: number; maxLevel: number | null }) =>
       hero.fateLevel >= t.minLevel && (t.maxLevel === null || hero.fateLevel <= t.maxLevel);
 
-    // Daily / weekly: one row per current period.
+    // Daily / weekly: one row per current period. Deed counters
+    // start at zero (the period IS the point) but stat thresholds
+    // (reach_level) are facts, not deeds — they materialize met
+    // when the hero already holds the level (Tim 2026-07-13).
     for (const t of templates.filter(t => t.cadence !== 'story')) {
       if (!eligible(t)) continue;
       const periodKey = this.periodKeyFor(t.cadence);
       if (have.has(`${t.id}:${periodKey}`)) continue;
-      toCreate.push({ rootId, questId: t.id, periodKey, progress: this.freshProgress(t) });
+      const fresh = this.freshProgress(t, hero.fateLevel);
+      toCreate.push({
+        rootId, questId: t.id, periodKey, progress: fresh.progress,
+        ...(fresh.allComplete ? { status: 'completed', completedAt: new Date() } : {}),
+      });
     }
 
     // Story: standalone quests materialize when eligible; chain
@@ -330,15 +337,25 @@ export class QuestLogService {
     };
   }
 
-  private freshProgress(t: { objectives: Prisma.JsonValue }): Prisma.InputJsonValue {
+  private freshProgress(
+    t: { objectives: Prisma.JsonValue },
+    fateLevel: number,
+  ): { progress: Prisma.InputJsonValue; allComplete: boolean } {
     const objectives = t.objectives as unknown as CadenceObjective[];
-    const progress: ObjProgress[] = objectives.map(o => ({
-      objective_id: o.id,
-      completed: false,
-      completed_at: null,
-      current: 0,
-    }));
-    return progress as unknown as Prisma.InputJsonValue;
+    const progress: ObjProgress[] = objectives.map(o => {
+      const current = o.type === 'reach_level' ? Math.min(fateLevel, o.target) : 0;
+      const completed = current >= o.target;
+      return {
+        objective_id: o.id,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+        current,
+      };
+    });
+    return {
+      progress: progress as unknown as Prisma.InputJsonValue,
+      allComplete: progress.length > 0 && progress.every(p => p.completed),
+    };
   }
 
   // ── EVENT-DRIVEN PROGRESS ────────────────────────────────
@@ -616,11 +633,68 @@ export class QuestLogService {
     }
   }
 
+  /** Stat-based objectives (reach_level) on ACTIVE daily/weekly
+   *  rows refresh from the live stat on every log fetch — leveling
+   *  has no event of its own, so without this a row materialized
+   *  before the level-up waits for the NEXT unrelated gameplay
+   *  event to notice the threshold (Tim 2026-07-13: the log the
+   *  player stares at must know when criteria are already met).
+   *  Story rows get the same truth via healStuckStoryRows. */
+  private async refreshStatObjectives(rootId: string): Promise<void> {
+    try {
+      const rows = await this.prisma.playerQuest.findMany({
+        where: {
+          rootId, status: 'active',
+          periodKey: { in: [todayUtc(), isoWeekKey()] },
+          quest: { cadence: { in: ['daily', 'weekly'] }, status: 'active' },
+        },
+        include: { quest: true },
+      });
+      const needy = rows.filter(r =>
+        (r.quest.objectives as unknown as CadenceObjective[]).some(o => o.type === 'reach_level'));
+      if (needy.length === 0) return;
+      const hero = await this.prisma.rootIdentity.findUnique({
+        where: { id: rootId }, select: { fateLevel: true },
+      });
+      const fateLevel = hero?.fateLevel ?? 1;
+      for (const row of needy) {
+        const objectives = row.quest.objectives as unknown as CadenceObjective[];
+        const progress = row.progress as unknown as ObjProgress[];
+        let changed = false;
+        for (const obj of objectives) {
+          if (obj.type !== 'reach_level') continue;
+          const prog = progress.find(p => p.objective_id === obj.id);
+          if (!prog || prog.completed) continue;
+          const current = Math.min(fateLevel, obj.target);
+          if (current <= (prog.current ?? 0)) continue;
+          prog.current = current;
+          changed = true;
+          if (current >= obj.target) {
+            prog.completed = true;
+            prog.completed_at = new Date().toISOString();
+          }
+        }
+        if (!changed) continue;
+        const done = progress.every(p => p.completed);
+        await this.prisma.playerQuest.update({
+          where: { id: row.id },
+          data: {
+            progress: progress as unknown as Prisma.InputJsonValue,
+            ...(done ? { status: 'completed', completedAt: new Date() } : {}),
+          },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`refreshStatObjectives failed for ${rootId}: ${(err as Error).message}`);
+    }
+  }
+
   // ── LOG (client surface) ─────────────────────────────────
 
   async getLog(rootId: string) {
     await this.ensureLog(rootId);
     await this.healStuckStoryRows(rootId);
+    await this.refreshStatObjectives(rootId);
 
     const now = new Date();
     const periods = ['once', todayUtc(), isoWeekKey(now)];

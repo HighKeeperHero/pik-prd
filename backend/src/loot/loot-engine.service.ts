@@ -305,20 +305,34 @@ export class LootEngineService {
     // Step 4 — Roll region theme
     const region = this._rollRegion(regionHint);
 
-    // Step 5 — Select base item (prefer region match, fallback to any in tier+slot)
-    const candidates = BASE_ITEM_LIBRARY.filter(item =>
-      item.slot === rawSlot &&
-      item.level_band === tier &&
-      item.rarity_allowed.includes(rarity as any)
+    // Step 5 — Select base item. The hero's level band is the
+    // INVARIANT (2026-07-13): the old fallback dropped the band
+    // filter when (band, slot, rarity) matched nothing, so a
+    // level-2 hero rolling epic — or a level-21+ hero opening a
+    // common-floored veil_minor — walked away with a random-band
+    // item (level 36 gear at Fate 2). Instead, when the rolled
+    // rarity is illegal for every item in the hero's band+slot,
+    // SNAP the rarity to the nearest the band allows (highest
+    // allowed at-or-below the roll; else the band's floor) and
+    // keep the item level-appropriate.
+    const bandSlot = BASE_ITEM_LIBRARY.filter(item =>
+      item.slot === rawSlot && item.level_band === tier,
     );
+    if (bandSlot.length === 0) return null; // library gap — currency fallback
+
+    let candidates = bandSlot.filter(i => i.rarity_allowed.includes(rarity as any));
+    if (candidates.length === 0) {
+      const allowed = [...new Set(bandSlot.flatMap(i => i.rarity_allowed))]
+        .sort((a, b) => RARITY_ORDER.indexOf(a) - RARITY_ORDER.indexOf(b));
+      const rolledIdx = RARITY_ORDER.indexOf(rarity);
+      const below = allowed.filter(r => RARITY_ORDER.indexOf(r) <= rolledIdx);
+      rarity = below.length > 0 ? below[below.length - 1] : allowed[0];
+      candidates = bandSlot.filter(i => i.rarity_allowed.includes(rarity as any));
+    }
 
     // Region preference — try to match, fall back to any candidate
     const regionMatch = candidates.filter(i => i.region_theme === region);
-    const pool = regionMatch.length > 0 ? regionMatch : candidates;
-
-    // If still no candidates, loosen tier restriction — allow adjacent bands
-    const finalPool = pool.length > 0 ? pool :
-      BASE_ITEM_LIBRARY.filter(i => i.slot === rawSlot);
+    const finalPool = regionMatch.length > 0 ? regionMatch : candidates;
 
     if (finalPool.length === 0) return null;
 
