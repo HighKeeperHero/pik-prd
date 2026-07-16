@@ -23,7 +23,7 @@ export const FAUNA_SPECIES: FaunaSpecies[] = [
     lore: 'It eats the light that leaks through. Harmless, mostly — but nothing that comes through is only what it seems.',
   },
   {
-    id: 'emberkit', name: 'Emberkit', tier: 1, reads: 2, xp: 15,
+    id: 'emberkit', name: 'Ember Yip', tier: 1, reads: 2, xp: 15,
     habitat: 'Warm stone near recently sealed seams.',
     lore: 'Small, quick, and burning with borrowed fire. It does not know it is a wound. Few things do.',
   },
