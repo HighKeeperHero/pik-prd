@@ -23,6 +23,7 @@ import {
 } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { EnrollUserDto } from './dto/enroll-user.dto';
+import { AccountGuard } from '../auth/guards/account.guard';
 import { SessionGuard } from '../auth/guards/session.guard';
 
 @Controller('api/users')
@@ -185,13 +186,17 @@ export class IdentityController {
    * or { title_id: null } to unequip.
    */
   @Put(':root_id/equipped-title')
-  @UseGuards(SessionGuard)
+  @UseGuards(AccountGuard)
   async equipTitle(
     @Param('root_id') rootId: string,
-    @Req() req: Request & { rootId: string },
+    @Req() req: Request & { accountId: string; heroId: string | null },
     @Body() body: { title_id: string | null },
   ) {
-    if (req.rootId !== rootId) {
+    // AccountGuard, not SessionGuard (2026-07-18): the mobile app
+    // authenticates with an ACCOUNT session — the legacy session
+    // table only knows passkey sessions, so every app call 401'd.
+    // The selected hero must be the record being changed.
+    if (req.heroId !== rootId) {
       return { status: 'error', message: 'Unauthorized' };
     }
     return this.identityService.equipTitle(rootId, body.title_id);
