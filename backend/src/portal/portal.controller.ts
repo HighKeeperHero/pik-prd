@@ -174,6 +174,13 @@ export class PortalController {
     return this.portal.venueQrPayload(req.staff);
   }
 
+  @Get('runs')
+  @UseGuards(VenueStaffGuard)
+  @RequirePermission('analytics.read')
+  runs(@Req() req: StaffRequest, @Query('limit') limit?: string) {
+    return this.portal.listRuns(req.staff, limit ? parseInt(limit, 10) : 15);
+  }
+
   // ── Analytics ─────────────────────────────────────────────────
 
   @Get('analytics')

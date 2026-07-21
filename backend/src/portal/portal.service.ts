@@ -429,6 +429,38 @@ export class PortalService {
     return this.listExperiences(staff);
   }
 
+  /**
+   * Recent runs for this venue's own dashboard.
+   *
+   * Separate from the partner API's history even though the data is the
+   * same: that one answers a machine holding an API key, this one answers
+   * a person holding a session. Collapsing them would mean one auth
+   * change silently altering the other surface.
+   */
+  async listRuns(staff: ResolvedStaff, limit = 15) {
+    const runs = await this.prisma.experienceRun.findMany({
+      where: { sourceId: staff.sourceId },
+      include: { participants: true, experience: { select: { name: true, slug: true } } },
+      orderBy: { startedAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 100),
+    });
+    return runs.map((r) => ({
+      run_id: r.id,
+      experience: r.experience.name,
+      status: r.status,
+      started_at: r.startedAt.toISOString(),
+      ended_at: r.endedAt?.toISOString() ?? null,
+      duration_sec: r.durationSec,
+      payout_multiplier: r.payoutMultiplier,
+      failure_reason: r.failureReason,
+      participants: r.participants.map((p) => ({
+        root_id: p.rootId,
+        guest_label: p.guestLabel,
+        reward_state: p.rewardState,
+      })),
+    }));
+  }
+
   // ────────────────────────────────────────────────────────────
   // PRINTABLE ASSETS
   // ────────────────────────────────────────────────────────────
