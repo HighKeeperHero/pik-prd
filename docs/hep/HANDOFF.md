@@ -41,24 +41,68 @@ guest seat      → claim code   → Testament rite → new hero, level 1 → 6
 - **native** `sprint-28-foundation` — Testament, Threshold, Witnesses screens;
   version 1.4.0 (versionCode 18); alpha build was running at session end
 
+## Session 2 (2026-07-21 afternoon) — done
+
+Branch `hep/mail-seam-and-slice3`, **not pushed**. Three commits.
+
+1. **Mail seam built** — `MailService` (provider-agnostic, Resend over plain
+   `fetch`, no SDK dependency), `/auth/forgot` + `/auth/reset`, invite emails,
+   forgot-password UI in `venue.html`. **Still needs `RESEND_API_KEY` in
+   Railway** to actually deliver; until then it runs a `log` transport that
+   writes links to the server log. Every downstream path is identical either
+   way, so nothing is untested waiting on the key.
+2. **`verify-slice3` — 46 checks, all green** against a local server + dev DB.
+3. **Found and fixed a live production bug** — see below.
+4. Alpha build 1.4.0 (versionCode 19) **finished** 2:02 PM.
+5. `heroes-demo-venue` production key **rotated**; new key at
+   `~/heroes-demo-venue-apikey.txt` (mode 600, deliberately never printed to a
+   transcript — that is how the last one leaked). Verified: new key 200,
+   bogus 403. Scopes still `guests runs titles xp`, no `rewards`.
+
+### ⚠ The first-party withdraw guard was OFF in production
+
+`ConsentService` refuses withdrawal only when `sourceType === 'first_party'`.
+In production that source was typed `'venue'`, so **the guard never fired**:
+Heroes' Codex appeared in "Who Witnesses You" as withdrawable with a working
+WITHDRAW button. Every hero is FK-linked to it, so a player who pressed it
+severed themselves from their own game.
+
+Cause: the seeding migration is idempotent about the ROW but silent about its
+COLUMNS — `INSERT ... ON CONFLICT (source_id) DO NOTHING`. Any environment
+where the row already existed kept `source_type='venue'`. Measured: staging
+`first_party`, production `venue` with 3 live links. Wrong since 2026-07-13.
+
+**The lesson worth keeping: verifying against staging cannot catch a data
+defect that only exists where history exists.** Staging was green the whole
+time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
+
 ## Next, in order
 
-1. **Email provider decision — the only real blocker.** No mail infrastructure
-   exists at all, so **venue staff have no password reset**: an owner who
-   forgets theirs needs a Heroes engineer, which is precisely the per-venue
-   custom engineering Phase 2 exists to remove. Reset and staff-invite delivery
-   share one seam; build both once a key is in Railway.
-2. Confirm the alpha build landed and testers can scan.
-3. `verify-slice3` — venue check-in, consent withdrawal and the first-party
-   revoke guard are device-verified but have **no automated coverage**, and
-   they are the newest code.
-4. Rotate `heroes-demo-venue`'s API key (it was pasted into a chat transcript).
+1. **Push `hep/mail-seam-and-slice3`** — carries the production consent fix.
+   Note both Staging and production auto-deploy from `main`; production lags
+   ~1h. This is a real player-facing deploy, including a player-visible rename
+   of the first-party source in the consent list.
+2. **Put `RESEND_API_KEY` in Railway** (+ optional `MAIL_FROM`,
+   `PORTAL_BASE_URL`). Until then mail is `log`-transport only and no venue
+   owner can actually receive a reset. Verify the sending domain first.
+3. Re-run `verify-slice3` against staging after deploy — it has only been run
+   against a local server so far.
+4. Confirm testers can scan both QR flows on alpha build 19.
 
 ## Things that will bite, if not remembered
 
 - **The config API refuses to CREATE keys.** Every tunable needs a seed row in
   `seed-experiences.ts` or it is a dial welded shut. This bit twice — the
   payout ceiling looked armed while silently falling back to its code default.
+- **`INSERT ... ON CONFLICT DO NOTHING` is idempotent about the row, not its
+  columns.** A seed migration written that way will silently skip every
+  environment that already had the row — which is every environment with
+  players. Use an explicit `UPDATE` when the column value is the point.
+- **A guard is not armed until its data says so.** The first-party revoke guard
+  was correct code reading a wrong column for eight days. Test the guard
+  against real data; do not trust that it fires.
+- **`/api/users/:root_id/links` is authenticated** — the harness first called
+  it bare and got an error object where it expected an array.
 - **`fonts.title` (Marcellus SC) does not resolve on Android.** No shipped
   screen used it, so it had never been exercised. Use `fonts.display` (Cinzel).
 - **`railway run` injects the INTERNAL DB host.** Prisma scripts need
