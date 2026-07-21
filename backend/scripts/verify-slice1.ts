@@ -8,7 +8,7 @@
 // Covers the slice's definition of done:
 //   1. A run pays identified heroes on completion
 //   2. Settling twice pays once (idempotent)
-//   3. A guest seat yields a claim token; redeeming lands the rewards
+//   3. A guest seat yields a claim token; a NEW account redeems it
 //   4. Redeeming twice pays once
 //   5. Outcome weighting is real (timeout pays ~half, and no loot)
 //   6. A venue without the `rewards` scope runs but does not pay
@@ -19,7 +19,6 @@
 //   HV_API_URL=https://pik-prd-staging.up.railway.app \
 //   HV_PLATFORM_ADMIN_KEY=<staff key> \
 //   HV_TEST_ROOT_ID=<hero A> \
-//   HV_TEST_ROOT_ID_B=<hero B — receives the guest claim> \
 //   npx ts-node scripts/verify-slice1.ts
 //
 // Or without handling the secret:
@@ -29,7 +28,6 @@
 const API = process.env.HV_API_URL?.replace(/\/$/, '');
 const ADMIN_KEY = process.env.HV_PLATFORM_ADMIN_KEY;
 const ROOT_A = process.env.HV_TEST_ROOT_ID;
-const ROOT_B = process.env.HV_TEST_ROOT_ID_B;
 
 if (!API || !ADMIN_KEY || !ROOT_A) {
   console.error('Missing env: HV_API_URL, HV_PLATFORM_ADMIN_KEY, HV_TEST_ROOT_ID');
@@ -142,6 +140,43 @@ async function consent(rootId: string, sourceId: string) {
   });
 }
 
+/**
+ * Create a throwaway account + hero, exactly as a walk-in would after
+ * installing Codex. Returns an AccountSession bearer token — the auth the
+ * claim route actually expects.
+ */
+async function registerWalkIn(): Promise<{ sessionToken: string; rootId: string } | null> {
+  const stamp = Date.now().toString(36);
+  const reg = await call('/api/account/register', {
+    method: 'POST',
+    body: {
+      email: `walkin+${stamp}@slice1.test`,
+      password: `Sl1ce-${stamp}!`,
+      display_name: `Walkin ${stamp}`,
+    },
+  });
+  let sessionToken = unwrap(reg.body)?.session_token;
+  if (!sessionToken) return null;
+
+  const hero = await call('/api/account/heroes', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${sessionToken}` },
+    body: { hero_name: `Walkin${stamp}`, alignment: 'ORDER' },
+  });
+  const rootId = unwrap(hero.body)?.root_id ?? unwrap(hero.body)?.hero?.root_id;
+  if (!rootId) return null;
+
+  // Selecting the hero is what binds heroId onto the session, which the
+  // claim route reads. It may also reissue the token.
+  const sel = await call(`/api/account/heroes/${rootId}/select`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  });
+  sessionToken = unwrap(sel.body)?.session_token ?? sessionToken;
+
+  return { sessionToken, rootId };
+}
+
 async function cleanup(ids: string[]) {
   for (const id of ids) {
     await call(`/api/sources/${id}/status`, {
@@ -158,7 +193,10 @@ async function main() {
   console.log('0. Provision');
   const keyA = await makeVenue(venues[0], ['xp', 'titles', 'runs', 'rewards', 'guests']);
   const keyB = await makeVenue(venues[1], ['xp', 'titles', 'runs', 'rewards', 'guests']);
-  const keyNoPay = await makeVenue(venues[2], ['xp', 'titles', 'runs']); // no `rewards`
+  // Differs from keyA by EXACTLY one scope — `rewards`. Isolating the
+  // variable is the point: the first run failed here on the missing
+  // `guests` scope instead, which told us nothing about reward gating.
+  const keyNoPay = await makeVenue(venues[2], ['xp', 'titles', 'runs', 'guests']);
   await consent(ROOT_A!, venues[0]);
   await consent(ROOT_A!, venues[2]);
   requireOrAbort(
@@ -242,28 +280,32 @@ async function main() {
     const bogus = await call('/api/claims/IOIO-IOIO');
     check('code with never-printed glyphs is rejected (400)', bogus.status === 400, bogus.status);
 
-    if (ROOT_B) {
-      const bBefore = await xpOf(ROOT_B);
-      // Redemption is account-authed; impersonate to obtain a hero session.
-      const imp = await call(`/api/auth/impersonate/${ROOT_B}`, { method: 'POST', headers: admin() });
-      const sessionToken = unwrap(imp.body)?.session_token ?? unwrap(imp.body)?.token;
-
-      if (!sessionToken) {
-        check('SKIPPED — could not obtain a session for hero B', false, imp.body);
-      } else {
-        const auth = { Authorization: `Bearer ${sessionToken}` };
-        const redeemed = await call(`/api/claims/${token}/redeem`, { method: 'POST', headers: auth });
-        check('claim redeemed', redeemed.status < 400, redeemed.body);
-
-        const bAfter = await xpOf(ROOT_B);
-        check('guest rewards landed on hero B', bAfter > bBefore, { bBefore, bAfter });
-
-        const again = await call(`/api/claims/${token}/redeem`, { method: 'POST', headers: auth });
-        check('second redemption rejected (409)', again.status === 409, again.status);
-        check('second redemption paid nothing', (await xpOf(ROOT_B)) === bAfter);
-      }
+    // Redeem onto a BRAND NEW account and hero — the actual walk-in
+    // journey. Impersonation was the wrong instrument here: it mints a
+    // hero SessionToken, while /api/claims/:token/redeem is guarded by
+    // AccountGuard, which wants an AccountSession. Those are two separate
+    // auth systems in this codebase, and the 401 was the harness reaching
+    // for the wrong one — not a product defect.
+    const walkIn = await registerWalkIn();
+    if (!walkIn) {
+      check('could not create a walk-in account to redeem with', false);
     } else {
-      console.log('     (set HV_TEST_ROOT_ID_B to exercise redemption)');
+      const auth = { Authorization: `Bearer ${walkIn.sessionToken}` };
+      const before = await xpOf(walkIn.rootId);
+
+      const redeemed = await call(`/api/claims/${token}/redeem`, { method: 'POST', headers: auth });
+      check('claim redeemed by a new account', redeemed.status < 400, redeemed.body);
+
+      const after = await xpOf(walkIn.rootId);
+      check('guest rewards landed on the new hero', after > before, { before, after });
+
+      const again = await call(`/api/claims/${token}/redeem`, { method: 'POST', headers: auth });
+      check('second redemption rejected (409)', again.status === 409, again.status);
+      check(
+        'second redemption paid nothing',
+        after > before && (await xpOf(walkIn.rootId)) === after,
+        { after },
+      );
     }
   }
 
