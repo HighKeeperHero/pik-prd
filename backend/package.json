@@ -25,7 +25,8 @@
     "flags": "ts-node scripts/flags.ts",
     "users": "ts-node scripts/users.ts",
     "seed:experiences": "ts-node scripts/seed-experiences.ts",
-    "fake:venue": "ts-node scripts/fake-venue.ts"
+    "fake:venue": "ts-node scripts/fake-venue.ts",
+    "verify:slice1": "ts-node scripts/verify-slice1.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

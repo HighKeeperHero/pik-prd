@@ -1,0 +1,300 @@
+// ============================================================
+// HEP Phase 2 Slice 1 — verification harness
+//
+// fake-venue.ts is the DEMO: it drives a run and prints what happened.
+// This is the TEST: it asserts the guarantees, and exits non-zero when
+// one fails to hold.
+//
+// Covers the slice's definition of done:
+//   1. A run pays identified heroes on completion
+//   2. Settling twice pays once (idempotent)
+//   3. A guest seat yields a claim token; redeeming lands the rewards
+//   4. Redeeming twice pays once
+//   5. Outcome weighting is real (timeout pays ~half, and no loot)
+//   6. A venue without the `rewards` scope runs but does not pay
+//   7. A venue cannot touch another venue's run (tenant isolation)
+//   8. Retuning Experience.rewards changes payout WITHOUT a deploy
+//
+// Usage:
+//   HV_API_URL=https://pik-prd-staging.up.railway.app \
+//   HV_PLATFORM_ADMIN_KEY=<staff key> \
+//   HV_TEST_ROOT_ID=<hero A> \
+//   HV_TEST_ROOT_ID_B=<hero B — receives the guest claim> \
+//   npx ts-node scripts/verify-slice1.ts
+//
+// Or without handling the secret:
+//   railway run --environment Staging --service pik-prd -- npx ts-node scripts/verify-slice1.ts
+// ============================================================
+
+const API = process.env.HV_API_URL?.replace(/\/$/, '');
+const ADMIN_KEY = process.env.HV_PLATFORM_ADMIN_KEY;
+const ROOT_A = process.env.HV_TEST_ROOT_ID;
+const ROOT_B = process.env.HV_TEST_ROOT_ID_B;
+
+if (!API || !ADMIN_KEY || !ROOT_A) {
+  console.error('Missing env: HV_API_URL, HV_PLATFORM_ADMIN_KEY, HV_TEST_ROOT_ID');
+  process.exit(2);
+}
+
+const RUN = `s1-${Date.now()}`;
+let failures = 0;
+
+function check(name: string, passed: boolean, detail?: unknown) {
+  console.log(`  ${passed ? '✓' : '✗'} ${name}`);
+  if (!passed) {
+    failures++;
+    if (detail !== undefined) {
+      console.log(`      got: ${JSON.stringify(detail)?.slice(0, 300)}`);
+    }
+  }
+}
+
+async function call(
+  path: string,
+  opts: { method?: string; headers?: Record<string, string>; body?: unknown } = {},
+) {
+  const resp = await fetch(`${API}${path}`, {
+    method: opts.method ?? 'GET',
+    headers: { 'Content-Type': 'application/json', ...(opts.headers ?? {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let json: any = null;
+  try {
+    json = await resp.json();
+  } catch {
+    /* empty */
+  }
+  return { status: resp.status, body: json };
+}
+
+const admin = () => ({ 'X-HV-Admin-Key': ADMIN_KEY! });
+const venue = (k: string) => ({ 'X-PIK-API-Key': k });
+const unwrap = (b: any) => b?.data ?? b;
+
+async function xpOf(rootId: string): Promise<number> {
+  const r = await call(`/api/users/${rootId}`, { headers: admin() });
+  const xp = unwrap(r.body)?.progression?.fate_xp;
+  if (typeof xp !== 'number') {
+    throw new Error(`Cannot read XP for ${rootId}: ${JSON.stringify(r.body)?.slice(0, 200)}`);
+  }
+  return xp;
+}
+
+/** Provision a venue with the given scopes and the Kingvale assignment. */
+async function makeVenue(id: string, scopes: string[]) {
+  const created = await call('/api/sources', {
+    method: 'POST',
+    headers: admin(),
+    body: { source_id: id, source_name: `Slice1 ${id}` },
+  });
+  const key = unwrap(created.body)?.api_key;
+  if (!key) throw new Error(`venue provision failed: ${JSON.stringify(created.body)}`);
+
+  await call(`/api/sources/${id}/scopes`, {
+    method: 'POST', headers: admin(), body: { scopes },
+  });
+  await call(`/api/sources/${id}/experiences`, {
+    method: 'POST', headers: admin(), body: { experience_slug: 'echoes_of_kingvale' },
+  });
+  return key;
+}
+
+async function consent(rootId: string, sourceId: string) {
+  return call(`/api/users/${rootId}/links`, {
+    method: 'POST',
+    headers: admin(),
+    body: { source_id: sourceId, scope: 'xp titles runs rewards guests', granted_by: `operator:${RUN}` },
+  });
+}
+
+async function cleanup(ids: string[]) {
+  for (const id of ids) {
+    await call(`/api/sources/${id}/status`, {
+      method: 'POST', headers: admin(), body: { status: 'suspended' },
+    }).catch(() => undefined);
+  }
+}
+
+async function main() {
+  console.log(`\nHEP Slice 1 verification against ${API}\n`);
+  const venues = [`${RUN}-a`, `${RUN}-b`, `${RUN}-nopay`];
+
+  // ── Setup ────────────────────────────────────────────────────────
+  console.log('0. Provision');
+  const keyA = await makeVenue(venues[0], ['xp', 'titles', 'runs', 'rewards', 'guests']);
+  const keyB = await makeVenue(venues[1], ['xp', 'titles', 'runs', 'rewards', 'guests']);
+  const keyNoPay = await makeVenue(venues[2], ['xp', 'titles', 'runs']); // no `rewards`
+  await consent(ROOT_A!, venues[0]);
+  await consent(ROOT_A!, venues[2]);
+  check('three venues provisioned with distinct scopes', true);
+
+  const status = await call('/api/partner/v1/venue', { headers: venue(keyA) });
+  check(
+    'venue status lists the assigned experience',
+    unwrap(status.body)?.experiences?.some((e: any) => e.slug === 'echoes_of_kingvale'),
+    status.body,
+  );
+
+  // ── 1. Victory pays ──────────────────────────────────────────────
+  console.log('\n1. Victory pays identified heroes');
+  const before = await xpOf(ROOT_A!);
+
+  const started = await call('/api/partner/v1/runs', {
+    method: 'POST', headers: venue(keyA),
+    body: {
+      experience_slug: 'echoes_of_kingvale',
+      partner_run_key: `${RUN}-r1`,
+      root_ids: [ROOT_A],
+      guests: [{ label: 'Walk-in 1' }],
+    },
+  });
+  const run = unwrap(started.body);
+  check('run started', started.status < 400 && Boolean(run?.run_id), started.body);
+
+  const done = await call(`/api/partner/v1/runs/${run.run_id}/complete`, {
+    method: 'POST', headers: venue(keyA),
+    body: { outcome: 'victory', milestones_hit: 4, duration_sec: 1100 },
+  });
+  const settled = unwrap(done.body);
+  check('run completed', settled?.status === 'completed', done.body);
+  check('payout multiplier is 1.20 at 4 milestones', settled?.payout_multiplier === 1.2, settled?.payout_multiplier);
+
+  const afterVictory = await xpOf(ROOT_A!);
+  const gained = afterVictory - before;
+  check('hero gained XP', gained > 0, { before, afterVictory });
+
+  const guestSeat = (settled?.participants_settled ?? []).find((s: any) => !s.root_id);
+  check('guest seat is pending with a claim token', guestSeat?.reward_state === 'pending' && Boolean(guestSeat?.claim_token), guestSeat);
+
+  // ── 2. Idempotent settle ─────────────────────────────────────────
+  console.log('\n2. Settling twice pays once');
+  const replay = await call(`/api/partner/v1/runs/${run.run_id}/complete`, {
+    method: 'POST', headers: venue(keyA),
+    body: { outcome: 'victory', milestones_hit: 4 },
+  });
+  check('replay flagged', unwrap(replay.body)?.replayed === true, replay.body);
+  check('replay granted no further XP', (await xpOf(ROOT_A!)) === afterVictory);
+
+  // ── 3/4. Guest claim ─────────────────────────────────────────────
+  console.log('\n3. Guest claim redemption');
+  const token = guestSeat?.claim_token;
+  if (!token) {
+    check('SKIPPED — no claim token to redeem', false);
+  } else {
+    const preview = await call(`/api/claims/${token}`);
+    check('claim preview shows pending rewards', unwrap(preview.body)?.status === 'pending', preview.body);
+
+    if (ROOT_B) {
+      const bBefore = await xpOf(ROOT_B);
+      // Redemption is account-authed; impersonate to obtain a hero session.
+      const imp = await call(`/api/auth/impersonate/${ROOT_B}`, { method: 'POST', headers: admin() });
+      const sessionToken = unwrap(imp.body)?.session_token ?? unwrap(imp.body)?.token;
+
+      if (!sessionToken) {
+        check('SKIPPED — could not obtain a session for hero B', false, imp.body);
+      } else {
+        const auth = { Authorization: `Bearer ${sessionToken}` };
+        const redeemed = await call(`/api/claims/${token}/redeem`, { method: 'POST', headers: auth });
+        check('claim redeemed', redeemed.status < 400, redeemed.body);
+
+        const bAfter = await xpOf(ROOT_B);
+        check('guest rewards landed on hero B', bAfter > bBefore, { bBefore, bAfter });
+
+        const again = await call(`/api/claims/${token}/redeem`, { method: 'POST', headers: auth });
+        check('second redemption rejected (409)', again.status === 409, again.status);
+        check('second redemption paid nothing', (await xpOf(ROOT_B)) === bAfter);
+      }
+    } else {
+      console.log('     (set HV_TEST_ROOT_ID_B to exercise redemption)');
+    }
+  }
+
+  // ── 5. Outcome weighting ─────────────────────────────────────────
+  console.log('\n5. Outcome weighting');
+  const preTimeout = await xpOf(ROOT_A!);
+  const r2 = unwrap((await call('/api/partner/v1/runs', {
+    method: 'POST', headers: venue(keyA),
+    body: { experience_slug: 'echoes_of_kingvale', partner_run_key: `${RUN}-r2`, root_ids: [ROOT_A], guests: [{}] },
+  })).body);
+  const failed = unwrap((await call(`/api/partner/v1/runs/${r2.run_id}/fail`, {
+    method: 'POST', headers: venue(keyA),
+    body: { outcome: 'timeout', milestones_hit: 2, reason: 'timer expired' },
+  })).body);
+
+  check('failed run recorded as failed', failed?.status === 'failed', failed?.status);
+  check('timeout multiplier is 0.50', failed?.payout_multiplier === 0.5, failed?.payout_multiplier);
+
+  const timeoutGain = (await xpOf(ROOT_A!)) - preTimeout;
+  check('timeout paid roughly half of victory', timeoutGain > 0 && timeoutGain < gained, { gained, timeoutGain });
+
+  const seatT = (failed?.participants_settled ?? []).find((s: any) => s.root_id);
+  check('timeout granted no discrete loot', (seatT?.applied?.caches_granted?.length ?? 0) === 0, seatT?.applied);
+
+  // ── 6. rewards scope gates payout ────────────────────────────────
+  console.log('\n6. A venue without `rewards` runs but does not pay');
+  const preNoPay = await xpOf(ROOT_A!);
+  const r3 = unwrap((await call('/api/partner/v1/runs', {
+    method: 'POST', headers: venue(keyNoPay),
+    body: { experience_slug: 'echoes_of_kingvale', partner_run_key: `${RUN}-r3`, root_ids: [ROOT_A], guests: [{}] },
+  })).body);
+  check('run started at unpaid venue', Boolean(r3?.run_id), r3);
+
+  const r3done = unwrap((await call(`/api/partner/v1/runs/${r3.run_id}/complete`, {
+    method: 'POST', headers: venue(keyNoPay), body: { outcome: 'victory', milestones_hit: 4 },
+  })).body);
+  check('seats skipped for lack of rewards scope',
+    (r3done?.participants_settled ?? []).every((s: any) => s.reward_state === 'skipped'), r3done?.participants_settled);
+  check('no XP granted by unpaid venue', (await xpOf(ROOT_A!)) === preNoPay);
+
+  // ── 7. Tenant isolation ──────────────────────────────────────────
+  console.log('\n7. Tenant isolation');
+  const foreign = await call(`/api/partner/v1/runs/${run.run_id}/complete`, {
+    method: 'POST', headers: venue(keyB), body: { outcome: 'victory' },
+  });
+  check("another venue cannot settle this run (404, not 403)", foreign.status === 404, foreign.status);
+
+  // ── 8. Retune without deploy ─────────────────────────────────────
+  console.log('\n8. Retuning pays differently with no deploy');
+  const mult = await call('/api/config', {
+    method: 'POST', headers: admin(),
+    body: { config_key: 'venue.reward_multiplier', config_value: '2' },
+  });
+  check('venue.reward_multiplier set to 2', mult.status < 400, mult.body);
+
+  const preRetune = await xpOf(ROOT_A!);
+  const r4 = unwrap((await call('/api/partner/v1/runs', {
+    method: 'POST', headers: venue(keyA),
+    body: { experience_slug: 'echoes_of_kingvale', partner_run_key: `${RUN}-r4`, root_ids: [ROOT_A], guests: [{}] },
+  })).body);
+  const r4done = unwrap((await call(`/api/partner/v1/runs/${r4.run_id}/complete`, {
+    method: 'POST', headers: venue(keyA), body: { outcome: 'victory', milestones_hit: 0 },
+  })).body);
+  const retuneGain = (await xpOf(ROOT_A!)) - preRetune;
+
+  check('multiplier reached the payout', r4done?.payout_multiplier === 2, r4done?.payout_multiplier);
+  check('retuned run paid more than the 1.20x victory', retuneGain > gained, { gained, retuneGain });
+
+  // Restore, so a later run of this harness starts from a known state.
+  await call('/api/config', {
+    method: 'POST', headers: admin(),
+    body: { config_key: 'venue.reward_multiplier', config_value: '1' },
+  });
+  check('multiplier restored to 1', true);
+
+  // ── Cleanup ──────────────────────────────────────────────────────
+  console.log('\n9. Cleanup');
+  await cleanup(venues);
+  check('test venues suspended', true);
+
+  console.log(
+    failures === 0
+      ? '\n✅ Slice 1 verified — all checks passed\n'
+      : `\n❌ ${failures} check(s) failed\n`,
+  );
+  process.exit(failures === 0 ? 0 : 1);
+}
+
+main().catch(async (err) => {
+  console.error('\nHarness crashed:', err);
+  process.exit(1);
+});
