@@ -50,9 +50,18 @@ export class ClaimService {
   async preview(token: string) {
     const claim = await this.findByToken(token);
 
+    // The venue's NAME, not its id. Device-verified 2026-07-21: the screen
+    // read "Witnessed at venue-1784650764179" to the player, which is an
+    // internal identifier and reads as a bug to anyone holding the phone.
+    const venue = await this.prisma.source.findUnique({
+      where: { id: claim.sourceId },
+      select: { name: true },
+    });
+
     return {
       status: claim.status,
-      venue: claim.sourceId,
+      venue: venue?.name ?? claim.sourceId,
+      venue_id: claim.sourceId,
       expires_at: claim.expiresAt.toISOString(),
       expired: claim.expiresAt.getTime() < Date.now(),
       rewards: this.summarize(claim.participant.rewards as unknown as ResolvedReward),
@@ -129,9 +138,16 @@ export class ClaimService {
       `Guest claim ${claim.id} redeemed by ${rootId} (venue ${claim.sourceId})`,
     );
 
+    // Name, not id — the result screen shows this to the player too.
+    const venue = await this.prisma.source.findUnique({
+      where: { id: claim.sourceId },
+      select: { name: true },
+    });
+
     return {
       claimed: true,
-      venue: claim.sourceId,
+      venue: venue?.name ?? claim.sourceId,
+      venue_id: claim.sourceId,
       run_id: claim.participant.runId,
       applied,
     };
