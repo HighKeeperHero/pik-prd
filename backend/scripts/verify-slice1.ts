@@ -165,6 +165,11 @@ async function main() {
 
   const guestSeat = (settled?.participants_settled ?? []).find((s: any) => !s.root_id);
   check('guest seat is pending with a claim token', guestSeat?.reward_state === 'pending' && Boolean(guestSeat?.claim_token), guestSeat);
+  check(
+    'guest seat also carries a typable short code (XXXX-XXXX)',
+    /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/.test(guestSeat?.claim_code ?? ''),
+    guestSeat?.claim_code,
+  );
 
   // ── 2. Idempotent settle ─────────────────────────────────────────
   console.log('\n2. Settling twice pays once');
@@ -183,6 +188,17 @@ async function main() {
   } else {
     const preview = await call(`/api/claims/${token}`);
     check('claim preview shows pending rewards', unwrap(preview.body)?.status === 'pending', preview.body);
+
+    // The short code must resolve the same claim — it is the fallback path
+    // for when the QR scan fails, which is when it matters most.
+    const byCode = await call(`/api/claims/${encodeURIComponent(guestSeat.claim_code)}`);
+    check('short code resolves the same claim', unwrap(byCode.body)?.status === 'pending', byCode.body);
+
+    const lower = await call(`/api/claims/${encodeURIComponent(String(guestSeat.claim_code).toLowerCase().replace('-', ''))}`);
+    check('short code tolerates lowercase and a missing dash', unwrap(lower.body)?.status === 'pending', lower.body);
+
+    const bogus = await call('/api/claims/IOIO-IOIO');
+    check('code with never-printed glyphs is rejected (400)', bogus.status === 400, bogus.status);
 
     if (ROOT_B) {
       const bBefore = await xpOf(ROOT_B);

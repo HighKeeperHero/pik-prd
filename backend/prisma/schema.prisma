@@ -386,7 +386,11 @@ model RunParticipant {
 model GuestClaim {
   id            String    @id @default(uuid()) @map("claim_id")
   participantId String    @unique @map("participant_id")
+  /// Long random token — what the QR encodes. 32 bytes, base64url.
   tokenHash     String    @unique @map("token_hash")
+  /// Short human-typable code (e.g. K7QM-4PXR) for when the scan fails.
+  /// Hashed like the token; a receipt is not a secret store.
+  shortCodeHash String?   @unique @map("short_code_hash")
   sourceId      String    @map("source_id")
   /// pending | claimed | expired
   status        String    @default("pending")

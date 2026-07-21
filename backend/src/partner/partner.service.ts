@@ -28,6 +28,7 @@ import {
 } from './reward-policy';
 import { ResolvedSource } from '../auth/guards/api-key.guard';
 import { SCOPES, describeScopes, intersectScopes } from '../auth/scopes';
+import { generateShortCode, hashCode } from './claim-code';
 
 /** Guest claim links stay valid for this long unless overridden by config. */
 const DEFAULT_CLAIM_TTL_DAYS = 30;
@@ -315,7 +316,10 @@ export class PartnerService {
       }
 
       // Guest seat — hold the bundle and mint a single-use claim token.
-      const { token, claim } = await this.issueGuestClaim(seat.id, source.id);
+      const { token, shortCode, claim } = await this.issueGuestClaim(
+        seat.id,
+        source.id,
+      );
       await this.prisma.runParticipant.update({
         where: { id: seat.id },
         data: { rewards: reward as never, rewardState: 'pending' },
@@ -324,9 +328,11 @@ export class PartnerService {
         participant_id: seat.id,
         guest_label: seat.guestLabel,
         reward_state: 'pending',
-        // The only time the plaintext token is ever available. It is not
-        // recoverable afterward — the venue must hand it to the guest now.
-        claim_token: token,
+        // The only time the plaintext credentials are ever available. They
+        // are not recoverable afterward — the venue must print or show them
+        // to the guest now, before the party leaves.
+        claim_token: token, // encode as the QR
+        claim_code: shortCode, // print as the fallback the guest can type
         claim_expires_at: claim.expiresAt.toISOString(),
       });
     }
@@ -485,11 +491,34 @@ export class PartnerService {
       Date.now() + DEFAULT_CLAIM_TTL_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    const claim = await this.prisma.guestClaim.create({
-      data: { participantId, tokenHash, sourceId, expiresAt },
-    });
+    // A short code is only 40 bits, so collisions are rare but not
+    // impossible across a large venue estate. Retry a few times rather than
+    // failing a guest's payout over a coin flip.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const shortCode = generateShortCode();
+      try {
+        const claim = await this.prisma.guestClaim.create({
+          data: {
+            participantId,
+            tokenHash,
+            shortCodeHash: hashCode(shortCode),
+            sourceId,
+            expiresAt,
+          },
+        });
+        return { token, shortCode, claim };
+      } catch (err: any) {
+        // P2002 on short_code_hash — try another code. Any other unique
+        // violation (participant already has a claim) is a real error.
+        if (err?.code !== 'P2002') throw err;
+        const target = String(err?.meta?.target ?? '');
+        if (!target.includes('short_code')) throw err;
+      }
+    }
 
-    return { token, claim };
+    throw new ConflictException(
+      'Could not allocate a unique claim code; retry the settle',
+    );
   }
 
   private presentRun(run: {

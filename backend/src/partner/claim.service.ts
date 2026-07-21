@@ -31,6 +31,7 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { RewardService } from './reward.service';
 import { ResolvedReward } from './reward-policy';
+import { hashCode, isWellFormed, looksLikeShortCode } from './claim-code';
 
 @Injectable()
 export class ClaimService {
@@ -136,12 +137,37 @@ export class ClaimService {
     };
   }
 
-  private async findByToken(token: string) {
-    if (!token || token.length < 16) {
+  /**
+   * Resolve either credential to the same claim: the long token a QR
+   * encodes, or the short code a guest types when the scan fails.
+   *
+   * Length discriminates — tokens are 43 characters, codes are 8.
+   */
+  private async findByToken(input: string) {
+    if (!input) throw new BadRequestException('Missing claim code');
+
+    if (looksLikeShortCode(input)) {
+      if (!isWellFormed(input)) {
+        // Codes are printed from an alphabet with no I, O, 0 or 1, so a
+        // character outside it is a transcription error. Say so plainly
+        // rather than returning a bare "not found".
+        throw new BadRequestException(
+          'That code contains characters we never print. Check for O/0 and I/1 mix-ups.',
+        );
+      }
+      const claim = await this.prisma.guestClaim.findUnique({
+        where: { shortCodeHash: hashCode(input) },
+        include: { participant: true },
+      });
+      if (!claim) throw new NotFoundException('Claim not found');
+      return claim;
+    }
+
+    if (input.length < 16) {
       throw new BadRequestException('Malformed claim token');
     }
-    const tokenHash = createHash('sha256').update(token).digest('hex');
 
+    const tokenHash = createHash('sha256').update(input).digest('hex');
     const claim = await this.prisma.guestClaim.findUnique({
       where: { tokenHash },
       include: { participant: true },
