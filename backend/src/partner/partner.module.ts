@@ -1,0 +1,41 @@
+// ============================================================
+// HEP Phase 2 Slice 1 — Partner module
+//
+// The venue-facing surface: experience runs, payouts, guest claims.
+//
+// Additive by construction — nothing here is imported by an existing
+// Codex module, so the app cannot be affected by it.
+//
+// Place at: src/partner/partner.module.ts
+// ============================================================
+
+import { Module } from '@nestjs/common';
+import { PartnerController } from './partner.controller';
+import { ClaimController } from './claim.controller';
+import { PartnerService } from './partner.service';
+import { RewardService } from './reward.service';
+import { ClaimService } from './claim.service';
+import { PrismaService } from '../prisma.service';
+import { EventsModule } from '../events/events.module';
+import { LevelingModule } from '../leveling/leveling.module';
+import { FateAccountModule } from '../fate-account/fate-account.module';
+import { ApiKeyGuard } from '../auth/guards/api-key.guard';
+import { AccountGuard } from '../auth/guards/account.guard';
+
+@Module({
+  // FateAccountModule exports FateAccountService — AccountGuard's dependency,
+  // used by the claim redemption route. Omitting it crashes Nest bootstrap at
+  // runtime while the build stays green (see fox.module.ts, 2026-07-09).
+  imports: [EventsModule, LevelingModule, FateAccountModule],
+  controllers: [PartnerController, ClaimController],
+  providers: [
+    PartnerService,
+    RewardService,
+    ClaimService,
+    PrismaService,
+    ApiKeyGuard,
+    AccountGuard,
+  ],
+  exports: [RewardService],
+})
+export class PartnerModule {}

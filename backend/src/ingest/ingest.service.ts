@@ -33,6 +33,7 @@ import { LootService } from '../loot/loot.service';
 import { QuestService } from '../quest/quest.service';
 import { MarkerEngineService } from '../marker-engine/marker-engine.service'; // ← ADDED
 import { LevelingService } from '../leveling/leveling.service';
+import { intersectScopes } from '../auth/scopes';
 
 /** Titles automatically granted at specific Fate Levels */
 const LEVEL_TITLES: Record<number, string> = {
@@ -668,16 +669,5 @@ export class IngestService {
   }
 }
 
-/**
- * Effective scope for a partner write: what the partner is licensed for,
- * intersected with what this player consented to. Both are space-delimited
- * strings; either side can narrow, neither can widen.
- */
-function intersectScopes(sourceScopes: string, linkScope: string): Set<string> {
-  const partner = new Set(splitScope(sourceScopes));
-  return new Set(splitScope(linkScope).filter((s) => partner.has(s)));
-}
-
-function splitScope(scope: string | null | undefined): string[] {
-  return (scope ?? '').split(/\s+/).filter(Boolean);
-}
+// intersectScopes moved to src/auth/scopes.ts in Slice 1 so the ingest path
+// and the partner run API share one definition of effective permission.
