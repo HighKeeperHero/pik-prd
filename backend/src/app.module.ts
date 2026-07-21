@@ -10,6 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { join } from 'path';
 
 import { PrismaService }     from './prisma.service';
+import { describeEnvironment } from './common/environment';
 import { EventsModule }      from './events/events.module';
 import { IdentityModule }    from './identity/identity.module';
 import { ConsentModule }     from './consent/consent.module';
@@ -51,9 +52,18 @@ class HealthController {
 
   // Liveness — process is up. Fast, dependency-free (a DB blip must not
   // restart the app). Point Railway's healthcheck path here.
+  // `environment` is reported so a caller can tell staging from production
+  // without guessing from the hostname — the two were indistinguishable
+  // from the outside until Phase 2.
   @Get('health')
   @SkipThrottle()
-  health() { return { status: 'ok', timestamp: new Date().toISOString() }; }
+  health() {
+    return {
+      status: 'ok',
+      ...describeEnvironment(),
+      timestamp: new Date().toISOString(),
+    };
+  }
 
   // Readiness — verifies the DB is reachable. Point an external uptime
   // monitor (UptimeRobot/BetterStack) here to catch DB outages too.
@@ -62,7 +72,12 @@ class HealthController {
   async ready() {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return { status: 'ok', db: 'ok', timestamp: new Date().toISOString() };
+      return {
+        status: 'ok',
+        db: 'ok',
+        ...describeEnvironment(),
+        timestamp: new Date().toISOString(),
+      };
     } catch {
       // 503 so a status-code uptime monitor catches DB outages, not just
       // process-down.

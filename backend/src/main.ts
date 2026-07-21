@@ -10,6 +10,7 @@ import { AppModule } from './app.module';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaService } from './prisma.service';
+import { describeEnvironmentLine } from './common/environment';
 
 async function bootstrap() {
   const logger = new Logger('PIK');
@@ -93,7 +94,10 @@ const isAllowed = (origin: string) =>
   logger.log('PIK — Persistent Identity Kernel');
   logger.log(`API running at    http://localhost:${port}`);
   logger.log(`Dashboard at      http://localhost:${port}/`);
-  logger.log(`Environment       ${process.env.NODE_ENV || 'development'}`);
+  // NODE_ENV is 'production' on BOTH Railway environments, so logging it
+  // alone made staging claim to be production. Report the deployment too.
+  logger.log(`Deployment        ${describeEnvironmentLine()}`);
+  logger.log(`NODE_ENV          ${process.env.NODE_ENV || 'development'}`);
   logger.log(`CORS              ${isProd ? allowedOrigins.join(', ') || 'same-origin only' : 'open (dev)'}`);
   logger.log(`Rate limiting     enabled`);
   logger.log('');

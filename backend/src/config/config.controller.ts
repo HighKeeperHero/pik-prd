@@ -33,7 +33,12 @@ export class ConfigController {
     private readonly sourceAdmin: SourceAdminService,
   ) {}
 
-  @Get('health')
+  // Renamed from 'health' in Phase 2 Slice 0. It was a second @Get('health')
+  // on top of the one in app.module.ts, which registers first and therefore
+  // won — this handler had been unreachable dead code, so editing it to
+  // change /api/health did nothing. It is a genuinely useful schema
+  // diagnostic, so it keeps its own path instead of being deleted.
+  @Get('health/schema')
   @SkipThrottle()
   async health() {
     // Quick diagnostic: check if all tables exist
