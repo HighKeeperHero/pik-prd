@@ -16,9 +16,36 @@ So the load-bearing piece of the Partner Portal is not the UI. It is **staff
 identity with per-venue RBAC**. Everything else in Product 1 is a screen on top
 of that.
 
+## Hard boundary — the portal is NOT in the app
+
+**The Partner Portal is a separate surface. There is no path from Heroes' Codex
+into it, and there never will be.** It is connective tissue into the platform,
+not a screen a player can reach.
+
+This is an invariant, not a preference, and it is enforced at four levels:
+
+1. **Separate identity.** `VenueStaff` is not `FateAccount` and not
+   `RootIdentity`. A staff member is not a hero. There is no table linking
+   them, and a person who is both an operator and a player holds two unrelated
+   accounts.
+2. **Separate auth.** `VenueStaffGuard` reads `venue_staff_sessions`;
+   `AccountGuard` reads `account_sessions`. Neither accepts the other's token.
+   A player session presented to `/api/portal/v1/*` is rejected, and a staff
+   session presented to a player route is rejected.
+3. **Separate client.** The portal UI, whenever it is built, is a separate web
+   deployment. Nothing is added to `heroes-veritas-native` — no screen, no
+   route, no deep link, no settings entry.
+4. **Verified, not assumed.** `verify-slice2` asserts both directions of
+   cross-surface rejection, so a future refactor that quietly merges the guards
+   fails a test rather than shipping.
+
+The one player-facing route this programme adds is `/api/claims/:token` — a
+guest binding *their own* testament. That is a player action, deliberately
+outside `/api/partner` and `/api/portal` both.
+
 ## The architectural split
 
-Two distinct surfaces, deliberately separate:
+Three distinct surfaces, deliberately separate:
 
 | | `/api/partner/v1/*` | `/api/portal/v1/*` |
 |---|---|---|

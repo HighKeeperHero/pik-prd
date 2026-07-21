@@ -255,8 +255,88 @@ model Source {
   ingestReceipts IngestReceipt[]
   venueExperiences VenueExperience[]
   experienceRuns   ExperienceRun[]
+  staff            VenueStaff[]
+  auditEntries     VenueAuditEntry[]
 
   @@map("sources")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// HEP Phase 2 Slice 2 — venue staff identity
+//
+// Onboarding previously required a Heroes engineer running curl with the
+// shared HV_PLATFORM_ADMIN_KEY, which has no tenant scoping and therefore
+// can never be handed to a partner. These tables are what let a venue's
+// own people log in, scoped to their venue and their role.
+// ════════════════════════════════════════════════════════════════════════
+
+/// A person at one venue.
+model VenueStaff {
+  id           String    @id @default(uuid()) @map("staff_id")
+  sourceId     String    @map("source_id")
+  email        String
+  /// Null while status = 'invited' — set when the invite is accepted.
+  passwordHash String?   @map("password_hash")
+  displayName  String?   @map("display_name")
+  /// owner | manager | operator | viewer — see src/portal/roles.ts
+  role         String    @default("viewer")
+  /// active | invited | suspended
+  status       String    @default("invited")
+  /// "staff:<id>" of the inviter, or "platform" for the founding owner.
+  invitedBy    String?   @map("invited_by")
+  /// Single-use invite credential, hashed. Cleared once accepted.
+  inviteHash   String?   @unique @map("invite_hash")
+  inviteExpires DateTime? @map("invite_expires")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  source   Source              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sessions VenueStaffSession[]
+  audit    VenueAuditEntry[]
+
+  /// Scoped, not global: a regional manager may legitimately hold an
+  /// account at several venues, and each is a separate grant.
+  @@unique([sourceId, email])
+  @@index([sourceId, status])
+  @@map("venue_staff")
+}
+
+/// Opaque bearer token for a signed-in staff member. Mirrors the
+/// AccountSession pattern — random bytes, stored only as a SHA-256 digest.
+model VenueStaffSession {
+  id        String   @id @default(uuid()) @map("session_id")
+  staffId   String   @map("staff_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  staff VenueStaff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@map("venue_staff_sessions")
+}
+
+/// Who did what, per venue.
+///
+/// Deliberately NOT IdentityEvent: that ledger is keyed on rootId (a hero),
+/// and staff actions are not hero-scoped. Forcing them in would pollute a
+/// player's chronicle with venue administration noise.
+model VenueAuditEntry {
+  id        String   @id @default(uuid()) @map("entry_id")
+  sourceId  String   @map("source_id")
+  /// Null for platform-staff actions taken on the venue's behalf.
+  staffId   String?  @map("staff_id")
+  action    String
+  target    String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  source Source      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  staff  VenueStaff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([sourceId, createdAt])
+  @@index([staffId])
+  @@map("venue_audit_entries")
 }
 
 // ════════════════════════════════════════════════════════════════════════
