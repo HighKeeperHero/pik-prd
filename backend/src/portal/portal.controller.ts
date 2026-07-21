@@ -29,6 +29,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { PortalService } from './portal.service';
+import { PortalAnalyticsService } from './portal-analytics.service';
 import {
   VenueStaffGuard,
   RequirePermission,
@@ -39,7 +40,10 @@ type StaffRequest = Request & { staff: ResolvedStaff; headers: Record<string, st
 
 @Controller('api/portal/v1')
 export class PortalController {
-  constructor(private readonly portal: PortalService) {}
+  constructor(
+    private readonly portal: PortalService,
+    private readonly analyticsService: PortalAnalyticsService,
+  ) {}
 
   // ── Unauthenticated: sign-in and invite acceptance ────────────
 
@@ -151,6 +155,18 @@ export class PortalController {
     @Body() body: { enabled?: boolean; available_from?: string; available_until?: string },
   ) {
     return this.portal.updateExperience(req.staff, slug, body);
+  }
+
+  // ── Analytics ─────────────────────────────────────────────────
+
+  @Get('analytics')
+  @UseGuards(VenueStaffGuard)
+  @RequirePermission('analytics.read')
+  analytics(@Req() req: StaffRequest, @Query('days') days?: string) {
+    return this.analyticsService.summary(
+      req.staff,
+      days ? parseInt(days, 10) : 30,
+    );
   }
 
   // ── Audit ─────────────────────────────────────────────────────

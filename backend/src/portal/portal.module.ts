@@ -11,12 +11,13 @@
 import { Module } from '@nestjs/common';
 import { PortalController } from './portal.controller';
 import { PortalService } from './portal.service';
+import { PortalAnalyticsService } from './portal-analytics.service';
 import { VenueStaffGuard } from './venue-staff.guard';
 import { PrismaService } from '../prisma.service';
 
 @Module({
   controllers: [PortalController],
-  providers: [PortalService, VenueStaffGuard, PrismaService],
+  providers: [PortalService, PortalAnalyticsService, VenueStaffGuard, PrismaService],
   exports: [PortalService],
 })
 export class PortalModule {}
