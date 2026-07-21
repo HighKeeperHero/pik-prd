@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heroes — Partner Portal</title>
+<!--
+  Partner Portal (HEP Phase 2 Slice 2c).
+
+  Static and self-contained on purpose: it ships with the backend that is
+  already deployed, needs no second build or deploy target, and a venue
+  reaches it at /venue.html. If it ever earns a real SPA, the API
+  contract underneath does not change.
+
+  This is the venue's HUMANS surface. It talks only to /api/portal/v1
+  with a staff session — never the machine API, never anything in Codex.
+  Deliberately NOT linked from the game, and the game cannot reach it.
+-->
+<style>
+  :root{
+    --bg:#06080F; --panel:#0D1220; --line:rgba(30,46,72,.8);
+    --faint:rgba(30,46,72,.35);
+    --text:#C8C0B8; --muted:#8FA8CC; --dim:#3A4A6A;
+    --gold:#C8900A; --gold-lt:#FFA500; --bad:#8B3A62;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  a{color:var(--gold-lt)}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:22px;letter-spacing:3px;font-weight:600;margin:0;color:var(--text)}
+  .eyebrow{font-size:11px;letter-spacing:3px;color:var(--dim);margin-bottom:6px}
+  h2{font-size:12px;letter-spacing:2.5px;color:var(--muted);
+     margin:34px 0 12px;font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);padding:18px 20px;margin-bottom:12px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:16px}
+  .row+.row{margin-top:14px;padding-top:14px;border-top:1px solid var(--faint)}
+  label{display:block;font-size:11px;letter-spacing:2px;color:var(--muted);margin-bottom:6px}
+  input,select{width:100%;background:#080A12;border:1px solid var(--line);
+    color:var(--text);padding:11px 12px;font-size:15px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--gold)}
+  button{background:var(--gold);color:#06080F;border:0;padding:11px 20px;
+    font:600 13px/1 inherit;letter-spacing:2px;cursor:pointer}
+  button:disabled{opacity:.45;cursor:default}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  button.danger{background:transparent;color:var(--bad);border:1px solid var(--bad)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat{background:var(--panel);border:1px solid var(--line);padding:16px}
+  .stat .n{font-size:26px;color:var(--gold-lt);font-variant-numeric:tabular-nums}
+  .stat .k{font-size:10px;letter-spacing:2px;color:var(--muted);margin-top:4px}
+  .muted{color:var(--muted)} .dim{color:var(--dim);font-size:12px}
+  .err{color:var(--bad);margin-top:10px;font-size:14px}
+  .ok{color:var(--gold-lt);margin-top:10px;font-size:14px}
+  .hide{display:none}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:10px;letter-spacing:2px;color:var(--muted);
+     font-weight:600;padding:0 0 8px}
+  td{padding:11px 0;border-top:1px solid var(--faint);vertical-align:middle}
+  code{background:#080A12;padding:2px 6px;font-size:12px;color:var(--muted)}
+  .qr{background:#fff;padding:14px;display:inline-block;max-width:230px}
+  .qr svg{width:100%;height:auto;display:block}
+  .pill{font-size:10px;letter-spacing:1.5px;border:1px solid var(--line);
+        padding:3px 8px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Sign in ─────────────────────────────────────────── -->
+  <div id="login">
+    <div class="eyebrow">HEROES EXPERIENCE PLATFORM</div>
+    <h1>PARTNER PORTAL</h1>
+    <div class="panel" style="margin-top:26px;max-width:420px">
+      <label>EMAIL</label>
+      <input id="email" type="email" autocomplete="username">
+      <div style="height:14px"></div>
+      <label>PASSWORD</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <div style="height:8px"></div>
+      <!-- Only asked for when an email exists at more than one venue. -->
+      <div id="venuePickWrap" class="hide">
+        <label>VENUE</label>
+        <select id="venuePick"></select>
+        <div style="height:8px"></div>
+      </div>
+      <div style="height:10px"></div>
+      <button id="loginBtn">SIGN IN</button>
+      <div id="loginErr" class="err"></div>
+    </div>
+    <p class="dim" style="max-width:420px">
+      Staff accounts are created by your venue owner. If you were invited,
+      use the link you were sent to set a password first.
+    </p>
+  </div>
+
+  <!-- ── Portal ──────────────────────────────────────────── -->
+  <div id="app" class="hide">
+    <div class="row">
+      <div>
+        <div class="eyebrow">PARTNER PORTAL</div>
+        <h1 id="venueName">—</h1>
+        <div class="dim" id="whoami">—</div>
+      </div>
+      <button class="ghost" id="signOut">SIGN OUT</button>
+    </div>
+
+    <h2>LAST 30 DAYS</h2>
+    <div class="stats" id="stats"></div>
+    <div class="dim" id="conversionNote" style="margin-top:10px"></div>
+
+    <h2>EXPERIENCES</h2>
+    <div class="panel"><table id="expTable"><tbody></tbody></table></div>
+
+    <h2>CHECK-IN CODE</h2>
+    <div class="panel">
+      <div class="row" style="align-items:flex-start">
+        <div>
+          <p class="muted" style="margin-top:0">
+            Print this where players check in. Scanning lets them allow this
+            venue to record their deeds — they cannot be seated in an
+            experience until they do.
+          </p>
+          <div class="dim">Encodes <code id="deepLink">—</code></div>
+        </div>
+        <div class="qr" id="qr"></div>
+      </div>
+    </div>
+
+    <div id="staffSection" class="hide">
+      <h2>STAFF</h2>
+      <div class="panel"><table id="staffTable"><tbody></tbody></table></div>
+      <div class="panel">
+        <div class="row">
+          <div style="flex:1"><label>EMAIL</label><input id="inviteEmail" type="email"></div>
+          <div style="width:150px"><label>ROLE</label>
+            <select id="inviteRole">
+              <option value="viewer">Viewer</option>
+              <option value="operator">Operator</option>
+              <option value="manager">Manager</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          <div style="padding-top:20px"><button id="inviteBtn">INVITE</button></div>
+        </div>
+        <div id="inviteOut" class="ok"></div>
+      </div>
+    </div>
+
+    <h2>RECENT RUNS</h2>
+    <div class="panel"><table id="runsTable"><tbody></tbody></table></div>
+  </div>
+</div>
+
+<script>
+const API = location.origin;
+let TOKEN = sessionStorage.getItem('hv_portal_token') || '';
+let PERMS = [];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + '/api/portal/v1' + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
+      ...(opts.headers || {}),
+    },
+  });
+  const body = await res.json().catch(() => null);
+  // A dead session should return you to the door, not to a broken page.
+  if (res.status === 401 && TOKEN) { signOut(); throw new Error('Session expired'); }
+  if (!res.ok) {
+    // Carry the body through. A 409 on login lists the venues where this
+    // address exists, and losing it means the picker can never populate.
+    const err = new Error(body?.message || ('Request failed (' + res.status + ')'));
+    Object.assign(err, body || {});
+    throw err;
+  }
+  return body?.data ?? body;
+}
+
+// ── Sign in ───────────────────────────────────────────────
+$('loginBtn').onclick = async () => {
+  $('loginErr').textContent = '';
+  $('loginBtn').disabled = true;
+  try {
+    const pick = $('venuePick');
+    const body = {
+      email: $('email').value.trim(),
+      password: $('password').value,
+      ...(pick.value ? { source_id: pick.value } : {}),
+    };
+    const out = await api('/auth/login', { method: 'POST', body: JSON.stringify(body) });
+    TOKEN = out.session_token;
+    sessionStorage.setItem('hv_portal_token', TOKEN);
+    await boot();
+  } catch (e) {
+    // 409 means the address exists at several venues — ask which, rather
+    // than making an operator memorise a venue id up front.
+    const venues = e.venues;
+    if (venues) {
+      $('venuePickWrap').classList.remove('hide');
+      $('venuePick').innerHTML = venues.map(v => `<option>${esc(v)}</option>`).join('');
+    }
+    $('loginErr').textContent = e.message;
+  } finally {
+    $('loginBtn').disabled = false;
+  }
+};
+$('password').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+
+function signOut() {
+  TOKEN = '';
+  sessionStorage.removeItem('hv_portal_token');
+  $('app').classList.add('hide');
+  $('login').classList.remove('hide');
+}
+$('signOut').onclick = async () => {
+  await api('/auth/logout', { method: 'POST' }).catch(() => {});
+  signOut();
+};
+
+// ── Load ──────────────────────────────────────────────────
+async function boot() {
+  const me = await api('/me');
+  PERMS = me.permissions || [];
+  $('venueName').textContent = me.venue.name || me.venue.source_id;
+  $('whoami').textContent = `${me.staff.email} · ${me.staff.role}`;
+  $('login').classList.add('hide');
+  $('app').classList.remove('hide');
+
+  // Sections appear only if the role can use them. The server enforces
+  // this too; hiding is courtesy, not security.
+  if (PERMS.includes('staff.manage')) $('staffSection').classList.remove('hide');
+
+  await Promise.all([loadStats(), loadExperiences(), loadRuns(), loadQr()]);
+  if (PERMS.includes('staff.manage')) loadStaff();
+}
+
+async function loadStats() {
+  const s = await api('/analytics?days=30');
+  const rate = s.runs.completion_rate;
+  const conv = s.walk_in_conversion;
+  $('stats').innerHTML = [
+    ['RUNS', s.runs.total],
+    ['COMPLETED', s.runs.completed],
+    // null, not 0 — a venue with no finished runs has no rate, and 0%
+    // would read as "everyone fails here".
+    ['COMPLETION', rate === null ? '—' : Math.round(rate * 100) + '%'],
+    ['VISITORS', s.visitors.unique_heroes],
+    ['REPEAT', s.visitors.repeat_visitors],
+    ['XP GRANTED', s.rewards.xp_granted.toLocaleString()],
+  ].map(([k, n]) => `<div class="stat"><div class="n">${esc(n)}</div><div class="k">${k}</div></div>`).join('');
+
+  $('conversionNote').textContent = conv.claims_issued
+    ? `Walk-ins: ${conv.claims_redeemed} of ${conv.claims_issued} guests became players (${Math.round((conv.rate||0)*100)}%). Cross-venue continuation: ${s.cross_venue_continuation}.`
+    : 'No guest testaments issued yet.';
+}
+
+async function loadExperiences() {
+  const rows = await api('/experiences');
+  const canEdit = PERMS.includes('experiences.manage');
+  $('expTable').querySelector('tbody').innerHTML = rows.length ? rows.map(r => `
+    <tr>
+      <td><strong>${esc(r.name)}</strong><div class="dim">${esc(r.min_players)}–${esc(r.max_players)} players · ~${Math.round(r.target_duration_sec/60)} min · v${esc(r.version)}</div></td>
+      <td style="text-align:right">
+        <span class="pill">${r.enabled ? 'LIVE' : 'PAUSED'}</span>
+        ${canEdit ? `<button class="ghost" style="margin-left:10px" data-slug="${esc(r.slug)}" data-next="${r.enabled?'false':'true'}">${r.enabled?'PAUSE':'RESUME'}</button>` : ''}
+      </td>
+    </tr>`).join('')
+    : `<tr><td class="dim">No experiences assigned. Contact Heroes to add one.</td></tr>`;
+
+  $('expTable').querySelectorAll('button[data-slug]').forEach(b => {
+    b.onclick = async () => {
+      b.disabled = true;
+      await api('/experiences/' + b.dataset.slug, {
+        method: 'PATCH', body: JSON.stringify({ enabled: b.dataset.next === 'true' }),
+      });
+      loadExperiences();
+    };
+  });
+}
+
+async function loadRuns() {
+  const runs = await api('/runs?limit=15');
+  $('runsTable').querySelector('tbody').innerHTML = runs.length ? runs.map(r => `
+    <tr>
+      <td><span class="pill">${esc(r.status.toUpperCase())}</span></td>
+      <td>${new Date(r.started_at).toLocaleString()}</td>
+      <td class="dim">${r.participants.length} seat(s)${r.duration_sec ? ' · ' + Math.round(r.duration_sec/60) + ' min' : ''}</td>
+      <td style="text-align:right" class="dim">${r.payout_multiplier != null ? '×' + r.payout_multiplier : ''}</td>
+    </tr>`).join('')
+    : `<tr><td class="dim">No runs yet.</td></tr>`;
+}
+
+async function loadQr() {
+  if (!PERMS.includes('assets.generate')) return;
+  const q = await api('/qr/venue');
+  $('qr').innerHTML = q.qr_svg;
+  $('deepLink').textContent = q.deep_link;
+}
+
+async function loadStaff() {
+  const rows = await api('/staff');
+  $('staffTable').querySelector('tbody').innerHTML = rows.map(s => `
+    <tr>
+      <td>${esc(s.email)}<div class="dim">${s.last_login_at ? 'Last in ' + new Date(s.last_login_at).toLocaleDateString() : 'Never signed in'}</div></td>
+      <td style="text-align:right">
+        <span class="pill">${esc(s.role.toUpperCase())}</span>
+        <span class="pill" style="margin-left:6px">${esc(s.status.toUpperCase())}</span>
+        ${s.status === 'active' ? `<button class="danger" style="margin-left:10px" data-suspend="${esc(s.staff_id)}">SUSPEND</button>` : ''}
+      </td>
+    </tr>`).join('');
+
+  $('staffTable').querySelectorAll('button[data-suspend]').forEach(b => {
+    b.onclick = async () => {
+      if (!confirm('Suspend this account? They are signed out immediately.')) return;
+      try {
+        await api('/staff/' + b.dataset.suspend, {
+          method: 'PATCH', body: JSON.stringify({ status: 'suspended' }),
+        });
+        loadStaff();
+      } catch (e) { alert(e.message); }  // e.g. the last active owner
+    };
+  });
+}
+
+$('inviteBtn').onclick = async () => {
+  $('inviteOut').textContent = '';
+  try {
+    const out = await api('/staff/invite', {
+      method: 'POST',
+      body: JSON.stringify({ email: $('inviteEmail').value.trim(), role: $('inviteRole').value }),
+    });
+    // Shown once and unrecoverable — say so, or an owner will close the
+    // tab and lock a colleague out.
+    $('inviteOut').innerHTML =
+      `Invite created. Send this link — it is shown once and cannot be retrieved:<br>` +
+      `<code>${location.origin}/venue.html#accept=${esc(out.invite_token)}</code>`;
+    $('inviteEmail').value = '';
+    loadStaff();
+  } catch (e) { $('inviteOut').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+};
+
+// ── Invite acceptance ─────────────────────────────────────
+(async function init() {
+  const m = location.hash.match(/#accept=(.+)$/);
+  if (m) {
+    const pw = prompt('Welcome. Choose a password (at least 10 characters):');
+    if (pw) {
+      try {
+        const out = await api('/auth/accept', {
+          method: 'POST',
+          body: JSON.stringify({ invite_token: decodeURIComponent(m[1]), password: pw }),
+        });
+        TOKEN = out.session_token;
+        sessionStorage.setItem('hv_portal_token', TOKEN);
+        history.replaceState(null, '', location.pathname);
+        return boot();
+      } catch (e) { $('loginErr').textContent = e.message; }
+    }
+    history.replaceState(null, '', location.pathname);
+  }
+  if (TOKEN) boot().catch(signOut);
+})();
+</script>
+</body>
+</html>
