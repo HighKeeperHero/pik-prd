@@ -45,6 +45,7 @@ import { MemoriaModule }    from './memoria/memoria.module';          // ← Spr
 import { LoreModule }       from './lore/lore.module';                // ← 2026-07-06 Lore Archive collection
 import { FlagsModule }      from './flags/flags.module';              // ← 2026-07-09 alpha release pipeline
 import { FoxModule }        from './fox/fox.module';                  // ← 2026-07-09 Fate Fox Calling (L50)
+import { MailModule }       from './mail/mail.module';                // ← HEP Phase 2 (venue staff password reset + invites)
 
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
@@ -149,6 +150,7 @@ class HealthController {
     LoreModule,           // ← 2026-07-06 Lore Archive collection
     FlagsModule,          // ← 2026-07-09 alpha release pipeline
     FoxModule,            // ← 2026-07-09 Fate Fox Calling (L50)
+    MailModule,           // ← HEP Phase 2 (global: reset + invite delivery)
   ],
   controllers: [HealthController],
   providers: [

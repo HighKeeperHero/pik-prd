@@ -293,6 +293,20 @@ model VenueStaff {
   /// Single-use invite credential, hashed. Cleared once accepted.
   inviteHash   String?   @unique @map("invite_hash")
   inviteExpires DateTime? @map("invite_expires")
+
+  /// Single-use password-reset credential, hashed. Cleared once used.
+  ///
+  /// Deliberately NOT reusing inviteHash. The two are disjoint today only
+  /// because acceptInvite requires status='invited' while reset requires
+  /// status='active' — one shared column would make that check the only
+  /// thing standing between an unaccepted invite token and a password
+  /// reset on a live account. Two columns cost one additive migration and
+  /// remove the question.
+  resetHash    String?   @unique @map("reset_hash")
+  resetExpires DateTime? @map("reset_expires")
+  /// Throttles resend, so /auth/forgot cannot be used to mailbomb a member.
+  resetRequestedAt DateTime? @map("reset_requested_at")
+
   lastLoginAt  DateTime? @map("last_login_at")
   createdAt    DateTime  @default(now()) @map("created_at")
 

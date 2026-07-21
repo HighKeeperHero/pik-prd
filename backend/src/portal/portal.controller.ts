@@ -28,6 +28,8 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { PlatformAdminGuard } from '../auth/guards/platform-admin.guard';
+import { MailService } from '../mail/mail.service';
 import { PortalService } from './portal.service';
 import { PortalAnalyticsService } from './portal-analytics.service';
 import {
@@ -43,6 +45,7 @@ export class PortalController {
   constructor(
     private readonly portal: PortalService,
     private readonly analyticsService: PortalAnalyticsService,
+    private readonly mail: MailService,
   ) {}
 
   // ── Unauthenticated: sign-in and invite acceptance ────────────
@@ -67,6 +70,30 @@ export class PortalController {
       body.password ?? '',
       body.display_name,
     );
+  }
+
+  /**
+   * Begin a password reset.
+   *
+   * Always 202, whatever the address. The body never varies, so this
+   * cannot be used to enumerate which venues employ whom — the same
+   * reason `login` gives one message for both its failure modes.
+   *
+   * Throttled harder than login: a reset costs an outbound email, so
+   * the abuse here is someone else's inbox, not just our CPU.
+   */
+  @Post('auth/forgot')
+  @HttpCode(202)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  forgot(@Body() body: { email?: string; source_id?: string }) {
+    return this.portal.requestPasswordReset(body.email ?? '', body.source_id);
+  }
+
+  @Post('auth/reset')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  reset(@Body() body: { reset_token?: string; password?: string }) {
+    return this.portal.resetPassword(body.reset_token ?? '', body.password ?? '');
   }
 
   // ── Authenticated ─────────────────────────────────────────────
@@ -200,5 +227,29 @@ export class PortalController {
   @RequirePermission('staff.manage')
   audit(@Req() req: StaffRequest, @Query('limit') limit?: string) {
     return this.portal.listAudit(req.staff, limit ? parseInt(limit, 10) : 50);
+  }
+
+  // ── Mail outbox (log transport only) ──────────────────────────
+
+  /**
+   * Read what the `log` transport captured.
+   *
+   * This exists so the reset flow can be asserted end to end in an
+   * environment with no mail provider — otherwise the newest
+   * authentication code would ship with its happy path untested,
+   * which is the exact failure mode the slice-1 harness taught us
+   * to distrust.
+   *
+   * Gated twice: platform-admin key, AND MailService returns nothing
+   * unless the transport is `log`. Configuring a real provider closes
+   * this door without anyone remembering to.
+   */
+  @Get('_mail/outbox')
+  @UseGuards(PlatformAdminGuard)
+  outbox() {
+    return {
+      transport: this.mail.transport,
+      messages: this.mail.readOutbox(),
+    };
   }
 }

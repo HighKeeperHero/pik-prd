@@ -86,6 +86,9 @@
       <div style="height:10px"></div>
       <button id="loginBtn">SIGN IN</button>
       <div id="loginErr" class="err"></div>
+      <div id="forgotOk" class="ok"></div>
+      <div style="height:10px"></div>
+      <a id="forgotLink" href="#" class="dim" style="font-size:13px">Forgot your password?</a>
     </div>
     <p class="dim" style="max-width:420px">
       Staff accounts are created by your venue owner. If you were invited,
@@ -336,17 +339,62 @@ $('inviteBtn').onclick = async () => {
       body: JSON.stringify({ email: $('inviteEmail').value.trim(), role: $('inviteRole').value }),
     });
     // Shown once and unrecoverable — say so, or an owner will close the
-    // tab and lock a colleague out.
+    // tab and lock a colleague out. The link is still printed even when
+    // the email went: mail bounces, and this is the fallback.
     $('inviteOut').innerHTML =
-      `Invite created. Send this link — it is shown once and cannot be retrieved:<br>` +
+      (out.invite_emailed
+        ? `Invite emailed to ${esc(out.email)}. If it does not arrive, send this link instead:<br>`
+        : `Invite created, but <strong>no email was sent</strong> — send this link yourself. ` +
+          `It is shown once and cannot be retrieved:<br>`) +
       `<code>${location.origin}/venue.html#accept=${esc(out.invite_token)}</code>`;
     $('inviteEmail').value = '';
     loadStaff();
   } catch (e) { $('inviteOut').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
 };
 
-// ── Invite acceptance ─────────────────────────────────────
+// ── Forgot password ───────────────────────────────────────
+$('forgotLink').onclick = async (e) => {
+  e.preventDefault();
+  $('loginErr').textContent = '';
+  $('forgotOk').textContent = '';
+  const email = $('email').value.trim();
+  if (!email) {
+    $('loginErr').textContent = 'Enter your email address first.';
+    return;
+  }
+  try {
+    const out = await api('/auth/forgot', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    // The server deliberately does not say whether the account exists,
+    // so neither do we.
+    $('forgotOk').textContent = out.message;
+  } catch (err) {
+    $('loginErr').textContent = err.message;
+  }
+};
+
+// ── Invite acceptance and password reset ──────────────────
 (async function init() {
+  const r = location.hash.match(/#reset=(.+)$/);
+  if (r) {
+    const pw = prompt('Choose a new password (at least 10 characters):');
+    if (pw) {
+      try {
+        const out = await api('/auth/reset', {
+          method: 'POST',
+          body: JSON.stringify({ reset_token: decodeURIComponent(r[1]), password: pw }),
+        });
+        TOKEN = out.session_token;
+        sessionStorage.setItem('hv_portal_token', TOKEN);
+        history.replaceState(null, '', location.pathname);
+        return boot();
+      } catch (e) { $('loginErr').textContent = e.message; }
+    }
+    history.replaceState(null, '', location.pathname);
+  }
+
   const m = location.hash.match(/#accept=(.+)$/);
   if (m) {
     const pw = prompt('Welcome. Choose a password (at least 10 characters):');

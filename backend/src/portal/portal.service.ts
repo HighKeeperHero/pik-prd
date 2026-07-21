@@ -20,6 +20,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma.service';
+import { MailService } from '../mail/mail.service';
 import { ROLES, isRole, permissionsFor, type Role } from './roles';
 import type { ResolvedStaff } from './venue-staff.guard';
 
@@ -30,11 +31,39 @@ const INVITE_TTL_DAYS = 14;
 /** Minimum viable password. Venue staff share terminals; short is not fine. */
 const MIN_PASSWORD = 10;
 
+/**
+ * Reset links are short-lived — far shorter than an invite. An invite is
+ * an arrangement made in advance ("start Monday"); a reset is someone
+ * standing at a terminal right now.
+ */
+const RESET_TTL_MINUTES = 60;
+
+/** Minimum gap between reset mails to one account. */
+const RESET_COOLDOWN_MS = 60_000;
+
+/**
+ * Where the portal is served, for links in mail.
+ *
+ * The portal ships inside the backend (`/venue.html`), so the API's own
+ * public domain is the right default and there is no second URL to keep
+ * in sync. PORTAL_BASE_URL overrides it for a custom domain.
+ */
+function portalBaseUrl(): string {
+  const explicit = process.env.PORTAL_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railway) return `https://${railway}`;
+  return `http://localhost:${process.env.PORT ?? '8080'}`;
+}
+
 @Injectable()
 export class PortalService {
   private readonly logger = new Logger(PortalService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   // ────────────────────────────────────────────────────────────
   // AUTH
@@ -179,6 +208,151 @@ export class PortalService {
   }
 
   // ────────────────────────────────────────────────────────────
+  // PASSWORD RESET
+  //
+  // The point of this whole seam: a venue owner who forgets their
+  // password recovers on their own. Without it, recovery is a Heroes
+  // engineer with database access — which is precisely the per-venue
+  // custom engineering Phase 2 exists to remove.
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * Begin a reset. Always succeeds from the caller's point of view.
+   *
+   * The response is identical whether the address is unknown, invited,
+   * suspended, or active — for the same reason `login` returns one
+   * message for both failure modes: this endpoint is unauthenticated and
+   * must not become an oracle for which venues employ whom.
+   */
+  async requestPasswordReset(email: string, sourceId?: string) {
+    const normalized = email?.toLowerCase().trim();
+
+    // The uniform reply, returned on every path below including the
+    // failures. Built once so no branch can accidentally differ.
+    const ack = {
+      ok: true,
+      message:
+        'If that address has an active staff account, a reset link is on its way.',
+    };
+
+    if (!normalized) return ack;
+
+    // Only 'active' accounts. An 'invited' member has no password to
+    // reset (their invite is the credential, and honouring a reset here
+    // would be a second, weaker path to activation); a 'suspended' one
+    // must not be able to reset their way back into a session.
+    const candidates = await this.prisma.venueStaff.findMany({
+      where: {
+        email: normalized,
+        status: 'active',
+        ...(sourceId ? { sourceId } : {}),
+      },
+      include: { source: { select: { name: true } } },
+    });
+
+    for (const staff of candidates) {
+      // Cooldown, so this endpoint cannot be used to mailbomb a member.
+      // Silent: a "too soon" reply would leak that the account exists.
+      const last = staff.resetRequestedAt?.getTime() ?? 0;
+      if (Date.now() - last < RESET_COOLDOWN_MS) {
+        this.logger.log(
+          `Reset re-requested within cooldown for staff:${staff.id} — not resending`,
+        );
+        continue;
+      }
+
+      const token = randomBytes(32).toString('base64url');
+      await this.prisma.venueStaff.update({
+        where: { id: staff.id },
+        data: {
+          // A new request invalidates the previous link.
+          resetHash: createHash('sha256').update(token).digest('hex'),
+          resetExpires: new Date(Date.now() + RESET_TTL_MINUTES * 60_000),
+          resetRequestedAt: new Date(),
+        },
+      });
+
+      const result = await this.mail.passwordReset({
+        to: staff.email,
+        venueName: staff.source.name,
+        link: `${portalBaseUrl()}/venue.html#reset=${token}`,
+        ttlMinutes: RESET_TTL_MINUTES,
+      });
+
+      await this.audit(staff.sourceId, staff.id, 'staff.reset_requested', staff.id, {
+        delivered: result.delivered,
+        transport: result.transport,
+      });
+    }
+
+    // A caller who supplies an address held at several venues gets one
+    // link per venue. That is correct: they are separate grants, and the
+    // mail names the venue.
+    return ack;
+  }
+
+  /**
+   * Finish a reset: set the new password and burn the token.
+   *
+   * Every existing session for the member is destroyed. A reset is what
+   * someone does when they believe their account is compromised, so
+   * leaving the attacker's 12-hour session alive would defeat the act.
+   */
+  async resetPassword(token: string, password: string) {
+    if (!token) throw new BadRequestException('Missing reset token');
+    if (!password || password.length < MIN_PASSWORD) {
+      throw new BadRequestException(
+        `Password must be at least ${MIN_PASSWORD} characters`,
+      );
+    }
+
+    const resetHash = createHash('sha256').update(token).digest('hex');
+    const staff = await this.prisma.venueStaff.findUnique({ where: { resetHash } });
+
+    // One message for "no such token", "already used" and "wrong status",
+    // matching the non-disclosure of the request half.
+    if (!staff || staff.status !== 'active') {
+      throw new UnauthorizedException('Reset link is invalid or already used');
+    }
+    if (!staff.resetExpires || staff.resetExpires.getTime() < Date.now()) {
+      throw new UnauthorizedException('Reset link has expired');
+    }
+
+    const updated = await this.prisma.venueStaff.update({
+      where: { id: staff.id },
+      data: {
+        passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
+        resetHash: null,
+        resetExpires: null,
+        // resetRequestedAt deliberately left standing: it is the cooldown
+        // clock, and clearing it would let a completed reset be
+        // immediately re-requested.
+      },
+    });
+
+    // Evict everyone, including whoever prompted the reset.
+    const { count } = await this.prisma.venueStaffSession.deleteMany({
+      where: { staffId: staff.id },
+    });
+
+    await this.audit(updated.sourceId, updated.id, 'staff.password_reset', updated.id, {
+      sessions_revoked: count,
+    });
+
+    // A fresh session, so the operator lands signed in rather than being
+    // bounced to a login screen holding a password they just invented.
+    const session = await this.issueSession(updated.id);
+
+    return {
+      session_token: session.token,
+      expires_at: session.expiresAt.toISOString(),
+      staff: this.presentStaff(updated),
+      permissions: permissionsFor(updated.role),
+      sessions_revoked: count,
+    };
+  }
+
+  // ────────────────────────────────────────────────────────────
   // STAFF ADMINISTRATION
   // ────────────────────────────────────────────────────────────
 
@@ -231,16 +405,40 @@ export class PortalService {
       },
     });
 
+    const venue = await this.prisma.source.findUnique({
+      where: { id: sourceId },
+      select: { name: true },
+    });
+
+    const delivery = await this.mail.staffInvite({
+      to: email,
+      venueName: venue?.name ?? 'the venue',
+      role: params.role,
+      inviterName: actor?.displayName || actor?.email || 'Heroes',
+      // `#accept=` — the fragment venue.html already listens for. A
+      // different name here would send a live invite to a page that
+      // silently ignores it.
+      link: `${portalBaseUrl()}/venue.html#accept=${inviteToken}`,
+      ttlDays: INVITE_TTL_DAYS,
+    });
+
     await this.audit(sourceId, actor?.id ?? null, 'staff.invited', created.id, {
       email,
       role: params.role,
+      delivered: delivery.delivered,
     });
 
     return {
       ...this.presentStaff(created),
-      // Shown once. The inviter passes it on; we cannot re-derive it.
+      // Still returned, and still shown once. Mail delivery is now the
+      // primary path, but the hand-carry must not disappear: it is the
+      // fallback when the provider is down or the address bounces, and
+      // it is the only path at all while the transport is `log`.
       invite_token: inviteToken,
       invite_expires: created.inviteExpires?.toISOString(),
+      // So the portal can say "emailed" or "copy this link" honestly
+      // rather than claiming a delivery that did not happen.
+      invite_emailed: delivery.delivered,
     };
   }
 
