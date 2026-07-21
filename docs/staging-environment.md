@@ -1,81 +1,87 @@
-# Standing up a staging environment for pik-prd
+# pik-prd environments
 
 Written 2026-07-20 alongside HEP Phase 2 Slice 0.
 
-## Why now
+## What exists
 
-There is currently one environment. `main` pushes deploy straight to the
-service that serves the alpha testers, and the container CMD is
-`npx prisma migrate deploy && node dist/main.js` — so a bad migration doesn't
-just ship a bug, it prevents the app from booting.
+Railway project `PIK-PRD`, service `pik-prd`, two environments:
 
-That was acceptable while PIK was a POC. It stops being acceptable in Phase 2
-for a specific reason: partner venues integrate against this API. A partner
-needs somewhere to develop and test their client that is not the database
-holding real player progression, and Heroes needs somewhere to rehearse a
-migration before it touches that database.
-
-## Shape
-
-Two Railway services, two Postgres instances, one repo, one branch strategy:
-
-| | staging | production |
+| | Staging | Production |
 |---|---|---|
-| Deploys from | `main` (auto) | git tag or manual promote (deliberate) |
-| Database | its own Postgres | existing |
-| Data | seeded / disposable | real players |
-| Partner keys | partner sandbox keys | real venue keys |
+| URL | `pik-prd-staging.up.railway.app` | `pik-prd-production.up.railway.app` |
+| Deploys | **automatically from `main`** | deliberate promote |
+| Data | disposable (`StageProbe` et al.) | real alpha testers |
 
-The inversion matters: **`main` should auto-deploy to staging, not prod.**
-Production becomes a deliberate promote. Today it is the reverse, which is why
-every merge is a production event.
+**Pushing `main` is a staging event, not a production event.** Verified
+2026-07-20: after the Slice 0 push, staging returned 403 on the newly guarded
+operator routes while production still returned 200.
+
+## The trap
+
+The application code is **environment-blind**. There are zero references to
+`RAILWAY_ENVIRONMENT`, `staging`, or `preview` anywhere in `backend/src`, so:
+
+- logs are identical between the two,
+- `/api/health` cannot tell you which environment answered,
+- reading the source will convince you no split exists. It does.
+
+`railway status` is the only authoritative answer. Treat the code as unable to
+describe its own deployment.
+
+**Worth fixing:** have `/api/health` report the environment. One field would
+remove a whole class of "which one am I talking to?" mistakes, and it becomes
+load-bearing in Phase 2 when partner venues point clients at one or the other.
+
+## Migrations run at boot
+
+The container CMD is `npx prisma migrate deploy && node dist/main.js`. A
+migration that fails takes the boot down with it — so a bad migration is an
+outage, not a bug. Railway keeps the previous container serving on a failed
+deploy, which masks this: health stays 200 while the new build never lands.
+When verifying a deploy, probe a route whose *behavior* changed, not `/health`.
 
 ## Env vars
 
-The backend reads these (via bare `process.env` — there is no `@nestjs/config`
-and no `dotenv` dependency; `.env` reaches the process only because
-`@prisma/client` loads it on import, which is incidental and should not be
-relied on):
+Read via bare `process.env` — there is no `@nestjs/config` and no `dotenv`
+dependency. `.env` reaches the process only because `@prisma/client` loads it on
+import, which is incidental and should not be relied on. For local runs, export
+the var in the shell rather than adding it to `.env`.
 
-| Var | Staging value |
+| Var | Notes |
 |---|---|
-| `DATABASE_URL` | staging Postgres (Railway injects) |
+| `DATABASE_URL` | Railway injects per environment |
 | `PORT` | `8080` |
-| `NODE_ENV` | `production` (widening CORS in dev is the only use) |
-| `HV_PLATFORM_ADMIN_KEY` | **a different key from prod** |
-| `WEBAUTHN_RP_NAME` / `RP_ID` / `ORIGIN` | must match the staging hostname or passkeys fail |
-| `GOOGLE_CLIENT_ID` | same |
-| `APPLE_CLIENT_ID` | same |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | can be omitted if IAP is untested on staging |
-| `AR_PLACEHOLDER_USDZ_URL` | same |
+| `NODE_ENV` | only used to widen CORS in dev |
+| `HV_PLATFORM_ADMIN_KEY` | Phase 2 Slice 0. **Different value per environment.** Guard fails closed — unset means operator routes 503 |
+| `WEBAUTHN_RP_NAME` / `RP_ID` / `ORIGIN` | bound to the hostname; copying prod's values to staging produces passkey failures that look like client bugs |
+| `GOOGLE_CLIENT_ID`, `APPLE_CLIENT_ID` | sign-in |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | omit on staging if IAP is untested there |
+| `AR_PLACEHOLDER_USDZ_URL` | relic marks |
 
-`WEBAUTHN_*` is the one that silently breaks: the RP ID is bound to the origin,
-so copying prod's values to a staging hostname produces passkey failures that
-look like client bugs. Note also the app has **no** environment self-awareness —
-nothing reads `RAILWAY_ENVIRONMENT` — so staging and prod are indistinguishable
-in logs and in the `/api/health` response. Worth adding.
+To run a local script against an environment's secrets without ever printing
+them:
+
+```bash
+railway run --environment Staging --service pik-prd -- npx ts-node scripts/verify-slice0.ts
+```
+
+`--environment` and `--service` are required when not attached to a terminal.
 
 ## Seeding
 
-Order matters; `seed:pop` is the one that silently degrades if skipped:
+Order matters; `seed:pop` silently degrades if skipped (Veil tears fall back to
+the old 9-city rows):
 
 ```bash
 npm run prisma:seed
-npm run seed:pop      # or Veil tears fall back to the old 9-city rows
+npm run seed:pop
 npm run seed:lore
 npm run seed:quests
 ```
 
 ## Client pointing
 
-The native app reads `EXPO_PUBLIC_PIK_API_URL`, defaulting to
-`https://pik-prd-production.up.railway.app` (`src/api/pik.ts:12`). Point dev
-builds at staging via EAS env vars — and diff `eas env:list` per environment
-first, since preview/development chronically lack vars that only exist in
-production.
-
-## Cost
-
-Two services + two Postgres. Small, and it buys a place to run
-`scripts/verify-slice0.ts` and every future partner integration test without
-touching player data.
+The native app reads `EXPO_PUBLIC_PIK_API_URL`, defaulting to the **production**
+URL (`src/api/pik.ts:12`). Point dev builds at staging via EAS env vars — and
+diff `eas env:list` per environment first, since preview/development chronically
+lack vars that only exist in production.
