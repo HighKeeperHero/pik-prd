@@ -82,27 +82,64 @@ const admin = () => ({ 'X-HV-Admin-Key': ADMIN_KEY! });
 const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 const unwrap = (b: any) => b?.data ?? b;
 
-/** Provision a venue and invite + activate its founding owner. */
+/**
+ * Provision a venue and invite + activate its founding owner.
+ *
+ * Reports WHICH step failed. The first run of this harness aborted with a
+ * bare "founding owner invited and activated ✗" and no detail, which told
+ * nobody that staging simply had not finished building yet.
+ */
 async function makeVenueWithOwner(id: string) {
   const created = await call('/api/sources', {
     method: 'POST', headers: admin(),
     body: { source_id: id, source_name: `Slice2 ${id}` },
   });
   const apiKey = unwrap(created.body)?.api_key;
+  if (!apiKey) {
+    return { error: `create venue -> ${created.status}`, detail: created.body };
+  }
 
   const invite = await call(`/api/sources/${id}/staff`, {
     method: 'POST', headers: admin(),
     body: { email: `owner@${id}.test`, role: 'owner', display_name: 'Founding Owner' },
   });
   const inviteToken = unwrap(invite.body)?.invite_token;
-  if (!inviteToken) return null;
+  if (!inviteToken) {
+    return { error: `invite owner -> ${invite.status}`, detail: invite.body };
+  }
 
   const accepted = await call('/api/portal/v1/auth/accept', {
     method: 'POST',
     body: { invite_token: inviteToken, password: PASSWORD, display_name: 'Founding Owner' },
   });
   const token = unwrap(accepted.body)?.session_token;
-  return token ? { apiKey, ownerToken: token, id } : null;
+  if (!token) {
+    return { error: `accept invite -> ${accepted.status}`, detail: accepted.body };
+  }
+
+  return { apiKey, ownerToken: token, id };
+}
+
+/**
+ * Fail fast and legibly when the deployment predates this harness.
+ *
+ * An unauthenticated portal route must answer 401 (it exists, you are not
+ * signed in). A 404 means the build has not landed — which is a deploy
+ * timing question, not a broken feature, and the two should never look
+ * the same from here.
+ */
+async function preflight() {
+  const probe = await call('/api/portal/v1/me');
+  if (probe.status === 404) {
+    console.error(
+      '\n⛔ /api/portal/v1 is not deployed yet (404).\n' +
+        '   Staging is probably still building. Check:\n' +
+        `     curl -s ${API}/api/health\n` +
+        '   then re-run once the Slice 2 build is live.\n',
+    );
+    process.exit(1);
+  }
+  check('portal API is deployed', probe.status === 401, probe.status);
 }
 
 /** Invite a colleague at `role` and activate them; returns their session. */
@@ -152,10 +189,20 @@ async function main() {
 
   // ── 0. Onboarding ────────────────────────────────────────────────
   console.log('0. Venue onboarding');
+  await preflight();
+
   const a = await makeVenueWithOwner(venues[0]);
-  requireOrAbort('founding owner invited and activated', Boolean(a?.ownerToken));
+  requireOrAbort(
+    'founding owner invited and activated',
+    Boolean(a?.ownerToken),
+    (a as any)?.error ? { failed_at: (a as any).error, response: (a as any).detail } : undefined,
+  );
   const b = await makeVenueWithOwner(venues[1]);
-  requireOrAbort('second venue provisioned', Boolean(b?.ownerToken));
+  requireOrAbort(
+    'second venue provisioned',
+    Boolean(b?.ownerToken),
+    (b as any)?.error ? { failed_at: (b as any).error, response: (b as any).detail } : undefined,
+  );
 
   const me = await call('/api/portal/v1/me', { headers: bearer(a!.ownerToken) });
   check('owner sees their own venue and role',
