@@ -16,10 +16,27 @@ import {
   IsString,
   IsNotEmpty,
   IsObject,
-  ValidateNested,
+  IsOptional,
+  MaxLength,
 } from 'class-validator';
 
 export class IngestEventDto {
+  /**
+   * Idempotency key — a stable identifier for the real-world occurrence
+   * this event describes (e.g. the venue's own session/encounter id).
+   * Retrying with the same event_id returns the original response and
+   * grants nothing further.
+   *
+   * Optional for backward compatibility with partners integrated before
+   * Phase 2 Slice 0. Omitting it means the request is NOT deduplicated;
+   * the response carries a `deduplicated: false` warning, and it becomes
+   * required at the Phase 2 partner-contract freeze.
+   */
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  event_id?: string;
+
   /**
    * The RootID of the user receiving this event.
    */

@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { LootService } from './loot.service';
 import { AccountGuard } from '../auth/guards/account.guard';
+import { PlatformAdminGuard } from '../auth/guards/platform-admin.guard';
 
 @Controller('api')
 export class LootController {
@@ -66,8 +67,12 @@ export class LootController {
   /**
    * POST /api/loot/grant
    * Body: { root_id, cache_type, rarity? }
+   *
+   * Mints real loot into any player's inventory. Heroes staff only —
+   * this was open to the internet before Phase 2 Slice 0.
    */
   @Post('loot/grant')
+  @UseGuards(PlatformAdminGuard)
   async grantCacheManual(
     @Body() body: { root_id: string; cache_type: string; rarity?: string },
   ) {
@@ -81,6 +86,7 @@ export class LootController {
    * Idempotent — safe to run multiple times.
    */
   @Post('loot/seed-base-items')
+  @UseGuards(PlatformAdminGuard)
   async seedBaseItems() {
     return this.loot.seedBaseItems();
   }
@@ -91,6 +97,7 @@ export class LootController {
    * Use to verify Phase 1 seed state.
    */
   @Get('loot/debug-engine')
+  @UseGuards(PlatformAdminGuard)
   async debugEngine() {
     return this.loot.debugBaseItems();
   }
@@ -101,6 +108,7 @@ export class LootController {
    * Dry-run a Phase 4 family roll — useful for QA.
    */
   @Post('loot/test-roll')
+  @UseGuards(PlatformAdminGuard)
   async testRoll(
     @Body() body: { root_id: string; cache_type: string; fate_level: number; region_hint?: string },
   ) {
@@ -120,6 +128,7 @@ export class LootController {
    * Required because migrations were marked applied without executing SQL.
    */
   @Post('loot/bootstrap-tables')
+  @UseGuards(PlatformAdminGuard)
   async bootstrapTables() {
     return this.loot.bootstrapTables();
   }

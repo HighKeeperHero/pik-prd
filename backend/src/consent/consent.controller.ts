@@ -15,11 +15,17 @@ import {
   Delete,
   Param,
   Body,
+  UseGuards,
 } from '@nestjs/common';
+import { SelfOrAdminGuard } from '../auth/guards/self-or-admin.guard';
 import { ConsentService } from './consent.service';
 import { GrantLinkDto } from './dto/grant-link.dto';
 import { RevokeLinkDto } from './dto/revoke-link.dto';
 
+// Every route here reads or writes a player's consent receipts, so all
+// three require the player themselves or Heroes staff (Phase 2 Slice 0 —
+// they were previously unauthenticated).
+@UseGuards(SelfOrAdminGuard)
 @Controller('api/users/:root_id/links')
 export class ConsentController {
   constructor(private readonly consentService: ConsentService) {}

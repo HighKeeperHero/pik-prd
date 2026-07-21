@@ -24,6 +24,8 @@ import { PrismaService } from '../../prisma.service';
 export interface ResolvedSource {
   id: string;
   name: string;
+  /** Partner-level capability ceiling, space-delimited (Phase 2 Slice 0). */
+  scopes: string;
 }
 
 @Injectable()
@@ -49,6 +51,7 @@ export class ApiKeyGuard implements CanActivate {
       select: {
         id: true,
         name: true,
+        scopes: true,
       },
     });
 

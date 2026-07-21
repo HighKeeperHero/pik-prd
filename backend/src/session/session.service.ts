@@ -244,6 +244,19 @@ export class SessionService {
     }));
   }
 
+  /**
+   * Which venue owns a session. Used by the controller to enforce tenant
+   * isolation on the heartbeat / check-out routes before mutating.
+   * Returns null when the session does not exist.
+   */
+  async getSessionSourceId(sessionId: string): Promise<string | null> {
+    const session = await this.prisma.playerSession.findUnique({
+      where:  { id: sessionId },
+      select: { sourceId: true },
+    });
+    return session?.sourceId ?? null;
+  }
+
   async getActiveBySource(sourceId: string) {
     const sessions = await this.prisma.playerSession.findMany({
       where:   { sourceId, status: 'active' },

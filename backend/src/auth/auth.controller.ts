@@ -22,6 +22,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { KeyService } from './key.service';
 import { SessionGuard } from './guards/session.guard';
+import { PlatformAdminGuard } from './guards/platform-admin.guard';
 import { RegisterOptionsDto, RegisterVerifyDto } from './dto/register.dto';
 import {
   AuthenticateOptionsDto,
@@ -108,8 +109,16 @@ export class AuthController {
   }
 
   // ── Operator Impersonate (creates session for any user) ───
+  //
+  // This mints a valid hero session token for an arbitrary root_id.
+  // Until Phase 2 Slice 0 it had no guard at all, which made every
+  // account on the platform takeable by anyone who knew a root_id.
+  // Heroes staff key required, tightly rate limited, and every use
+  // is written to the identity ledger by AuthService.
 
   @Post('impersonate/:root_id')
+  @UseGuards(PlatformAdminGuard)
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
   async impersonate(@Param('root_id') rootId: string) {
     return this.authService.issueSessionToken(rootId);
   }

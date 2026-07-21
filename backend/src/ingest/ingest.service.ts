@@ -20,6 +20,7 @@ import {
   ForbiddenException,
   BadRequestException,
   NotFoundException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
@@ -31,12 +32,25 @@ import { ResolvedSource } from '../auth/guards/api-key.guard';
 import { LootService } from '../loot/loot.service';
 import { QuestService } from '../quest/quest.service';
 import { MarkerEngineService } from '../marker-engine/marker-engine.service'; // ← ADDED
+import { LevelingService } from '../leveling/leveling.service';
 
 /** Titles automatically granted at specific Fate Levels */
 const LEVEL_TITLES: Record<number, string> = {
   2: 'title_fate_awakened',
   5: 'title_fate_burning',
   10: 'title_fate_ascendant',
+};
+
+/**
+ * Phase 2 Slice 0 — scope required to write each partner event type.
+ * The vocabulary matches SourceLink.scope / Source.scopes.
+ */
+const EVENT_SCOPES: Record<string, string> = {
+  'progression.session_completed': 'xp',
+  'progression.xp_granted':        'xp',
+  'progression.node_completed':    'xp',
+  'progression.title_granted':     'titles',
+  'progression.fate_marker':       'fate_markers',
 };
 
 /** Titles automatically granted at boss damage thresholds */
@@ -58,6 +72,7 @@ export class IngestService {
     private readonly loot: LootService,
     private readonly quests: QuestService,
     private readonly markerEngine: MarkerEngineService, // ← ADDED
+    private readonly leveling: LevelingService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -84,41 +99,132 @@ export class IngestService {
       );
     }
 
-    // 3. Dispatch to the appropriate handler
-    let result: any;
-    switch (dto.event_type) {
-      case 'progression.session_completed':
-        result = await this.handleSessionCompleted(dto, source, user);
-        break;
-      case 'progression.xp_granted':
-        result = await this.handleXpGranted(dto, source, user);
-        break;
-      case 'progression.node_completed':
-        result = await this.handleNodeCompleted(dto, source, user);
-        break;
-      case 'progression.title_granted':
-        result = await this.handleTitleGranted(dto, source, user);
-        break;
-      case 'progression.fate_marker':
-        result = await this.handleFateMarker(dto, source, user);
-        break;
-      default:
-        throw new BadRequestException(
-          `Unknown event type: ${dto.event_type}`,
-        );
+    // 3. Resolve the effective scope and authorize the event type.
+    //    Effective = what the partner is allowed to do at all, intersected
+    //    with what this specific player consented to. Stored since 2024 but
+    //    never enforced until Phase 2 Slice 0.
+    const granted = intersectScopes(source.scopes, link.scope);
+    const required = EVENT_SCOPES[dto.event_type];
+    if (!required) {
+      throw new BadRequestException(`Unknown event type: ${dto.event_type}`);
+    }
+    if (!granted.has(required)) {
+      throw new ForbiddenException(
+        `Event ${dto.event_type} requires the '${required}' scope; ` +
+          `this grant allows: ${[...granted].join(' ') || '(none)'}`,
+      );
     }
 
-    // 4. Auto-evaluate quest objectives
+    // 4. Reserve the idempotency key BEFORE applying any rewards, so a
+    //    concurrent retry loses the race on the unique constraint rather
+    //    than double-granting. Partners integrated before Slice 0 may omit
+    //    event_id; those requests are not deduplicated.
+    const reservation = dto.event_id
+      ? await this.reserveReceipt(dto, source)
+      : null;
+    if (reservation?.replay) {
+      return { ...reservation.replay, replayed: true };
+    }
+
     try {
-      const completedQuests = await this.quests.evaluateForPlayer(dto.root_id);
-      if (completedQuests.length > 0) {
-        result.quests_completed = completedQuests;
+      // 5. Dispatch to the appropriate handler
+      let result: any;
+      switch (dto.event_type) {
+        case 'progression.session_completed':
+          result = await this.handleSessionCompleted(dto, source, user, granted);
+          break;
+        case 'progression.xp_granted':
+          result = await this.handleXpGranted(dto, source, user);
+          break;
+        case 'progression.node_completed':
+          result = await this.handleNodeCompleted(dto, source, user);
+          break;
+        case 'progression.title_granted':
+          result = await this.handleTitleGranted(dto, source, user);
+          break;
+        case 'progression.fate_marker':
+          result = await this.handleFateMarker(dto, source, user);
+          break;
       }
-    } catch (err) {
-      this.logger.warn(`Quest evaluation failed for ${dto.root_id}: ${err.message}`);
-    }
 
-    return result;
+      // 6. Auto-evaluate quest objectives
+      try {
+        const completedQuests = await this.quests.evaluateForPlayer(dto.root_id);
+        if (completedQuests.length > 0) {
+          result.quests_completed = completedQuests;
+        }
+      } catch (err) {
+        this.logger.warn(`Quest evaluation failed for ${dto.root_id}: ${err.message}`);
+      }
+
+      if (!dto.event_id) {
+        result.deduplicated = false;
+      }
+
+      // 7. Commit the receipt so retries replay this exact response.
+      if (reservation) {
+        await this.prisma.ingestReceipt.update({
+          where: { id: reservation.receiptId },
+          data:  { status: 'completed', response: result },
+        });
+      }
+
+      return result;
+    } catch (err) {
+      // Release the reservation so the partner's retry can actually retry.
+      // Without this a transient failure would permanently burn the key.
+      if (reservation) {
+        await this.prisma.ingestReceipt
+          .delete({ where: { id: reservation.receiptId } })
+          .catch(() => undefined);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Claim `event_id` for this source. Returns the stored response when the
+   * key was already used (a replay), otherwise the new receipt's id.
+   */
+  private async reserveReceipt(
+    dto: IngestEventDto,
+    source: ResolvedSource,
+  ): Promise<{ receiptId: string; replay?: Record<string, unknown> }> {
+    try {
+      const receipt = await this.prisma.ingestReceipt.create({
+        data: {
+          sourceId:  source.id,
+          eventKey:  dto.event_id!,
+          rootId:    dto.root_id,
+          eventType: dto.event_type,
+        },
+      });
+      return { receiptId: receipt.id };
+    } catch (error: any) {
+      if (error?.code !== 'P2002') throw error;
+
+      const existing = await this.prisma.ingestReceipt.findUnique({
+        where: {
+          sourceId_eventKey: { sourceId: source.id, eventKey: dto.event_id! },
+        },
+      });
+
+      // Lost the race to an in-flight original. Tell the caller to back off
+      // rather than returning a half-formed response.
+      if (!existing || existing.status !== 'completed') {
+        throw new ConflictException(
+          `Event ${dto.event_id} is currently being processed; retry shortly`,
+        );
+      }
+
+      this.logger.log(
+        `Replayed ingest ${dto.event_id} from ${source.name} — no rewards re-granted`,
+      );
+      return {
+        receiptId: existing.id,
+        replay: existing.response as Record<string, unknown>,
+      };
+    }
   }
 
   // ────────────────────────────────────────────────────────────
@@ -129,6 +235,7 @@ export class IngestService {
     dto: IngestEventDto,
     source: ResolvedSource,
     user: { id: string; fateXp: number; fateLevel: number },
+    granted: Set<string>,
   ) {
     const { difficulty, nodes_completed, boss_damage_pct } =
       dto.payload as {
@@ -168,12 +275,14 @@ export class IngestService {
       user.fateXp,
       user.fateLevel,
       totalXp,
-      config,
     );
 
-    // Check for boss damage titles
+    // Check for boss damage titles. A session_completed event only needs the
+    // 'xp' scope, so the incidental title awards are gated separately —
+    // a venue licensed for XP alone must not mint titles as a side effect.
     const titlesGranted: string[] = [...(changes.titlesGranted ?? [])];
     for (const bt of BOSS_TITLES) {
+      if (!granted.has('titles')) break;
       if (boss_damage_pct >= bt.threshold) {
         const granted = await this.tryGrantTitle(
           user.id,
@@ -195,6 +304,10 @@ export class IngestService {
 
     if (changes.levelUp) {
       changesApplied.level_up = changes.levelUp;
+    }
+
+    if (changes.foxBonus > 0) {
+      changesApplied.fox_bonus_xp = changes.foxBonus;
     }
 
     if (titlesGranted.length > 0) {
@@ -286,7 +399,6 @@ export class IngestService {
       user.fateXp,
       user.fateLevel,
       totalXp,
-      config,
     );
 
     const changesApplied: Record<string, unknown> = {
@@ -294,6 +406,9 @@ export class IngestService {
     };
     if (changes.levelUp) {
       changesApplied.level_up = changes.levelUp;
+    }
+    if (changes.foxBonus > 0) {
+      changesApplied.fox_bonus_xp = changes.foxBonus;
     }
 
     const event = await this.events.log({
@@ -338,7 +453,6 @@ export class IngestService {
       user.fateXp,
       user.fateLevel,
       nodeXp,
-      config,
     );
 
     const changesApplied: Record<string, unknown> = {
@@ -346,6 +460,9 @@ export class IngestService {
     };
     if (changes.levelUp) {
       changesApplied.level_up = changes.levelUp;
+    }
+    if (changes.foxBonus > 0) {
+      changesApplied.fox_bonus_xp = changes.foxBonus;
     }
 
     const event = await this.events.log({
@@ -467,64 +584,59 @@ export class IngestService {
 
   /**
    * Apply XP to a user and handle level-up cascading.
-   * Returns what changed (new totals, level-up info, titles granted).
+   *
+   * Phase 2 Slice 0: this used to reimplement the XP curve inline, using
+   * the old Python-MVP geometric thresholds (xpBaseThreshold ·
+   * xpLevelMultiplier^(n-1)). That curve no longer matches canon, so
+   * partner-granted XP leveled heroes on a different ladder than in-app
+   * XP and ignored the L60 cap, the Fate Fox bonus, and the monotonic
+   * level guard. It now delegates to LevelingService — the single source
+   * of truth (see src/leveling/leveling.service.ts).
    */
   private async applyXp(
     rootId: string,
     currentXp: number,
     currentLevel: number,
     xpToAdd: number,
-    config: Awaited<ReturnType<IdentityService['getProgressionConfig']>>,
   ): Promise<{
     newXp: number;
     newLevel: number;
     levelUp: { from: number; to: number } | null;
     titlesGranted: string[];
+    foxBonus: number;
   }> {
-    let newXp = currentXp + xpToAdd;
-    let newLevel = currentLevel;
-    const titlesGranted: string[] = [];
+    const award = await this.leveling.grantXp(rootId, xpToAdd);
 
-    // Check for level-ups (can cascade through multiple levels)
-    let threshold = Math.floor(
-      config.xpBaseThreshold *
-        Math.pow(config.xpLevelMultiplier, newLevel - 1),
-    );
-
-    while (newXp >= threshold) {
-      newLevel++;
-
-      // Grant level-based title if one exists for this level
-      const levelTitle = LEVEL_TITLES[newLevel];
-      if (levelTitle) {
-        const granted = await this.tryGrantTitle(rootId, levelTitle, null);
-        if (granted) titlesGranted.push(levelTitle);
-      }
-
-      // Recalculate threshold for next level
-      threshold = Math.floor(
-        config.xpBaseThreshold *
-          Math.pow(config.xpLevelMultiplier, newLevel - 1),
-      );
+    // grantXp returns null when the hero is missing or already XP-capped.
+    if (!award) {
+      return {
+        newXp: currentXp,
+        newLevel: currentLevel,
+        levelUp: null,
+        titlesGranted: [],
+        foxBonus: 0,
+      };
     }
 
-    // Persist the updated XP and level
-    await this.prisma.rootIdentity.update({
-      where: { id: rootId },
-      data: {
-        fateXp: newXp,
-        fateLevel: newLevel,
-      },
-    });
+    // Award any level titles crossed by this grant. grantXp can cascade
+    // several levels at once, so walk the range rather than checking only
+    // the final level.
+    const titlesGranted: string[] = [];
+    for (let lvl = currentLevel + 1; lvl <= award.fate_level; lvl++) {
+      const levelTitle = LEVEL_TITLES[lvl];
+      if (!levelTitle) continue;
+      const wasGranted = await this.tryGrantTitle(rootId, levelTitle, null);
+      if (wasGranted) titlesGranted.push(levelTitle);
+    }
 
     return {
-      newXp,
-      newLevel,
-      levelUp:
-        newLevel > currentLevel
-          ? { from: currentLevel, to: newLevel }
-          : null,
+      newXp: award.fate_xp,
+      newLevel: award.fate_level,
+      levelUp: award.leveled_up
+        ? { from: currentLevel, to: award.fate_level }
+        : null,
       titlesGranted,
+      foxBonus: award.fox_bonus,
     };
   }
 
@@ -554,4 +666,18 @@ export class IngestService {
       throw error;
     }
   }
+}
+
+/**
+ * Effective scope for a partner write: what the partner is licensed for,
+ * intersected with what this player consented to. Both are space-delimited
+ * strings; either side can narrow, neither can widen.
+ */
+function intersectScopes(sourceScopes: string, linkScope: string): Set<string> {
+  const partner = new Set(splitScope(sourceScopes));
+  return new Set(splitScope(linkScope).filter((s) => partner.has(s)));
+}
+
+function splitScope(scope: string | null | undefined): string[] {
+  return (scope ?? '').split(/\s+/).filter(Boolean);
 }

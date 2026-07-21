@@ -15,6 +15,12 @@ let BASE_URL = '';
 let SESSION_TOKEN = '';
 let ROOT_ID = '';
 
+// Phase 2 Slice 0 — Heroes staff key for operator routes (impersonate,
+// cross-venue live sessions, source admin). Read from the Vite env so it
+// is never committed; the portal simply cannot reach those routes without
+// it. Unset is a valid state — player-scoped routes keep working.
+const ADMIN_KEY = import.meta.env?.VITE_HV_PLATFORM_ADMIN_KEY || '';
+
 // ── Config ──────────────────────────────────────────────
 
 export function setBaseUrl(url) {
@@ -43,6 +49,7 @@ async function request(method, path, body = null) {
   
   if (body) headers['Content-Type'] = 'application/json';
   if (SESSION_TOKEN) headers['Authorization'] = `Bearer ${SESSION_TOKEN}`;
+  if (ADMIN_KEY) headers['X-HV-Admin-Key'] = ADMIN_KEY;
 
   try {
     const resp = await fetch(url, {

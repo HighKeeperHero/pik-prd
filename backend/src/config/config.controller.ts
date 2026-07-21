@@ -18,11 +18,13 @@ import {
   Body,
   Res,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { ConfigService } from './config.service';
 import { SourceAdminService } from './source-admin.service';
+import { PlatformAdminGuard } from '../auth/guards/platform-admin.guard';
 
 @Controller('api')
 export class ConfigController {
@@ -77,7 +79,10 @@ export class ConfigController {
     return this.configService.getAll();
   }
 
+  // Writes to runtime config change the live progression economy for
+  // every venue — Heroes staff only. Reads stay open; clients need them.
   @Post('config')
+  @UseGuards(PlatformAdminGuard)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async updateConfig(
     @Body() body: { config_key?: string; config_value?: unknown },
@@ -91,8 +96,12 @@ export class ConfigController {
   }
 
   // ── Source Listing ──────────────────────────────────────
+  // Every route below is cross-tenant partner administration:
+  // it lists, creates, and re-keys venues other than the caller's.
+  // Heroes staff only until Slice 2 replaces this with staff RBAC.
 
   @Get('sources')
+  @UseGuards(PlatformAdminGuard)
   async getSources() {
     return this.sourceAdmin.listSourcesDetailed();
   }
@@ -100,6 +109,7 @@ export class ConfigController {
   // ── Source Admin ────────────────────────────────────────
 
   @Post('sources')
+  @UseGuards(PlatformAdminGuard)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async createSource(
     @Body() body: { source_id?: string; source_name?: string },
@@ -116,17 +126,20 @@ export class ConfigController {
   }
 
   @Get('sources/:id')
+  @UseGuards(PlatformAdminGuard)
   async getSourceDetail(@Param('id') id: string) {
     return this.sourceAdmin.getSourceDetail(id);
   }
 
   @Post('sources/:id/rotate-key')
+  @UseGuards(PlatformAdminGuard)
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   async rotateSourceKey(@Param('id') id: string) {
     return this.sourceAdmin.rotateApiKey(id);
   }
 
   @Post('sources/:id/status')
+  @UseGuards(PlatformAdminGuard)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   async setSourceStatus(
     @Param('id') id: string,

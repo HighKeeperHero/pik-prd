@@ -657,8 +657,47 @@ function showToast(msg, color='var(--green)') {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
+// ── Platform admin key (Phase 2 Slice 0) ────────────────────────────
+// Operator routes (/api/sources, /api/sessions/live, /api/loot/grant,
+// impersonate, config writes) now require the Heroes staff key. The
+// dashboard holds it in localStorage and attaches it to every call.
+const ADMIN_KEY_STORAGE = 'hv_platform_admin_key';
+
+function getAdminKey() {
+  return localStorage.getItem(ADMIN_KEY_STORAGE) || '';
+}
+
+function setAdminKey(key) {
+  if (key) localStorage.setItem(ADMIN_KEY_STORAGE, key.trim());
+  else localStorage.removeItem(ADMIN_KEY_STORAGE);
+}
+
+function promptForAdminKey() {
+  const key = window.prompt(
+    'Heroes platform admin key\n\n' +
+    'Operator routes require the staff key (HV_PLATFORM_ADMIN_KEY).\n' +
+    'It is stored in this browser only.',
+    getAdminKey(),
+  );
+  if (key !== null) setAdminKey(key);
+  return getAdminKey();
+}
+
 async function apiFetch(path, opts={}) {
-  const resp = await fetch(API + path, opts);
+  const adminKey = getAdminKey();
+  const headers = { ...(opts.headers || {}) };
+  if (adminKey) headers['X-HV-Admin-Key'] = adminKey;
+
+  const resp = await fetch(API + path, { ...opts, headers });
+
+  // 403 on an operator route means a missing or stale staff key — ask for
+  // it once and retry, so the dashboard doesn't just silently render empty.
+  if (resp.status === 403 && !opts._retriedWithAdminKey) {
+    if (promptForAdminKey()) {
+      return apiFetch(path, { ...opts, _retriedWithAdminKey: true });
+    }
+  }
+
   return resp.json();
 }
 
@@ -1312,11 +1351,13 @@ async function grantCache() {
   if (!rootId) { showToast('Select a user first', 'var(--red)'); return; }
 
   try {
-    const r = await fetch(`${API}/api/loot/grant`, {
+    // Routed through apiFetch so it carries the staff key — /api/loot/grant
+    // is an operator route as of Phase 2 Slice 0.
+    const r = await apiFetch('/api/loot/grant', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ root_id: rootId, cache_type: cacheType, rarity })
-    }).then(r => r.json());
+    });
 
     const d = r.data || r;
     if (d.cache_id) {

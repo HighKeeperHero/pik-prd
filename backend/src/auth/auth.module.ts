@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { KeyService } from './key.service';
 import { SessionGuard } from './guards/session.guard';
 import { ApiKeyGuard } from './guards/api-key.guard';
+import { PlatformAdminGuard } from './guards/platform-admin.guard';
 import { EventsModule } from '../events/events.module';
 
 @Module({
@@ -24,12 +25,14 @@ import { EventsModule } from '../events/events.module';
     KeyService,
     SessionGuard,
     ApiKeyGuard,
+    PlatformAdminGuard,
   ],
   exports: [
     AuthService,
     KeyService,
     SessionGuard,
     ApiKeyGuard,
+    PlatformAdminGuard,
   ],
 })
 export class AuthModule {}

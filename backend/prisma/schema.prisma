@@ -242,10 +242,48 @@ model Source {
   sourceType  String    @default("venue") @map("source_type")
   createdAt   DateTime  @default(now()) @map("created_at")
 
+  /// Partner-level capability ceiling (space-delimited, same vocabulary as
+  /// SourceLink.scope). A partner can never write outside these, even if a
+  /// player's consent grant is broader — the effective scope is the
+  /// intersection of the two. Defaults to the full progression set so
+  /// existing venues keep working after the Phase 2 Slice 0 migration.
+  scopes      String    @default("xp fate_markers titles")
+
   sourceLinks SourceLink[]
   fateCaches  FateCache[]
+  ingestReceipts IngestReceipt[]
 
   @@map("sources")
+}
+
+/// Idempotency ledger for the Partner Integration API.
+///
+/// Venue hardware retries on flaky networks; without this a replayed
+/// `POST /api/ingest` double-grants XP and loot. The partner supplies a
+/// stable `event_id` per real-world occurrence, and a replay returns the
+/// original response verbatim instead of re-applying the rewards.
+///
+/// Mirrors the IAP transactionId dedup pattern (src/iap/iap.service.ts).
+model IngestReceipt {
+  id         String   @id @default(uuid()) @map("receipt_id")
+  sourceId   String   @map("source_id")
+  /// Partner-supplied idempotency key, unique within that partner.
+  eventKey   String   @map("event_key")
+  rootId     String   @map("root_id")
+  eventType  String   @map("event_type")
+  /// "processing" while the first request is still applying rewards,
+  /// "completed" once the response is stored. A retry that arrives during
+  /// "processing" is rejected with 409 rather than racing the original.
+  status     String   @default("processing")
+  /// The full response body returned the first time, replayed on retry.
+  response   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  source     Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, eventKey])
+  @@index([rootId, createdAt])
+  @@map("ingest_receipts")
 }
 
 model SourceLink {
