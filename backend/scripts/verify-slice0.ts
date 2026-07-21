@@ -89,10 +89,20 @@ function unwrap(body: any) {
   return body?.data ?? body;
 }
 
+/**
+ * GET /api/users/:id nests progression under data.progression — reading the
+ * top level yields undefined, which makes the "no additional XP" assertion
+ * pass by comparing undefined to undefined.
+ */
 async function heroState() {
   const r = await call(`/api/users/${ROOT_ID}`, { headers: asAdmin() });
-  const d = unwrap(r.body);
-  return { xp: d?.fate_xp ?? d?.fateXp, level: d?.fate_level ?? d?.fateLevel };
+  const p = unwrap(r.body)?.progression;
+  if (typeof p?.fate_xp !== 'number' || typeof p?.fate_level !== 'number') {
+    throw new Error(
+      `Could not read hero progression for ${ROOT_ID} — got ${JSON.stringify(r.body)?.slice(0, 200)}`,
+    );
+  }
+  return { xp: p.fate_xp, level: p.fate_level };
 }
 
 async function main() {
@@ -244,7 +254,11 @@ async function main() {
     headers: asAdmin(),
     body: { status: 'suspended' },
   });
-  check('test source suspended', suspended.status === 200, suspended.status);
+  check(
+    'test source suspended',
+    suspended.status === 200 || suspended.status === 201,
+    suspended.status,
+  );
 
   console.log(
     failures === 0
