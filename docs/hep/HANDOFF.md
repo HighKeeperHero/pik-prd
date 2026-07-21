@@ -78,10 +78,24 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
 
 ## Next, in order
 
-1. **Push `hep/mail-seam-and-slice3`** — carries the production consent fix.
-   Note both Staging and production auto-deploy from `main`; production lags
-   ~1h. This is a real player-facing deploy, including a player-visible rename
-   of the first-party source in the consent list.
+1. ~~Push~~ — **DONE. `main` and the `production` branch are both at
+   `20c497e`; production deployed 22:20 UTC and the consent fix is verified
+   live** (`src-heroes-veritas-01` is now `first_party`, 3 links intact).
+
+   ⚠ **Deploy topology, corrected — this cost time today.** `main` → Staging
+   ONLY. Production deploys from a branch literally named `production`.
+   Pushing `main` is safe and does NOT reach players; production shows no
+   deploy activity at all until you promote:
+
+   ```bash
+   git checkout production && git merge --ff-only main && git push origin production
+   git checkout main
+   ```
+
+   Before today production had been sitting 14 commits behind, so the Partner
+   Portal UI (`/venue.html`) and reward reversal had never actually shipped
+   despite this document claiming they were live. Both are live now. **Check
+   the running service, not this file, when it matters.**
 2. **Put `RESEND_API_KEY` in Railway** (+ optional `MAIL_FROM`,
    `PORTAL_BASE_URL`). Until then mail is `log`-transport only and no venue
    owner can actually receive a reset. Verify the sending domain first.
@@ -123,6 +137,10 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
   it bare and got an error object where it expected an array.
 - **`fonts.title` (Marcellus SC) does not resolve on Android.** No shipped
   screen used it, so it had never been exercised. Use `fonts.display` (Cinzel).
+- **Production deploys from the `production` BRANCH, not `main`.** No deploy
+  is queued or lagging until you merge — "waiting for production" is waiting
+  forever. Verify with `railway deployment list --environment production`,
+  whose metadata names the branch and commit.
 - **`railway run` injects the INTERNAL DB host.** Prisma scripts need
   `sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" …'`.
 - **Harnesses that pass vacuously.** `[].every()` is `true`; a test that passes
