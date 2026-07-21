@@ -169,9 +169,48 @@ export class TelemetryService {
       byMetric.set(r.metric, list);
     }
 
+    // Reward sync is DERIVED from our own ledger, not reported by a
+    // client — we are the authority on whether a reward landed, and
+    // asking the party that might have failed to deliver it to grade
+    // itself would be worthless. It is also the one Workstream 9
+    // threshold that already governs a system carrying real players, so
+    // it should not sit at no_data waiting for an XR client to exist.
+    const rewardSync = await this.computeRewardSync(staff.sourceId, since);
+
     const evaluated = THRESHOLDS.map((spec) => {
       const values = byMetric.get(spec.metric) ?? [];
       const target = targets[spec.metric] ?? spec.target;
+
+      // Derived metrics ignore anything a client reported: we compute
+      // them from data we own.
+      if (spec.metric === 'rewards.sync_success') {
+        if (!rewardSync) {
+          return {
+            metric: spec.metric,
+            label: spec.label,
+            unit: spec.unit,
+            target,
+            samples: 0,
+            observed: null,
+            derived: true,
+            status: 'no_data' as const,
+          };
+        }
+        return {
+          metric: spec.metric,
+          label: spec.label,
+          unit: spec.unit,
+          target,
+          samples: rewardSync.eligible,
+          observed: round(rewardSync.ratio),
+          statistic: 'derived',
+          derived: true,
+          detail: rewardSync.detail,
+          status: judge(spec, rewardSync.ratio, target)
+            ? ('pass' as const)
+            : ('fail' as const),
+        };
+      }
 
       // No samples is NOT a pass. A threshold with no data behind it is
       // exactly the vacuous confidence this project keeps having to
@@ -221,6 +260,69 @@ export class TelemetryService {
         no_data: evaluated.filter((e) => e.status === 'no_data').length,
       },
       unmeasured_metrics: unrecognised,
+    };
+  }
+
+  /**
+   * Reward synchronization: of the rewards we OWED a known hero, how
+   * many actually landed.
+   *
+   * The definition is the whole design here, so it is written out rather
+   * than left implicit in a query:
+   *
+   *   eligible  = seats with a rootId whose rewardState is one of
+   *               applied | pending | expired
+   *   delivered = of those, rewardState = 'applied'
+   *
+   * A seat with a rootId had somewhere to put the reward. If it is still
+   * `pending`, or reached `expired`, the reward was owed to an
+   * identifiable hero and never arrived — that is a synchronization
+   * failure and exactly what this threshold is for.
+   *
+   * Deliberately EXCLUDED, because counting them would make the number
+   * lie in both directions:
+   *
+   * - `skipped` — the venue lacks the rewards scope, the payout computed
+   *   to zero, or the daily ceiling was hit. Policy working as intended,
+   *   not a delivery failure. Counting it would make a correctly
+   *   configured rehearsal venue look catastrophically broken.
+   * - `reversed` — a deliberate admin action. Counting a reversal as a
+   *   failed delivery would punish us for having an undo.
+   * - Guest seats never claimed (rootId null) — that is walk-in
+   *   conversion, a different question with a different owner. Folding
+   *   it in here would blame the sync layer for a guest who chose not to
+   *   install the app.
+   */
+  private async computeRewardSync(sourceId: string, since: Date) {
+    const seats = await this.prisma.runParticipant.groupBy({
+      by: ['rewardState'],
+      where: {
+        rootId: { not: null },
+        rewardState: { in: ['applied', 'pending', 'expired'] },
+        run: { sourceId, startedAt: { gte: since } },
+      },
+      _count: { _all: true },
+    });
+
+    const counts: Record<string, number> = {};
+    for (const row of seats) counts[row.rewardState] = row._count._all;
+
+    const delivered = counts['applied'] ?? 0;
+    const eligible = Object.values(counts).reduce((a, b) => a + b, 0);
+
+    // No eligible seats is no_data, NOT 100%. An empty numerator over an
+    // empty denominator is not a perfect score, and reporting 1.0 here
+    // would be the vacuous pass wearing a percentage sign.
+    if (eligible === 0) return null;
+
+    return {
+      ratio: delivered / eligible,
+      eligible,
+      detail: {
+        delivered,
+        stuck_pending: counts['pending'] ?? 0,
+        expired: counts['expired'] ?? 0,
+      },
     };
   }
 

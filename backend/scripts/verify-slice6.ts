@@ -247,6 +247,88 @@ async function main() {
     (rollup?.unmeasured_metrics ?? []).includes('partner.thermal_throttle_events'),
     rollup?.unmeasured_metrics);
 
+  // ── 3b. Reward sync is DERIVED, not reported ────────────────
+  console.log('\n3b. Reward synchronization (derived from our own ledger)');
+
+  const rs = byMetric.get('rewards.sync_success');
+  check('reward sync is marked as derived', rs?.derived === true, rs);
+  // A venue with no settled runs has an EMPTY denominator. Reporting
+  // 100% there would be the vacuous pass wearing a percentage sign.
+  check('with no eligible seats it is no_data, NOT 100%',
+    rs?.status === 'no_data' && rs?.observed === null, rs);
+
+  // Now settle a real run so the metric has something to measure.
+  const expSlug = `rs-${RUN}`;
+  await call('/api/experiences', {
+    method: 'POST', headers: admin(), body: { slug: expSlug, name: `RS ${RUN}` },
+  });
+  await call(`/api/sources/${venueId}/experiences`, {
+    method: 'POST', headers: admin(), body: { experience_slug: expSlug },
+  });
+  await call(`/api/sources/${venueId}/scopes`, {
+    method: 'POST', headers: admin(),
+    body: { scopes: ['xp', 'titles', 'runs', 'guests', 'rewards'] },
+  });
+
+  const player = await call('/api/account/register', {
+    method: 'POST',
+    body: { email: `rs+${RUN}@slice6.test`, password: `Sl6ce-${RUN}!`, display_name: 'RS' },
+  });
+  let pTok = unwrap(player.body)?.session_token;
+  const hero = await call('/api/account/heroes', {
+    method: 'POST', headers: bearer(pTok),
+    body: { hero_name: `RS${Date.now().toString(36).slice(-5)}`, alignment: 'ORDER' },
+  });
+  const rootId = unwrap(hero.body)?.root_id ?? unwrap(hero.body)?.hero?.root_id;
+  requireOrAbort('test hero created', !!rootId, hero.body);
+  const sel = await call(`/api/account/heroes/${rootId}/select`, {
+    method: 'POST', headers: bearer(pTok),
+  });
+  pTok = unwrap(sel.body)?.session_token ?? pTok;
+
+  await call(`/api/venues/${venueId}/check-in`, {
+    method: 'POST', headers: bearer(pTok), body: {},
+  });
+
+  const started = await call('/api/partner/v1/runs', {
+    method: 'POST', headers: apiKey(venueKey),
+    body: {
+      experience_slug: expSlug,
+      partner_run_key: `rs-${RUN}`,
+      root_ids: [rootId],
+    },
+  });
+  const runId = unwrap(started.body)?.run_id;
+
+  // Deliberately NOT a skip. The derived metric is the whole point of
+  // this section, and a harness that quietly steps over its own subject
+  // reports green while proving nothing — the same vacuous pass that has
+  // now bitten this project three times, wearing a "skipped" label.
+  requireOrAbort('a run could be started to measure', !!runId, {
+    status: started.status, body: started.body,
+  });
+
+  {
+    const done = await call(`/api/partner/v1/runs/${runId}/complete`, {
+      method: 'POST', headers: apiKey(venueKey),
+      body: { outcome: 'victory', milestones_hit: 2 },
+    });
+    check('the run settled', done.status === 200 || done.status === 201, done.body);
+
+    const after = unwrap(
+      (await call('/api/portal/v1/spatial/metrics', { headers: bearer(owner) })).body,
+    );
+    const rs2 = (after?.thresholds ?? []).find(
+      (t: any) => t.metric === 'rewards.sync_success',
+    );
+    check('an identified seat that was paid counts as delivered',
+      rs2?.observed === 1 && rs2?.status === 'pass', rs2);
+    check('and the eligible count is now non-zero', (rs2?.samples ?? 0) > 0, rs2);
+    check('the breakdown names what is stuck', rs2?.detail?.stuck_pending === 0, rs2?.detail);
+    check('it needed NO client telemetry to compute',
+      rs2?.derived === true && rs2?.statistic === 'derived', rs2);
+  }
+
   // ── 4. Tenant isolation ─────────────────────────────────────
   console.log('\n4. Tenant isolation');
 
