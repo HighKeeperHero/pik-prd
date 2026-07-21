@@ -31,8 +31,14 @@ technical:
 A third, softer blocker matters for Sprint Group 5: **"Echoes of Kingvale"
 is a reward bundle, not an experience.** It has no objectives, dialogue,
 or encounter logic. Sprint Group 5 assumes a Hero Echo sequence, Fate Fox
-guidance, an Artifact interaction and a Veil Tear event — that is content
-design, and it has no owner either.
+guidance, an Artifact interaction and a Veil Tear event.
+
+**Owner assigned 2026-07-21: Tim is writing the Kingvale content.** Worth
+stating the seam plainly so it does not get rediscovered: the design firm
+is building the *runtime*, which is not the same as building the
+*experience*. What the content needs from us is the manifest — named
+anchors and zones the writing can refer to — and that shape is already
+live (`spatial-integration-guide.md` §2).
 
 **Therefore the plan below does not schedule Tier C.** It does the one
 thing that is genuinely available: build the backend contracts now, so an

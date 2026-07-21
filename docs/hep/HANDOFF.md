@@ -171,11 +171,16 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
 - Local Android builds: see `heroes-veritas-native/docs/local-android-build.md`
   (four undocumented walls, two of them in prebuild-generated files).
 
-## Known gaps in Phase 2 coverage (nobody has scoped these)
+## Known gaps in Phase 2 coverage
 
-- **P11 Support Portal** and **P12 Certification** from the 12-product
-  brief are Tier A — buildable now — and appear in no slice plan.
-  Certification matters as soon as a second partner exists.
+- **P11 Support Portal / P12 Certification — now SCOPED** as Slices 8
+  and 9, see `docs/hep/slice-8-9-support-and-certification-scope.md`.
+  Decided 2026-07-21: P11 is Heroes-staff-only and read-only (no
+  helpdesk — integrate one if ticketing is the need); P12 is a gate with
+  an audited override. Slice 8 first, since its aggregation is Slice 9's
+  raw material. **One decision still open: how much player data the
+  support console shows** (recommendation: rootId + reward state, not
+  names or emails).
 - **P8 Live Ops** is partial: analytics and audit exist, but there is no
   live operational surface.
 - **Tier B** (P3 Heroes Runtime, P4 Experience Studio, P9 Update System)
