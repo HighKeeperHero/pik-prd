@@ -18,6 +18,7 @@ import { RewardService } from './reward.service';
 import { ClaimService } from './claim.service';
 import { VenueAccessService } from './venue-access.service';
 import { VenueSweeperService } from './venue-sweeper.service';
+import { ReversalService } from './reversal.service';
 import { PrismaService } from '../prisma.service';
 import { EventsModule } from '../events/events.module';
 import { LevelingModule } from '../leveling/leveling.module';
@@ -37,10 +38,11 @@ import { AccountGuard } from '../auth/guards/account.guard';
     ClaimService,
     VenueAccessService,
     VenueSweeperService,
+    ReversalService,
     PrismaService,
     ApiKeyGuard,
     AccountGuard,
   ],
-  exports: [RewardService],
+  exports: [RewardService, ReversalService],
 })
 export class PartnerModule {}

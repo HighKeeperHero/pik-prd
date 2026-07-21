@@ -26,6 +26,7 @@ import { ConfigService } from './config.service';
 import { SourceAdminService } from './source-admin.service';
 import { PlatformAdminGuard } from '../auth/guards/platform-admin.guard';
 import { PortalService } from '../portal/portal.service';
+import { ReversalService } from '../partner/reversal.service';
 
 @Controller('api')
 export class ConfigController {
@@ -33,6 +34,7 @@ export class ConfigController {
     private readonly configService: ConfigService,
     private readonly sourceAdmin: SourceAdminService,
     private readonly portal: PortalService,
+    private readonly reversal: ReversalService,
   ) {}
 
   // Renamed from 'health' in Phase 2 Slice 0. It was a second @Get('health')
@@ -216,6 +218,28 @@ export class ConfigController {
       role: body.role ?? 'owner',
       display_name: body.display_name,
     });
+  }
+
+  /**
+   * POST /api/runs/:runId/reverse — undo a run's payouts.
+   * Body: { reason }
+   *
+   * Platform admin ONLY. A venue must never be able to reverse its own
+   * payouts; that would let a partner rewrite a player's history.
+   */
+  @Post('runs/:runId/reverse')
+  @UseGuards(PlatformAdminGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  async reverseRun(
+    @Param('runId') runId: string,
+    @Body() body: { reason?: string },
+  ) {
+    if (!body.reason) {
+      throw new BadRequestException(
+        'Request body requires: reason (a reversal must be explainable later)',
+      );
+    }
+    return this.reversal.reverseRun(runId, body.reason);
   }
 
   @Post('sources/:id/status')
