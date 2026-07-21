@@ -30,6 +30,10 @@ if (!API || !ADMIN_KEY || !ROOT_ID) {
   process.exit(2);
 }
 
+// Re-bound as non-optional: the guard above proves these are set, but TS
+// does not narrow the module-level consts past process.exit().
+const HERO: string = ROOT_ID;
+
 const arg = (flag: string, fallback: string) => {
   const i = process.argv.indexOf(flag);
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
@@ -62,7 +66,7 @@ const venue = (key: string) => ({ 'X-PIK-API-Key': key });
 const unwrap = (b: any) => b?.data ?? b;
 
 async function heroXp() {
-  const r = await call(`/api/users/${ROOT_ID}`, { headers: admin() });
+  const r = await call(`/api/users/${HERO}`, { headers: admin() });
   return unwrap(r.body)?.progression?.fate_xp as number;
 }
 
@@ -105,7 +109,7 @@ async function main() {
   console.log(`   scopes + experience assigned`);
 
   // The player consents at check-in (in production, from the Codex app).
-  const consent = await call(`/api/users/${ROOT_ID}/links`, {
+  const consent = await call(`/api/users/${HERO}/links`, {
     method: 'POST',
     headers: admin(),
     body: {
@@ -115,7 +119,7 @@ async function main() {
     },
   });
   if (consent.status >= 400) die('consent grant failed', consent.body);
-  console.log(`2. Player consented          ${ROOT_ID.slice(0, 8)}…`);
+  console.log(`2. Player consented          ${HERO.slice(0, 8)}…`);
 
   const before = await heroXp();
 
@@ -126,7 +130,7 @@ async function main() {
     body: {
       experience_slug: 'echoes_of_kingvale',
       partner_run_key: `${RUN}-run-1`,
-      root_ids: [ROOT_ID],
+      root_ids: [HERO],
       guests: [{ label: 'Player 2 (walk-in)' }],
     },
   });
@@ -175,7 +179,10 @@ async function main() {
     } else {
       console.log(`     guest "${s.guest_label}"  ${s.reward_state}`);
       if (s.claim_token) {
-        console.log(`       claim link: ${API}/claim/${s.claim_token}`);
+        // What the venue actually prints: a QR encoding the deep link, and
+        // the short code beneath it for when the scan fails.
+        console.log(`       QR encodes: heroescodex://testament/${s.claim_token}`);
+        console.log(`       print code: ${s.claim_code}`);
         console.log(`       expires:    ${s.claim_expires_at}`);
       }
     }
