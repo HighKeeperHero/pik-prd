@@ -21,6 +21,7 @@ import {
   Put,
   Body,
   Param,
+  Query,
   Req,
   UseGuards,
   HttpCode,
@@ -33,6 +34,7 @@ import {
   type ResolvedStaff,
 } from '../portal/venue-staff.guard';
 import { SpatialService } from './spatial.service';
+import { TelemetryService } from './telemetry.service';
 import { MANIFEST_SCHEMA_VERSION, validateManifest } from './manifest';
 
 type StaffRequest = Request & { staff: ResolvedStaff };
@@ -127,6 +129,49 @@ export class SpatialPartnerController {
   @Get(':roomSlug')
   resolve(@Req() req: PartnerRequest, @Param('roomSlug') roomSlug: string) {
     return this.spatial.resolveActive(req.source.id, roomSlug);
+  }
+}
+
+/**
+ * Telemetry ingestion.
+ *
+ * Separate controller because it is a WRITE from the runtime, and the
+ * room surface above is deliberately read-only. Keeping them apart makes
+ * it obvious which one a future change is widening.
+ */
+@Controller('api/partner/v1/telemetry')
+@UseGuards(ApiKeyGuard)
+export class TelemetryController {
+  constructor(private readonly telemetry: TelemetryService) {}
+
+  @Post()
+  @HttpCode(202)
+  record(
+    @Req() req: PartnerRequest,
+    @Body() body: { run_id?: string; room_config_id?: string; metrics?: any[] },
+  ) {
+    return this.telemetry.record(req.source.id, body);
+  }
+}
+
+/**
+ * The venue's view of its own spatial quality.
+ *
+ * Its own controller rather than a route on the rooms one: these numbers
+ * are per-VENUE, not per-room, and hanging them off /rooms would have
+ * meant a relative path that Nest does not support and that fails
+ * silently as a 404.
+ */
+@Controller('api/portal/v1/spatial')
+export class SpatialMetricsController {
+  constructor(private readonly telemetry: TelemetryService) {}
+
+  /** The Workstream 9 table, evaluated against real samples. */
+  @Get('metrics')
+  @UseGuards(VenueStaffGuard)
+  @RequirePermission('analytics.read')
+  metrics(@Req() req: StaffRequest, @Query('days') days?: string) {
+    return this.telemetry.summary(req.staff, days ? parseInt(days, 10) : 30);
   }
 }
 

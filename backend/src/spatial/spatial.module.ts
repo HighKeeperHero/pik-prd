@@ -15,7 +15,10 @@ import {
   SpatialPartnerController,
   SpatialSchemaController,
   SpatialAdminController,
+  SpatialMetricsController,
+  TelemetryController,
 } from './spatial.controller';
+import { TelemetryService } from './telemetry.service';
 import { SpatialService } from './spatial.service';
 import { PortalModule } from '../portal/portal.module';
 import { VenueStaffGuard } from '../portal/venue-staff.guard';
@@ -28,8 +31,10 @@ import { PrismaService } from '../prisma.service';
     SpatialPartnerController,
     SpatialSchemaController,
     SpatialAdminController,
+    SpatialMetricsController,
+    TelemetryController,
   ],
-  providers: [SpatialService, VenueStaffGuard, PrismaService],
-  exports: [SpatialService],
+  providers: [SpatialService, TelemetryService, VenueStaffGuard, PrismaService],
+  exports: [SpatialService, TelemetryService],
 })
 export class SpatialModule {}

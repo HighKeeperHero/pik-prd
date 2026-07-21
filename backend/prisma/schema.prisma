@@ -264,6 +264,7 @@ model Source {
   staff            VenueStaff[]
   auditEntries     VenueAuditEntry[]
   rooms            VenueRoom[]
+  spatialMetrics   SpatialMetric[]
 
   @@map("sources")
 }
@@ -455,6 +456,7 @@ model ExperienceRun {
   source       Source           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   experience   Experience       @relation(fields: [experienceId], references: [id])
   participants RunParticipant[]
+  spatialMetrics SpatialMetric[]
 
   @@unique([sourceId, partnerRunKey])
   @@index([sourceId, status])
@@ -1790,4 +1792,63 @@ model DeviceCapabilityProfile {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("device_capability_profiles")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// HEP Phase 2 Slice 6 — spatial telemetry
+//
+// "Looks aligned" is not an acceptable test result (Workstream 9). These
+// rows are how a threshold becomes enforceable by something other than
+// someone reading a spreadsheet.
+//
+// ── Why one generic table and not thirty columns ──────────────────────
+// The spec lists ~25 metrics across anchor, runtime and player groups,
+// explicitly as INITIAL targets to be tuned after testing. A column per
+// metric would mean a migration every time the partner learns something,
+// and they will learn something every week of the pilot. Name + value +
+// unit costs one index and survives a metric we have not thought of.
+// ════════════════════════════════════════════════════════════════════════
+
+/// One measurement, reported by a client, about one session.
+///
+/// Attributed to the RoomConfig that was live when it was taken — which
+/// is the entire reason RoomConfig is immutable. A drift figure means
+/// nothing without knowing which calibration it drifted from.
+model SpatialMetric {
+  id       String @id @default(uuid()) @map("metric_id")
+  sourceId String @map("source_id")
+  /// Null for measurements taken outside a run (calibration, warm-up).
+  runId    String? @map("run_id")
+  /// Null when the client reports before resolving a room.
+  roomConfigId String? @map("room_config_id")
+
+  /// Dotted name, e.g. 'anchor.translation_error_m',
+  /// 'anchor.drift_m.20min', 'runtime.fps.p50'. Free-form on purpose;
+  /// the vocabulary is documented, not enforced, so the partner can
+  /// report something new without waiting on us to ship a migration.
+  metric String
+  value  Float
+  /// 'm' | 'deg' | 'ms' | 'fps' | 'ratio' | 'count' — for display and to
+  /// stop a centimetre being compared against a metre.
+  unit   String
+
+  /// Which device produced it. Drift is device-dependent, and a fleet
+  /// average hides the one headset that is bad.
+  deviceProfile String? @map("device_profile")
+  deviceId      String? @map("device_id")
+
+  /// Anything the client wants to keep: provider, tracking state,
+  /// player count, phase of the encounter.
+  context Json @default("{}")
+
+  capturedAt DateTime @map("captured_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  source Source        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  run    ExperienceRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([sourceId, metric, capturedAt])
+  @@index([roomConfigId, metric])
+  @@index([runId])
+  @@map("spatial_metrics")
 }
