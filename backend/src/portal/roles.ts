@@ -27,7 +27,15 @@ export type Permission =
   | 'assets.generate'
   | 'venue.edit'
   | 'staff.manage'
-  | 'apikey.rotate';
+  | 'apikey.rotate'
+  // HEP Slice 4 — room calibration. Deliberately TWO permissions:
+  // calibrating is physical work an operator does wearing the headset,
+  // publishing makes a room live for paying guests. The person holding
+  // the device is not necessarily the person accountable for what a
+  // guest walks into, and collapsing the two would remove the only
+  // moment a venue gets to sign off on that.
+  | 'rooms.calibrate'
+  | 'rooms.publish';
 
 /**
  * Explicit grants per role — no inheritance chain.
@@ -46,6 +54,8 @@ const MATRIX: Record<Role, Permission[]> = {
     'venue.edit',
     'staff.manage',
     'apikey.rotate',
+    'rooms.calibrate',
+    'rooms.publish',
   ],
   manager: [
     'analytics.read',
@@ -53,8 +63,10 @@ const MATRIX: Record<Role, Permission[]> = {
     'experiences.manage',
     'assets.generate',
     'venue.edit',
+    'rooms.calibrate',
+    'rooms.publish',
   ],
-  operator: ['analytics.read', 'runs.operate'],
+  operator: ['analytics.read', 'runs.operate', 'rooms.calibrate'],
   viewer: ['analytics.read'],
 };
 

@@ -22,6 +22,7 @@
     "verify:tear-gen": "ts-node scripts/verify-tear-gen.ts",
     "db:backup": "bash scripts/backup-db.sh",
     "seed:quests": "ts-node scripts/seed-quests.ts",
+    "seed:spatial": "ts-node scripts/seed-spatial.ts",
     "flags": "ts-node scripts/flags.ts",
     "users": "ts-node scripts/users.ts",
     "seed:experiences": "ts-node scripts/seed-experiences.ts",

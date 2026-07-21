@@ -263,6 +263,7 @@ model Source {
   experienceRuns   ExperienceRun[]
   staff            VenueStaff[]
   auditEntries     VenueAuditEntry[]
+  rooms            VenueRoom[]
 
   @@map("sources")
 }
@@ -382,6 +383,23 @@ model Experience {
   /// Reward bundle AND its scaling constants. Deliberately data, not code:
   /// retuning payouts is a DB edit, never a deploy. See docs/hep/slice-1-scope.md §3/§4.
   rewards           Json     @default("{}")
+
+  /// Spatial requirements — what this experience needs from a room
+  /// (Workstream 4): requiredAnchors, requiredZones, clearance, player
+  /// counts, room profile. Empty for a non-spatial experience, which is
+  /// every experience today.
+  ///
+  /// Data, not code, exactly as `rewards` is: a partner revising a
+  /// placement must not need a deploy.
+  manifest          Json     @default("{}")
+  /// Schema version of `manifest` itself, NOT of the experience.
+  ///
+  /// The spec versions the experience but not the schema an external team
+  /// builds against — and Tier C is partnered out, so their client will
+  /// be written months before it is integrated. Without this we cannot
+  /// evolve the manifest without breaking a client we do not control.
+  manifestSchemaVersion Int  @default(1) @map("manifest_schema_version")
+
   status            String   @default("active")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
@@ -1517,4 +1535,259 @@ model FeatureFlag {
 
   @@unique([key, channel])
   @@map("feature_flags")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// HEP Phase 2 Slice 4 — spatial data model
+//
+// The contract an external XR team builds against. Tier C is partnered
+// out, which is exactly why this lives here and lands first: a partner
+// with no contract invents one, and then we integrate against their
+// assumptions instead of ours.
+//
+// ── The one commitment everything else depends on ─────────────────────
+// Every pose persisted below is in ROOM-LOCAL coordinates: metres, Y up,
+// origin at the room's calibrated origin anchor. Never device space,
+// never provider space. Two headsets that resolve the same room disagree
+// about where the world is and agree about where the room is, so
+// room-local is the only frame in which their state can be compared —
+// which is what makes shared-spatial multiplayer possible later without
+// a migration (Workstream 11).
+//
+// ── Additive only ─────────────────────────────────────────────────────
+// Nothing here changes existing Codex or venue behavior. A venue with no
+// rooms is exactly as it was.
+// ════════════════════════════════════════════════════════════════════════
+
+/// A physical room at a venue. Long-lived: survives every recalibration.
+///
+/// Distinct from RoomConfig, which is one *calibration* of this room. The
+/// room is the place; the config is our current belief about where its
+/// origin sits. Conflating them would mean a recalibration silently
+/// rewriting the history of every run measured against the old one.
+model VenueRoom {
+  id       String @id @default(uuid()) @map("room_id")
+  sourceId String @map("source_id")
+  /// Venue-scoped operator-facing key, e.g. 'trial-chamber-a'.
+  slug     String
+  name     String
+
+  /// Free-form physical description: dimensions, materials, lighting,
+  /// furniture. Workstream 8.2 wants one canonical reference room
+  /// recorded in this much detail; deliberately Json because a partner
+  /// will want fields we have not thought of.
+  profile  Json   @default("{}")
+
+  /// Which published config is live. Null until first publish.
+  /// Rollback is repointing this, never mutating a config.
+  activeConfigId String? @unique @map("active_config_id")
+
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  source       Source      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  configs      RoomConfig[] @relation("RoomConfigs")
+  activeConfig RoomConfig?  @relation("ActiveConfig", fields: [activeConfigId], references: [id])
+
+  @@unique([sourceId, slug])
+  @@index([sourceId, status])
+  @@map("venue_rooms")
+}
+
+/// One immutable, published calibration of a room.
+///
+/// IMMUTABLE once status='published'. A recalibration is a new row with
+/// version+1, never an edit. This is not fastidiousness: every run's
+/// spatial telemetry is measured against the config that was live at the
+/// time, and an editable config would make historical drift and error
+/// figures unattributable — the measurements would silently start
+/// referring to a room origin that no longer existed when they were taken.
+model RoomConfig {
+  id      String @id @default(uuid()) @map("room_config_id")
+  roomId  String @map("room_id")
+  version Int
+
+  /// draft | published | archived.
+  /// Only a draft may be mutated; publishing freezes it.
+  status  String @default("draft")
+
+  /// Which experience + version this calibration was laid out for.
+  /// A room is calibrated FOR content — placements are meaningless
+  /// without knowing what they were placing.
+  experienceId      String? @map("experience_id")
+  experienceVersion Int?    @map("experience_version")
+
+  /// How the origin was established — 'fiducial' (Mode A) or 'native'
+  /// (Mode B). Recorded because the recovery action an operator is told
+  /// to perform differs, and because comparing drift between the two is
+  /// the whole point of running both in the pilot.
+  originMode String @default("fiducial") @map("origin_mode")
+
+  /// The intended forward direction, in room-local space (Step 4).
+  /// Separate from the origin anchor's own rotation: the operator may
+  /// establish position from a floor plate and facing from a wall.
+  orientationReference Json? @map("orientation_reference")
+
+  /// Validation verdict at publish time (Step 7): measured errors against
+  /// tolerances. Frozen with the config so a later tolerance change
+  /// cannot retroactively make a published room look like it passed.
+  validation Json @default("{}")
+
+  /// Device profiles this calibration is certified for. A config
+  /// validated on a headset is not automatically valid on mobile AR.
+  supportedDeviceProfiles String[] @default([]) @map("supported_device_profiles")
+
+  publishedAt DateTime? @map("published_at")
+  /// VenueStaff.id of the publishing operator. Null = platform.
+  publishedBy String?   @map("published_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  room        VenueRoom          @relation("RoomConfigs", fields: [roomId], references: [id], onDelete: Cascade)
+  activeFor   VenueRoom?         @relation("ActiveConfig")
+  anchors     AnchorRecord[]
+  placements  ContentPlacement[]
+  zones       SpatialZone[]
+
+  @@unique([roomId, version])
+  @@index([roomId, status])
+  @@map("room_configs")
+}
+
+/// A spatial anchor as the PROVIDER knows it.
+///
+/// Provider-agnostic by construction (Workstream 2): `provider` +
+/// `providerAnchorId` is the whole vendor coupling, and it is two
+/// columns. An ARCore Cloud Anchor id, a Meta spatial anchor uuid and a
+/// printed marker id are all just strings here, so swapping providers —
+/// or running two at once during the Mode A/Mode B comparison — costs no
+/// schema change.
+model AnchorRecord {
+  id           String @id @default(uuid()) @map("anchor_id")
+  roomConfigId String @map("room_config_id")
+
+  /// Manifest anchor name (e.g. 'HERO_ECHO_MAIN') or 'ORIGIN'.
+  name String
+  /// origin | content | verification | marker
+  role String @default("content")
+
+  /// arcore | meta | local_marker | editor_sim | androidxr
+  provider        String
+  /// Opaque to us. Cloud-anchor ids are billable and TTL'd, which is why
+  /// deletion is tracked rather than the row being hard-deleted.
+  providerAnchorId String? @map("provider_anchor_id")
+  /// Fiducial marker identifier, when originMode='fiducial'.
+  markerId         String? @map("marker_id")
+
+  /// Pose in ROOM-LOCAL space. [x,y,z] metres and [x,y,z] degrees euler.
+  /// For the origin anchor this is the identity pose by definition —
+  /// stored anyway so the record is self-describing to a partner reading
+  /// one row without knowing our conventions.
+  localPosition Float[] @map("local_position")
+  localRotation Float[] @map("local_rotation")
+
+  /// Provider-reported confidence at capture, 0..1 when available.
+  trackingConfidence Float?  @map("tracking_confidence")
+  /// Device that captured it — drift is device-dependent.
+  capturedByDevice   String? @map("captured_by_device")
+  capturedAt         DateTime @default(now()) @map("captured_at")
+
+  /// Set when released at the provider. Soft so an orphaned billable
+  /// cloud anchor is auditable rather than merely gone from our side.
+  releasedAt DateTime? @map("released_at")
+
+  config RoomConfig @relation(fields: [roomConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([roomConfigId, name])
+  @@index([roomConfigId, role])
+  @@map("anchor_records")
+}
+
+/// Where a manifest's required content sits in this specific room.
+///
+/// The join between "what the experience needs" (Experience.manifest) and
+/// "how it fits here" (this row). That separation is the reason an
+/// experience can be re-deployed to a second venue without re-authoring.
+model ContentPlacement {
+  id           String @id @default(uuid()) @map("placement_id")
+  roomConfigId String @map("room_config_id")
+
+  /// Must match a requiredAnchors[].name in the experience manifest.
+  /// Validated at publish — a placement naming nothing is a calibration
+  /// that will fail at runtime, and it should fail at publish instead.
+  anchorName String @map("anchor_name")
+
+  /// Room-local pose. Overrides the manifest's suggested pose, which is
+  /// authored for an idealised room.
+  localPosition Float[] @map("local_position")
+  localRotation Float[] @map("local_rotation")
+  localScale    Float[] @default([1, 1, 1]) @map("local_scale")
+
+  /// Operator note — "behind the pillar, left of the door".
+  notes String?
+
+  config RoomConfig @relation(fields: [roomConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([roomConfigId, anchorName])
+  @@map("content_placements")
+}
+
+/// A volume in the room: where a player starts, where they may interact,
+/// and where they must not be.
+model SpatialZone {
+  id           String @id @default(uuid()) @map("zone_id")
+  roomConfigId String @map("room_config_id")
+
+  name String
+  /// player_start | interaction | safety | clearance
+  kind String
+  /// circle | box | polygon
+  shape String
+
+  /// Shape parameters, keyed by shape: {radius} | {size:[x,y,z]} |
+  /// {points:[[x,z],…]}. Json because three shapes with disjoint
+  /// parameters in flat columns would be mostly nulls.
+  geometry Json
+
+  /// Room-local centre.
+  localPosition Float[] @map("local_position")
+  localRotation Float[] @default([0, 0, 0]) @map("local_rotation")
+
+  config RoomConfig @relation(fields: [roomConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([roomConfigId, name])
+  @@index([roomConfigId, kind])
+  @@map("spatial_zones")
+}
+
+/// A class of device, and what content may assume about it.
+///
+/// Heroes-authored and global, NOT per-venue: a partner selecting their
+/// own performance budget is how you get an experience that ships at
+/// 20fps and a support ticket. Tiers A/B/C per Workstream 6.
+model DeviceCapabilityProfile {
+  id   String @id @default(uuid()) @map("profile_id")
+  /// e.g. 'tier-a-mobile-ar', 'tier-b-standalone-headset'
+  slug String @unique
+  name String
+  /// A | B | C
+  tier String
+
+  supportsSharedAnchors     Boolean @default(false) @map("supports_shared_anchors")
+  supportsPersistentAnchors Boolean @default(false) @map("supports_persistent_anchors")
+  supportsSceneMesh         Boolean @default(false) @map("supports_scene_mesh")
+  supportsHandTracking      Boolean @default(false) @map("supports_hand_tracking")
+  supportsOcclusion         Boolean @default(false) @map("supports_occlusion")
+
+  /// Asset + runtime budget: triangles, texture MB, draw calls, particles,
+  /// target fps. Data, not code — retuning a budget must not be a deploy,
+  /// the same principle Experience.rewards already follows.
+  budgets Json @default("{}")
+
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("device_capability_profiles")
 }
