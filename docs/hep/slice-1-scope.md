@@ -53,11 +53,22 @@ ExperienceRun       one party's playthrough
   outcome Json, failureReason
   @@unique([sourceId, partnerRunKey])     ← idempotency
 
-RunParticipant      one player within a run
-  runId, rootId, sessionId?, role?,
-  rewardsApplied Json, joinedAt
-  @@unique([runId, rootId])
+RunParticipant      one seat in a run — identified OR guest
+  runId, rootId?, guestLabel?, sessionId?, role?,
+  rewards Json, rewardState: applied | pending | expired,
+  joinedAt
+  @@unique([runId, rootId])               ← partial; guests have null rootId
+
+GuestClaim          unclaimed rewards waiting for an account
+  id, participantId, tokenHash, sourceId,
+  status: pending | claimed | expired,
+  expiresAt, claimedAt, claimedByRootId
+  @@unique([tokenHash])
 ```
+
+`RunParticipant.rootId` is **nullable** — that is the entire concession the
+model makes for walk-ins, and it is what lets all three arrival paths share one
+mechanism (see below).
 
 `PlayerSession` is unchanged and still means venue presence — a player checks in
 once and may play several runs before checking out.
@@ -85,16 +96,22 @@ shipped firmware is expensive; adding it now costs nothing.
 | Player Lookup | `GET /api/partner/v1/players/:rootId` | consent-gated, minimal projection |
 | Venue Status | `GET /api/partner/v1/venue` | own venue only; assigned experiences, active runs |
 | Heartbeat | `POST /api/partner/v1/runs/:id/heartbeat` | detects abandoned runs |
+| *(new)* Guest claim redemption | `POST /api/claims/:token` | **player-facing, not partner** — called by the Codex app, account-authed |
+
+`/api/claims/:token` deliberately sits outside `/api/partner` — it is called by
+the player's app, not by the venue, and must not require a venue key.
 
 Deferred to Slice 2: Device Registration, Analytics Upload, Reward Request as a
 standalone endpoint (Slice 1 grants rewards on completion).
 
 ### Scopes
 
-Two new values in the Slice 0 scope vocabulary: `runs` (start/complete/fail) and
-`rewards` (grant on completion). A venue licensed to run experiences but not to
-grant rewards is a real configuration — it is how a pilot or a demo venue should
-be provisioned.
+Three new values in the Slice 0 scope vocabulary: `runs` (start/complete/fail),
+`rewards` (grant on completion), and `guests` (issue claim tokens for
+unidentified seats). A venue licensed to run experiences but not to grant
+rewards is a real configuration — it is how a pilot or demo venue should be
+provisioned. `guests` is separable because a venue that does not want to handle
+claim QR codes simply is not granted it.
 
 ## Reward application
 
@@ -115,17 +132,7 @@ migration target.
 not by opening any cache it drops. That is Tim's locked principle — no XP on
 cache open — and venue runs must not become a loophole.
 
-### Reward magnitude — needs Tim's number
-
-The committed in-app income is ~1,000 XP/day (see `leveling.service.ts`). A
-15–20 minute venue experience should feel like a meaningful chunk of a day
-without trivializing the calendar.
-
-**Proposed anchor: 500–800 Fate XP** for a completed run, plus one cache, plus a
-first-completion title. That is roughly half a day's committed income for
-~20 minutes of play, which reads as "worth the trip" without letting a
-season-pass holder outrun the curve. **This number is a placeholder — it is an
-economy decision, not an engineering one.**
+#Reward magnitude is configuration rather than code — see Decisions §3.
 
 ## Deliverable: the fake venue
 
@@ -139,7 +146,7 @@ the reference implementation handed to a venue's engineers.
 
 ## Definition of done
 
-1. A scripted party of 3 heroes completes a run on staging; all three see XP,
+1. A scripted party completes a run on staging; identified heroes see XP,
    a cache, and a title in the Codex app.
 2. Replaying complete with the same `partner_run_key` grants nothing further.
 3. A failed run records the failure, grants nothing, and appears in run history.
@@ -147,7 +154,11 @@ the reference implementation handed to a venue's engineers.
    cross-venue continuation on one identity.
 5. A venue without the `rewards` scope can start and complete runs but grants
    nothing.
-6. `verify-slice1.ts` green against staging.
+6. **A guest seat produces a claim token; redeeming it on a fresh account lands
+   the held rewards on that hero. Redeeming twice pays once. An expired token
+   pays nothing.**
+7. Retuning `Experience.rewards` changes what a run pays **without a deploy.**
+8. `verify-slice1.ts` green against staging.
 
 ## Explicitly out of scope
 
@@ -155,16 +166,92 @@ XR/spatial anything, device management, room mapping, the Portal UI, the
 analytics dashboard UI, matchmaking beyond a supplied roster, partner-authored
 content, and offline/degraded-network run reconciliation.
 
-## Open decisions (need Tim)
+## Decisions (Tim, 2026-07-20)
 
-1. **Walk-ins.** Echoes of Kingvale seats 2–6, but some players will arrive
-   without a Codex account. Options: (a) run is Codex-only, everyone installs
-   first; (b) guest participants play but earn nothing and are offered a claim
-   link afterward; (c) on-site enrollment at a kiosk. This is a **product and
-   conversion** decision, not a technical one, and it materially changes the
-   partner pitch. It is the single biggest open question in this slice.
-2. **Reward magnitude** — the 500–800 XP anchor above.
-3. **Do venue runs advance daily/weekly quests?** Yes is more rewarding and
-   pulls app players into venues; no keeps the economies clean.
-4. **Failure semantics.** If a party fails at the boss, do they get partial
-   credit? Real venues will care, because guests who paid and lost will complain.
+### 1. Additive only — never rewire Codex
+
+No component of Slice 1 modifies existing Codex behavior. Concretely:
+
+- `RewardService` is **new code called by new endpoints only.** The four
+  remaining `fateXp: { increment }` bypasses (`quest.service`, `hunt-tracker`,
+  `loot.service`, `demo.service`) are *not* migrated in this slice, despite
+  being a natural target. They are a separate, opt-in cleanup.
+- No changes to quest evaluation, loot tables, the Sanctum, or the XP curve.
+- New tables only; no columns dropped or retyped on existing ones.
+
+The venue layer is a *source of events* into Codex, exactly as `/api/ingest`
+already is. Codex does not learn that venues exist.
+
+### 2. All three arrival paths — and they collapse into one mechanism
+
+Codex will be in the app stores by launch, so a venue will see existing players,
+walk-ins, and people willing to sign up at the door. All three are supported —
+but they are **not three features**:
+
+> **Guest participation with a claim link is the primitive.
+> On-site enrollment is that primitive, claimed immediately.**
+
+| Arrival | Mechanism |
+|---|---|
+| Existing Codex player | `RunParticipant.rootId` set; rewards applied at completion |
+| Walk-in guest | `rootId` null; rewards held `pending`; claim link issued |
+| On-site enrollment | guest seat + staff-assisted account creation + immediate claim |
+
+One code path, one set of tests, one thing to get right. A kiosk is a UX around
+the claim endpoint, not a separate integration.
+
+**Claim flow**
+
+1. Run completes. Identified participants are paid immediately; guest seats have
+   their computed bundle stored with `rewardState: pending`.
+2. A single-use claim token is generated per guest seat. Stored **hashed**
+   (same pattern as API keys and account sessions — never at rest in plaintext),
+   handed to the venue once for printing as a QR or short code.
+3. Guest installs Codex, creates an account, opens the claim link.
+4. `POST /api/claims/:token` binds the pending bundle to their new hero and
+   applies it through `RewardService`.
+
+Constraints: tokens are single-use, expire (**30 days** proposed), are rate
+limited, and a claim is idempotent on the token. An expired token transitions to
+`expired` and pays nothing.
+
+**This produces the single best metric in the partner pitch:** claims ÷ guest
+seats is a literal walk-in→player conversion rate, per venue. That is direct
+evidence for the brief's business-validation criterion — *"measurable increases
+in player engagement or repeat visitation attributable to Heroes integration"* —
+and no other feature in Phase 2 produces it.
+
+**Codex app work (native, additive):** a claim entry point — deep link plus a
+manual code field. New screen, no changes to existing ones. Tracked separately
+from this backend slice.
+
+### 3. Rewards: build the dial, not the number
+
+Tim: *"track best practices as it relates to in-game progression logic. We will
+more than likely have to calibrate once live anyway."*
+
+So the reward value is **configuration, not code**:
+
+- The bundle lives in `Experience.rewards` (JSON, DB row) — tunable without a
+  deploy, per experience, per version.
+- A `venue.reward_multiplier` runtime `Config` key allows global calibration,
+  and per-venue promotional tuning later.
+- Changes are logged to `IdentityEvent`, so a retune is auditable against the
+  progression it produced.
+
+Starting anchor (**a starting point, expected to move**): ~500–800 Fate XP for a
+completed run — roughly half a day's committed income (~1,000 XP/day per
+`leveling.service.ts`) for ~20 minutes of play. Best-practice grounding: a
+destination activity should feel like a meaningful fraction of a day's
+progression without letting it be farmed past the calendar the curve encodes.
+
+The engineering commitment is that **no recalibration requires a code change.**
+
+## Still open
+
+1. **Do venue runs advance daily/weekly quests?** Yes pulls app players into
+   venues; no keeps the economies separate. Not blocking — runs can grant
+   rewards without touching quest progress, and this can be switched on later.
+2. **Failure semantics.** Partial credit when a party fails at the boss? Real
+   venues will care, because guests who paid and lost will complain. Recommend
+   a reduced "attempt" bundle rather than nothing.
