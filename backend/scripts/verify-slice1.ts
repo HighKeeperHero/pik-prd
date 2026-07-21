@@ -392,15 +392,14 @@ async function main() {
     method: 'POST', headers: admin(),
     body: { config_key: 'venue.reward_multiplier', config_value: '1' },
   });
+  // GET /api/config returns a MAP of key -> value (numeric-parsed), not a
+  // list of rows. The previous read-back called .find?.() on that object,
+  // which optional-chained into undefined and failed the check while the
+  // restore had actually worked. Leaving staging on a 2x multiplier would
+  // silently inflate every later run, so this reads the key directly.
   const cfg = await call('/api/config', { headers: admin() });
-  const restored = (unwrap(cfg.body) ?? []).find?.(
-    (c: any) => c.config_key === 'venue.reward_multiplier' || c.key === 'venue.reward_multiplier',
-  );
-  check(
-    'multiplier restored to 1',
-    String(restored?.config_value ?? restored?.value) === '1',
-    restored,
-  );
+  const restored = (unwrap(cfg.body) ?? {})['venue.reward_multiplier'];
+  check('multiplier restored to 1', Number(restored) === 1, { restored });
 
   // ── Cleanup ──────────────────────────────────────────────────────
   console.log('\n9. Cleanup');
