@@ -25,12 +25,14 @@ import { Response } from 'express';
 import { ConfigService } from './config.service';
 import { SourceAdminService } from './source-admin.service';
 import { PlatformAdminGuard } from '../auth/guards/platform-admin.guard';
+import { PortalService } from '../portal/portal.service';
 
 @Controller('api')
 export class ConfigController {
   constructor(
     private readonly configService: ConfigService,
     private readonly sourceAdmin: SourceAdminService,
+    private readonly portal: PortalService,
   ) {}
 
   // Renamed from 'health' in Phase 2 Slice 0. It was a second @Get('health')
@@ -185,6 +187,34 @@ export class ConfigController {
       enabled: body.enabled,
       available_from: body.available_from,
       available_until: body.available_until,
+    });
+  }
+
+  /**
+   * POST /api/sources/:id/staff — invite a venue's FOUNDING OWNER.
+   * Body: { email, role?, display_name? }
+   *
+   * This is where onboarding actually begins. Heroes creates the venue and
+   * invites its first owner; from that point the venue administers itself
+   * through /api/portal/v1 and needs no further engineering involvement —
+   * which is the Phase 2 criterion this whole slice exists to satisfy.
+   *
+   * Subsequent staff are invited by that owner, not by Heroes.
+   */
+  @Post('sources/:id/staff')
+  @UseGuards(PlatformAdminGuard)
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  async inviteFoundingStaff(
+    @Param('id') id: string,
+    @Body() body: { email?: string; role?: string; display_name?: string },
+  ) {
+    if (!body.email) {
+      throw new BadRequestException('Request body requires: email');
+    }
+    return this.portal.inviteStaff(null, id, {
+      email: body.email,
+      role: body.role ?? 'owner',
+      display_name: body.display_name,
     });
   }
 

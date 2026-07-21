@@ -250,6 +250,12 @@ model Source {
   /// existing venues keep working after the Phase 2 Slice 0 migration.
   scopes      String    @default("xp fate_markers titles")
 
+  /// Venue-editable descriptive fields (contact, address, hours, timezone,
+  /// geo). Deliberately separate from `scopes` and `status`, which are the
+  /// commercial terms of the partnership and belong to Heroes — a venue
+  /// editing its own scopes would be self-granting.
+  profile     Json      @default("{}")
+
   sourceLinks SourceLink[]
   fateCaches  FateCache[]
   ingestReceipts IngestReceipt[]

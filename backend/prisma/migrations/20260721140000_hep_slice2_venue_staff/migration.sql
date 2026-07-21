@@ -6,6 +6,10 @@
 -- regional manager may legitimately hold an account at several venues, and
 -- each is a separate grant with its own role.
 
+-- Venue-editable descriptive profile. Kept apart from scopes/status, which
+-- are commercial terms only Heroes may change.
+ALTER TABLE "sources" ADD COLUMN "profile" JSONB NOT NULL DEFAULT '{}';
+
 CREATE TABLE "venue_staff" (
     "staff_id"        TEXT NOT NULL,
     "source_id"       TEXT NOT NULL,

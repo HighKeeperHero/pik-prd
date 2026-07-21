@@ -16,6 +16,7 @@ import { IdentityModule }    from './identity/identity.module';
 import { ConsentModule }     from './consent/consent.module';
 import { IngestModule }      from './ingest/ingest.module';
 import { PartnerModule }     from './partner/partner.module';   // HEP Phase 2 Slice 1
+import { PortalModule }      from './portal/portal.module';     // HEP Phase 2 Slice 2
 import { ConfigModule }      from './config/config.module';
 import { AnalyticsModule }   from './analytics/analytics.module';
 import { AuthModule }        from './auth/auth.module';
@@ -121,6 +122,7 @@ class HealthController {
     ConsentModule,
     IngestModule,
     PartnerModule,
+    PortalModule,
     ConfigModule,
     AnalyticsModule,
     AuthModule,
