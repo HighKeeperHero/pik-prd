@@ -1,7 +1,7 @@
 {
   "name": "pik-backend",
   "version": "1.0.0",
-  "description": "PIK — Persistent Identity Kernel",
+  "description": "PIK \u2014 Persistent Identity Kernel",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -27,7 +27,8 @@
     "seed:experiences": "ts-node scripts/seed-experiences.ts",
     "fake:venue": "ts-node scripts/fake-venue.ts",
     "verify:slice1": "ts-node scripts/verify-slice1.ts",
-    "verify:slice2": "ts-node scripts/verify-slice2.ts"
+    "verify:slice2": "ts-node scripts/verify-slice2.ts",
+    "provision:venue": "ts-node scripts/provision-venue.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
