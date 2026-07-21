@@ -49,6 +49,41 @@ function check(name: string, passed: boolean, detail?: unknown) {
   }
 }
 
+/**
+ * Assert over a collection that must not be empty.
+ *
+ * `[].every(...)` is TRUE — vacuously. The first run of this harness reported
+ * "seats skipped for lack of rewards scope ✓" against an empty seat list,
+ * because the run it was inspecting had never started. A test that passes
+ * when nothing happened is worse than one that fails: it manufactures
+ * confidence. Anything asserting over seats or participants goes through here.
+ */
+function checkAll<T>(
+  name: string,
+  items: T[] | undefined | null,
+  predicate: (item: T) => boolean,
+  detail?: unknown,
+) {
+  const list = items ?? [];
+  if (list.length === 0) {
+    check(`${name} [NO ITEMS — vacuous pass avoided]`, false, detail ?? items);
+    return;
+  }
+  check(name, list.every(predicate), detail ?? items);
+}
+
+/** Stop the run when a precondition fails, instead of emitting doomed noise. */
+function requireOrAbort(name: string, passed: boolean, detail?: unknown): void {
+  check(name, passed, detail);
+  if (!passed) {
+    console.error(
+      `\n⛔ Precondition failed: ${name}\n` +
+        `   Remaining checks would fail for this reason alone and tell you nothing.\n`,
+    );
+    process.exit(1);
+  }
+}
+
 async function call(
   path: string,
   opts: { method?: string; headers?: Record<string, string>; body?: unknown } = {},
@@ -126,12 +161,19 @@ async function main() {
   const keyNoPay = await makeVenue(venues[2], ['xp', 'titles', 'runs']); // no `rewards`
   await consent(ROOT_A!, venues[0]);
   await consent(ROOT_A!, venues[2]);
-  check('three venues provisioned with distinct scopes', true);
+  requireOrAbort(
+    'three venues provisioned with distinct scopes',
+    Boolean(keyA && keyB && keyNoPay),
+  );
 
   const status = await call('/api/partner/v1/venue', { headers: venue(keyA) });
-  check(
+  requireOrAbort(
     'venue status lists the assigned experience',
     unwrap(status.body)?.experiences?.some((e: any) => e.slug === 'echoes_of_kingvale'),
+    // Almost always means the seed never ran. `railway run` injects the
+    // INTERNAL database host (postgres.railway.internal), which does not
+    // resolve from a laptop — the seed must override DATABASE_URL with
+    // DATABASE_PUBLIC_URL. See scripts/README-slice1.md.
     status.body,
   );
 
@@ -149,7 +191,7 @@ async function main() {
     },
   });
   const run = unwrap(started.body);
-  check('run started', started.status < 400 && Boolean(run?.run_id), started.body);
+  requireOrAbort('run started', started.status < 400 && Boolean(run?.run_id), started.body);
 
   const done = await call(`/api/partner/v1/runs/${run.run_id}/complete`, {
     method: 'POST', headers: venue(keyA),
@@ -244,7 +286,12 @@ async function main() {
   check('timeout paid roughly half of victory', timeoutGain > 0 && timeoutGain < gained, { gained, timeoutGain });
 
   const seatT = (failed?.participants_settled ?? []).find((s: any) => s.root_id);
-  check('timeout granted no discrete loot', (seatT?.applied?.caches_granted?.length ?? 0) === 0, seatT?.applied);
+  check('timeout settled an identified seat', Boolean(seatT), failed?.participants_settled);
+  check(
+    'timeout granted no discrete loot',
+    Boolean(seatT) && (seatT?.applied?.caches_granted?.length ?? 0) === 0,
+    seatT?.applied,
+  );
 
   // ── 6. rewards scope gates payout ────────────────────────────────
   console.log('\n6. A venue without `rewards` runs but does not pay');
@@ -253,13 +300,18 @@ async function main() {
     method: 'POST', headers: venue(keyNoPay),
     body: { experience_slug: 'echoes_of_kingvale', partner_run_key: `${RUN}-r3`, root_ids: [ROOT_A], guests: [{}] },
   })).body);
-  check('run started at unpaid venue', Boolean(r3?.run_id), r3);
+  requireOrAbort('run started at unpaid venue', Boolean(r3?.run_id), r3);
 
   const r3done = unwrap((await call(`/api/partner/v1/runs/${r3.run_id}/complete`, {
     method: 'POST', headers: venue(keyNoPay), body: { outcome: 'victory', milestones_hit: 4 },
   })).body);
-  check('seats skipped for lack of rewards scope',
-    (r3done?.participants_settled ?? []).every((s: any) => s.reward_state === 'skipped'), r3done?.participants_settled);
+  // checkAll, not .every() — an empty seat list would pass vacuously and
+  // report that scope gating works when no seat was ever evaluated.
+  checkAll(
+    'seats skipped for lack of rewards scope',
+    r3done?.participants_settled,
+    (s: any) => s.reward_state === 'skipped',
+  );
   check('no XP granted by unpaid venue', (await xpOf(ROOT_A!)) === preNoPay);
 
   // ── 7. Tenant isolation ──────────────────────────────────────────
@@ -291,16 +343,28 @@ async function main() {
   check('retuned run paid more than the 1.20x victory', retuneGain > gained, { gained, retuneGain });
 
   // Restore, so a later run of this harness starts from a known state.
+  // Verified by reading it back — asserting `true` here proved nothing, and
+  // leaving staging on a 2x multiplier would silently corrupt every
+  // subsequent run of this harness.
   await call('/api/config', {
     method: 'POST', headers: admin(),
     body: { config_key: 'venue.reward_multiplier', config_value: '1' },
   });
-  check('multiplier restored to 1', true);
+  const cfg = await call('/api/config', { headers: admin() });
+  const restored = (unwrap(cfg.body) ?? []).find?.(
+    (c: any) => c.config_key === 'venue.reward_multiplier' || c.key === 'venue.reward_multiplier',
+  );
+  check(
+    'multiplier restored to 1',
+    String(restored?.config_value ?? restored?.value) === '1',
+    restored,
+  );
 
   // ── Cleanup ──────────────────────────────────────────────────────
   console.log('\n9. Cleanup');
   await cleanup(venues);
-  check('test venues suspended', true);
+  const gone = await call('/api/partner/v1/venue', { headers: venue(keyA) });
+  check('suspended venue key no longer authenticates', gone.status === 403, gone.status);
 
   console.log(
     failures === 0

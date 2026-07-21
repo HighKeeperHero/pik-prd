@@ -56,6 +56,23 @@ const TITLES = [
 ];
 
 async function main() {
+  // The config API refuses to create keys ("Only pre-existing keys can be
+  // updated"), so the calibration dial must be seeded before anyone can turn
+  // it. Without this, retuning payouts is impossible in a running
+  // environment — which would defeat the whole point of keeping rewards in
+  // data rather than code.
+  await prisma.config.upsert({
+    where: { key: 'venue.reward_multiplier' },
+    create: {
+      key: 'venue.reward_multiplier',
+      value: '1',
+      description:
+        'Global multiplier applied to every venue experience payout. 1 = as authored.',
+    },
+    update: {}, // never clobber a live calibration on re-seed
+  });
+  console.log('  config ✓ venue.reward_multiplier');
+
   for (const t of TITLES) {
     await prisma.title.upsert({
       where: { id: t.id },
