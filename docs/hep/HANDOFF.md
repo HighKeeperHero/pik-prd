@@ -118,8 +118,19 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
      manifest tooling** — once their client is in a room, drift numbers
      are the only way to know any of this works, and the Workstream 9
      thresholds are guesses until real data moves them.
-6. Run `verify-slice4` against staging after the next deploy (it has only
-   run locally).
+6. ~~Run `verify-slice4` against staging~~ — **done, 71/71 green.**
+   `verify-slice3` is 53/53 green on staging too.
+7. **Slice 6 (spatial telemetry) is built** — `SpatialMetric`,
+   `POST /api/partner/v1/telemetry`, and
+   `GET /api/portal/v1/spatial/metrics` evaluating the Workstream 9
+   table. `verify-slice6` 30/30 green locally; needs a staging run after
+   deploy. Contract documented for the firm in
+   `spatial-integration-guide.md` §3b.
+8. **Still open with the design firm** (guide §6): the tracking-quality
+   signal, a relocalization operation, anchor enumeration, and the
+   commercial question of what a tracking-lost session pays.
+9. `heroes-demo-venue`'s owner invite can now be reissued — the account
+   had been stranded in `invited` with no way in.
 
 ## Things that will bite, if not remembered
 
@@ -143,6 +154,10 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
   whose metadata names the branch and commit.
 - **`railway run` injects the INTERNAL DB host.** Prisma scripts need
   `sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" …'`.
+- **`no_data` is not `pass`.** The Slice 6 rollup counts unmeasured
+  thresholds separately for this reason. A quality dashboard that reads
+  green because nothing was measured is the worst place to relearn the
+  vacuous-pass lesson.
 - **Harnesses that pass vacuously.** `[].every()` is `true`; a test that passes
   when nothing happened manufactures confidence. Use `checkAll()` /
   `requireOrAbort()`.
