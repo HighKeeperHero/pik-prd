@@ -85,13 +85,51 @@ That is not an edge case, it is the common venue staffing shape.
 ### Runtime (venue API key)
 
 ```
-GET /api/partner/v1/rooms/:roomSlug     header: X-PIK-API-Key
+GET  /api/partner/v1/rooms/:roomSlug    header: X-PIK-API-Key
+POST /api/partner/v1/telemetry          header: X-PIK-API-Key
 ```
 
 Read-only by construction. Returns the published config: anchors,
 placements, zones, `origin_mode`, `supported_device_profiles`. 404 if the
 room has never been published — treat that as "not calibrated", not as an
 error to retry.
+
+---
+
+## 3b. Telemetry — please wire this in early
+
+```jsonc
+POST /api/partner/v1/telemetry          → 202
+{
+  "run_id": "…",             // optional
+  "room_config_id": "…",     // optional, but see §5 on caching
+  "metrics": [
+    { "metric": "anchor.translation_error_m", "value": 0.021, "unit": "m",
+      "captured_at": "2026-07-21T22:14:00Z", "device_profile": "tier-b-standalone-headset" }
+  ]
+}
+```
+
+Rules that will bite if you skip them:
+
+- **Batches accept partially.** Valid rows are stored, invalid ones come
+  back in `issues` with reasons. One bad sample never costs the session.
+- **A known metric in the wrong unit is REJECTED.** Report
+  `anchor.translation_error_m` in `m`, not `cm` — centimetres judged
+  against a metre threshold would pass every time while the room is 20cm
+  out. Unknown metrics have no unit constraint.
+- **Unknown metric names are accepted and stored.** If you learn
+  something we did not think to ask for, just send it; it appears in the
+  venue rollup as `unmeasured_metrics`. Tell us and we will give it a
+  threshold.
+- `captured_at` in the future or before 2026 is rejected — device clocks
+  drift and a sample stamped 2049 would sit atop every window forever.
+
+`GET /api/portal/v1/spatial/metrics` (staff token) evaluates the
+Workstream 9 table against real samples. Two things to know reading it:
+lower-is-better metrics report **p95, not mean** (a mean hides the one
+session in twenty that went badly), and a threshold with no samples
+reports **`no_data`, never `pass`**.
 
 ---
 
