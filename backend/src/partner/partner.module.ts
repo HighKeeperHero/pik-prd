@@ -12,9 +12,11 @@
 import { Module } from '@nestjs/common';
 import { PartnerController } from './partner.controller';
 import { ClaimController } from './claim.controller';
+import { VenueAccessController } from './venue-access.controller';
 import { PartnerService } from './partner.service';
 import { RewardService } from './reward.service';
 import { ClaimService } from './claim.service';
+import { VenueAccessService } from './venue-access.service';
 import { PrismaService } from '../prisma.service';
 import { EventsModule } from '../events/events.module';
 import { LevelingModule } from '../leveling/leveling.module';
@@ -27,11 +29,12 @@ import { AccountGuard } from '../auth/guards/account.guard';
   // used by the claim redemption route. Omitting it crashes Nest bootstrap at
   // runtime while the build stays green (see fox.module.ts, 2026-07-09).
   imports: [EventsModule, LevelingModule, FateAccountModule],
-  controllers: [PartnerController, ClaimController],
+  controllers: [PartnerController, ClaimController, VenueAccessController],
   providers: [
     PartnerService,
     RewardService,
     ClaimService,
+    VenueAccessService,
     PrismaService,
     ApiKeyGuard,
     AccountGuard,

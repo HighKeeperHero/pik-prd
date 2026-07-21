@@ -429,6 +429,36 @@ export class PortalService {
   }
 
   // ────────────────────────────────────────────────────────────
+  // PRINTABLE ASSETS
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * What the venue prints and puts on the wall. Returns the payload, not
+   * an image — rendering belongs to whatever produces the physical asset,
+   * and a venue's print shop wants the string, not our PNG.
+   */
+  async venueQrPayload(staff: ResolvedStaff) {
+    const venue = await this.prisma.source.findUnique({
+      where: { id: staff.sourceId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!venue) throw new NotFoundException('Venue not found');
+
+    await this.audit(staff.sourceId, staff.id, 'assets.venue_qr_generated');
+
+    return {
+      source_id: venue.id,
+      venue_name: venue.name,
+      /** Encode this in the QR. */
+      deep_link: `heroescodex://venue/${venue.id}`,
+      /** Shown beneath it, for a player who cannot scan. */
+      instructions:
+        'Scan to let this venue record your deeds, or open Heroes\' Codex and check in manually.',
+      active: venue.status === 'active',
+    };
+  }
+
+  // ────────────────────────────────────────────────────────────
   // AUDIT
   // ────────────────────────────────────────────────────────────
 

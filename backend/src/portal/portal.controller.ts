@@ -157,6 +157,23 @@ export class PortalController {
     return this.portal.updateExperience(req.staff, slug, body);
   }
 
+  // ── Printable assets ──────────────────────────────────────────
+
+  /**
+   * The venue's check-in QR payload.
+   *
+   * Deliberately withheld until now: a QR is only worth generating once
+   * the app can act on it, and the venue check-in flow is what made that
+   * true. Emitting codes nothing could scan would have been a feature in
+   * name only.
+   */
+  @Get('qr/venue')
+  @UseGuards(VenueStaffGuard)
+  @RequirePermission('assets.generate')
+  venueQr(@Req() req: StaffRequest) {
+    return this.portal.venueQrPayload(req.staff);
+  }
+
   // ── Analytics ─────────────────────────────────────────────────
 
   @Get('analytics')
