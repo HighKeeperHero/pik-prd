@@ -73,6 +73,22 @@ async function main() {
   });
   console.log('  config ✓ venue.reward_multiplier');
 
+  // Same trap as the multiplier above: the config API refuses to CREATE
+  // keys, so an unseeded ceiling cannot be lowered — it silently falls
+  // back to the code default and the circuit breaker looks armed while
+  // being untunable. Caught by testing the breaker rather than trusting it.
+  await prisma.config.upsert({
+    where: { key: 'venue.daily_xp_ceiling' },
+    create: {
+      key: 'venue.daily_xp_ceiling',
+      value: '250000',
+      description:
+        'Max Fate XP one venue may grant in a rolling 24h. Circuit breaker against a leaked key or a looping integration.',
+    },
+    update: {}, // never clobber a live setting on re-seed
+  });
+  console.log('  config ✓ venue.daily_xp_ceiling');
+
   for (const t of TITLES) {
     await prisma.title.upsert({
       where: { id: t.id },
