@@ -85,9 +85,17 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
 2. **Put `RESEND_API_KEY` in Railway** (+ optional `MAIL_FROM`,
    `PORTAL_BASE_URL`). Until then mail is `log`-transport only and no venue
    owner can actually receive a reset. Verify the sending domain first.
-3. Re-run `verify-slice3` against staging after deploy — it has only been run
-   against a local server so far.
+3. ~~Re-run `verify-slice3` against staging after deploy~~ — **done, 46/46
+   green against the live staging deployment.** Note staging passes the
+   first-party section either way (its row was already correct); production
+   is the only place that fix can be proven.
 4. Confirm testers can scan both QR flows on alpha build 19.
+5. **Decide Tier C: hired for, partnered out, or deferred.** An
+   11-workstream XR spec arrived 2026-07-21; analysis in
+   `docs/hep/tier-c-integration.md`. It proposes backend Slices 4–7 the
+   current team can build (spatial data model, manifest, telemetry,
+   calibration API) — worth building under "hired" or "partnered", but
+   under "deferred" build the telemetry alone and stop.
 
 ## Things that will bite, if not remembered
 
