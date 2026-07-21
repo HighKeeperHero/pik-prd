@@ -126,10 +126,15 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
    table. `verify-slice6` 30/30 green locally; needs a staging run after
    deploy. Contract documented for the firm in
    `spatial-integration-guide.md` §3b.
-8. **Still open with the design firm** (guide §6): the tracking-quality
+8. **Reward sync is now DERIVED** from the run ledger (eligible = seats
+   with a rootId in applied|pending|expired; delivered = applied).
+   Needs no XR client, and is the one W9 threshold already governing
+   real players. `skipped`/`reversed`/unclaimed-guest seats are excluded
+   — see the commit for why counting them lies in both directions.
+9. **Still open with the design firm** (guide §6): the tracking-quality
    signal, a relocalization operation, anchor enumeration, and the
    commercial question of what a tracking-lost session pays.
-9. `heroes-demo-venue`'s owner invite can now be reissued — the account
+10. `heroes-demo-venue`'s owner invite can now be reissued — the account
    had been stranded in `invited` with no way in.
 
 ## Things that will bite, if not remembered
@@ -165,6 +170,16 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
   never ship OTA.
 - Local Android builds: see `heroes-veritas-native/docs/local-android-build.md`
   (four undocumented walls, two of them in prebuild-generated files).
+
+## Known gaps in Phase 2 coverage (nobody has scoped these)
+
+- **P11 Support Portal** and **P12 Certification** from the 12-product
+  brief are Tier A — buildable now — and appear in no slice plan.
+  Certification matters as soon as a second partner exists.
+- **P8 Live Ops** is partial: analytics and audit exist, but there is no
+  live operational surface.
+- **Tier B** (P3 Heroes Runtime, P4 Experience Studio, P9 Update System)
+  is unscoped and unassigned.
 
 ## Deliberately NOT built
 
