@@ -90,12 +90,22 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
    first-party section either way (its row was already correct); production
    is the only place that fix can be proven.
 4. Confirm testers can scan both QR flows on alpha build 19.
-5. **Decide Tier C: hired for, partnered out, or deferred.** An
-   11-workstream XR spec arrived 2026-07-21; analysis in
-   `docs/hep/tier-c-integration.md`. It proposes backend Slices 4–7 the
-   current team can build (spatial data model, manifest, telemetry,
-   calibration API) — worth building under "hired" or "partnered", but
-   under "deferred" build the telemetry alone and stop.
+5. ~~Decide Tier C~~ — **DECIDED 2026-07-21: partnered out to a design
+   firm.** Slice 4 (the spatial contract) was built the same day in
+   consequence: six tables, manifest schema + validated authoring,
+   calibration API, publish gate, immutability + rollback, seeded
+   tolerances and device tiers, runtime resolve. `verify-slice4` green at
+   71 checks locally. Purely additive.
+   - **Send the firm `docs/hep/spatial-integration-guide.md`.** Its §6
+     lists four things to agree EARLY because they are cheaper than a
+     retrofit: the tracking-quality signal, the relocalization operation,
+     anchor enumeration, and what a tracking-lost session pays.
+   - Revised order for the rest: **telemetry (Slice 6) next, not the
+     manifest tooling** — once their client is in a room, drift numbers
+     are the only way to know any of this works, and the Workstream 9
+     thresholds are guesses until real data moves them.
+6. Run `verify-slice4` against staging after the next deploy (it has only
+   run locally).
 
 ## Things that will bite, if not remembered
 
