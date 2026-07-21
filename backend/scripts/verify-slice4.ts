@@ -101,8 +101,51 @@ function goodManifest(slug: string) {
   };
 }
 
+/**
+ * Refuse to grade a build that is not the one under test.
+ *
+ * A run seconds after a push hits the OLD container and reports confident
+ * failures for correct code — indistinguishable from a real regression
+ * unless the harness says so. Warns rather than aborts: verifying an
+ * older deployment is sometimes exactly what you want, but you should
+ * never do it by accident.
+ */
+async function preflightBuild() {
+  const health = unwrap((await call('/api/health')).body);
+  const deployed = health?.commit ?? null;
+  let local: string | null = null;
+  try {
+    local = require('child_process')
+      .execSync('git rev-parse --short=7 HEAD', { cwd: __dirname + '/..' })
+      .toString()
+      .trim();
+  } catch {
+    /* not a git checkout — skip the comparison */
+  }
+
+  console.log(
+    `  build: ${health?.environment ?? '?'} ` +
+      `branch=${health?.branch ?? '?'} commit=${deployed ?? 'unknown'}` +
+      (local ? ` | local HEAD=${local}` : ''),
+  );
+
+  if (deployed && local && deployed !== local) {
+    console.log(
+      `  ⚠ DEPLOYED BUILD (${deployed}) IS NOT YOUR LOCAL HEAD (${local}).\n` +
+        `    A deploy may still be rolling out. Failures below may be stale\n` +
+        `    code rather than real regressions — re-run once it settles.`,
+    );
+  }
+  if (!deployed) {
+    console.log(
+      '  · server reports no commit (pre-2026-07-21 build, or running locally)',
+    );
+  }
+}
+
 async function main() {
   console.log(`\nHEP Slice 4 verification — ${API}\n${'─'.repeat(58)}`);
+  await preflightBuild();
 
   // ── 1. Manifest schema, unauthenticated ─────────────────────
   console.log('\n1. Manifest schema — the partner-facing contract');
