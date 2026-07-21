@@ -18,6 +18,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../prisma.service';
 import { ROLES, isRole, permissionsFor, type Role } from './roles';
 import type { ResolvedStaff } from './venue-staff.guard';
@@ -446,11 +447,26 @@ export class PortalService {
 
     await this.audit(staff.sourceId, staff.id, 'assets.venue_qr_generated');
 
+    const deepLink = `heroescodex://venue/${venue.id}`;
+
+    // SVG rather than PNG: a venue prints this at whatever size the wall
+    // needs, and vector survives being scaled up by a print shop. Error
+    // correction 'M' tolerates a scuffed or partly-obscured sign, which
+    // is the realistic failure mode for something mounted at a door.
+    const svg = await QRCode.toString(deepLink, {
+      type: 'svg',
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#06080F', light: '#FFFFFF' },
+    });
+
     return {
       source_id: venue.id,
       venue_name: venue.name,
-      /** Encode this in the QR. */
-      deep_link: `heroescodex://venue/${venue.id}`,
+      /** What the QR encodes. */
+      deep_link: deepLink,
+      /** Ready to print. Scales without loss. */
+      qr_svg: svg,
       /** Shown beneath it, for a player who cannot scan. */
       instructions:
         'Scan to let this venue record your deeds, or open Heroes\' Codex and check in manually.',
