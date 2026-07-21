@@ -133,6 +133,7 @@ model RootIdentity {
   memoria                  PlayerMemoria[]             // Sprint 32 — Memoria identity-collection
   sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
   loreFinds                HeroLore[]                  // 2026-07-06 — Lore Archive collection
+  runSeats                 RunParticipant[]            // HEP Phase 2 Slice 1 — venue experience runs
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -252,8 +253,153 @@ model Source {
   sourceLinks SourceLink[]
   fateCaches  FateCache[]
   ingestReceipts IngestReceipt[]
+  venueExperiences VenueExperience[]
+  experienceRuns   ExperienceRun[]
 
   @@map("sources")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// HEP Phase 2 Slice 1 — venue experience runs
+//
+// Additive only: nothing below changes existing Codex behavior. A venue is
+// a source of events into the kernel, exactly as /api/ingest already is.
+// ════════════════════════════════════════════════════════════════════════
+
+/// A canonical, Heroes-authored experience. Partners configure which of these
+/// they may run; they never author one (Phase 2 brief: "Canonical Experiences").
+model Experience {
+  id                String   @id @default(uuid()) @map("experience_id")
+  slug              String   @unique
+  name              String
+  description       String?
+  /// Bumped when the reward bundle or content changes. Copied onto each run so
+  /// analytics stay attributable after a revision.
+  version           Int      @default(1)
+  minPlayers        Int      @default(1) @map("min_players")
+  maxPlayers        Int      @default(6) @map("max_players")
+  targetDurationSec Int      @default(1200) @map("target_duration_sec")
+  /// Reward bundle AND its scaling constants. Deliberately data, not code:
+  /// retuning payouts is a DB edit, never a deploy. See docs/hep/slice-1-scope.md §3/§4.
+  rewards           Json     @default("{}")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  venueAssignments VenueExperience[]
+  runs             ExperienceRun[]
+
+  @@map("experiences")
+}
+
+/// Which venues may run which experiences, and when (Partner Portal's
+/// "Experience Assignment" / "Schedule content availability").
+model VenueExperience {
+  id             String    @id @default(uuid()) @map("venue_experience_id")
+  sourceId       String    @map("source_id")
+  experienceId   String    @map("experience_id")
+  enabled        Boolean   @default(true)
+  availableFrom  DateTime? @map("available_from")
+  availableUntil DateTime? @map("available_until")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  source     Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, experienceId])
+  @@index([sourceId, enabled])
+  @@map("venue_experiences")
+}
+
+/// One party's playthrough — the entity the brief's analytics are all measured
+/// against (completion rate, session duration, technical failures). A party
+/// completes or fails together; rewards land per participant.
+model ExperienceRun {
+  id                String   @id @default(uuid()) @map("run_id")
+  sourceId          String   @map("source_id")
+  experienceId      String   @map("experience_id")
+  experienceVersion Int      @map("experience_version")
+  /// Partner-supplied idempotency key for the run (their own session id).
+  partnerRunKey     String   @map("partner_run_key")
+  /// active | completed | failed | abandoned
+  status            String   @default("active")
+  startedAt         DateTime @default(now()) @map("started_at")
+  lastHeartbeat     DateTime @default(now()) @map("last_heartbeat")
+  endedAt           DateTime? @map("ended_at")
+  durationSec       Int?     @map("duration_sec")
+  /// Milestone timestamps the venue runtime reports; drives the payout bonus.
+  milestonesHit     Int      @default(0) @map("milestones_hit")
+  /// Computed payout multiplier, persisted so a retune cannot rewrite history.
+  payoutMultiplier  Float?   @map("payout_multiplier")
+  failureReason     String?  @map("failure_reason")
+  outcome           Json?
+
+  source       Source           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  experience   Experience       @relation(fields: [experienceId], references: [id])
+  participants RunParticipant[]
+
+  @@unique([sourceId, partnerRunKey])
+  @@index([sourceId, status])
+  @@index([experienceId, startedAt])
+  @@index([status, lastHeartbeat])
+  @@map("experience_runs")
+}
+
+/// One seat in a run — either an identified Codex hero or an anonymous guest.
+///
+/// `rootId` being nullable is the entire concession the model makes for
+/// walk-ins, and it is what lets all three arrival paths (existing player,
+/// guest, on-site enrollment) share one mechanism.
+model RunParticipant {
+  id          String   @id @default(uuid()) @map("participant_id")
+  runId       String   @map("run_id")
+  /// Null for a guest seat until (and unless) a claim binds it to a hero.
+  rootId      String?  @map("root_id")
+  /// Venue-facing label for an unidentified seat ("Player 3", a wristband id).
+  guestLabel  String?  @map("guest_label")
+  sessionId   String?  @map("session_id")
+  role        String?
+  /// The computed bundle for this seat. Held here while pending so a guest's
+  /// rewards survive until they create an account.
+  rewards     Json     @default("{}")
+  /// applied | pending | expired | skipped
+  rewardState String   @default("pending") @map("reward_state")
+  appliedAt   DateTime? @map("applied_at")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  run   ExperienceRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  root  RootIdentity? @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  claim GuestClaim?
+
+  @@unique([runId, rootId])
+  @@index([runId])
+  @@index([rootId])
+  @@map("run_participants")
+}
+
+/// Rewards earned by a guest seat, waiting for an account to land on.
+///
+/// The token is stored hashed and never at rest in plaintext — same pattern as
+/// source API keys and account sessions. claims ÷ guest seats is the per-venue
+/// walk-in conversion rate, which is the strongest evidence available for the
+/// brief's business-validation criterion.
+model GuestClaim {
+  id            String    @id @default(uuid()) @map("claim_id")
+  participantId String    @unique @map("participant_id")
+  tokenHash     String    @unique @map("token_hash")
+  sourceId      String    @map("source_id")
+  /// pending | claimed | expired
+  status        String    @default("pending")
+  expiresAt     DateTime  @map("expires_at")
+  claimedAt     DateTime? @map("claimed_at")
+  claimedBy     String?   @map("claimed_by_root_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  participant RunParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, status])
+  @@index([status, expiresAt])
+  @@map("guest_claims")
 }
 
 /// Idempotency ledger for the Partner Integration API.

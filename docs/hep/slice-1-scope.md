@@ -252,6 +252,40 @@ The engineering commitment is that **no recalibration requires a code change.**
 1. **Do venue runs advance daily/weekly quests?** Yes pulls app players into
    venues; no keeps the economies separate. Not blocking — runs can grant
    rewards without touching quest progress, and this can be switched on later.
-2. **Failure semantics.** Partial credit when a party fails at the boss? Real
-   venues will care, because guests who paid and lost will complain. Recommend
-   a reduced "attempt" bundle rather than nothing.
+*(Failure semantics resolved — see §4 below.)*
+
+### 4. Outcome-weighted payout (Tim, 2026-07-21)
+
+A reduced "attempt" bundle is confirmed. The direction is that payout is
+weighted against the total available points:
+
+| Outcome | Multiplier |
+|---|---|
+| Victory | `1.00` + `0.05` per milestone timestamp hit, bonus capped at `+0.20` |
+| Timer expires (60 min) without victory | `0.50` |
+| Abandoned / walked out | `0.00` |
+
+So a flawless run pays **1.20×** and a timeout pays **0.50×**.
+
+Discrete rewards (caches, titles) are gated behind a minimum multiplier rather
+than scaled — you cannot grant half a cache. Default gate is `1.00`, so a
+timeout pays partial XP but no loot, which keeps victory meaningful while still
+sending a losing party home with progress.
+
+Every constant above lives in `Experience.rewards.scaling`, not in code:
+
+```json
+"scaling": {
+  "milestoneBonusEach": 0.05,
+  "milestoneBonusCap":  0.20,
+  "timeoutMultiplier":  0.50,
+  "abandonedMultiplier": 0.00,
+  "discreteRewardMinMultiplier": 1.00
+}
+```
+
+Final payout = `base × outcomeMultiplier × venue.reward_multiplier`, rounded
+down. Consistent with §3: retuning any of it is a DB edit, not a deploy.
+
+The milestone count comes from the partner in the complete call — the venue's
+runtime knows which beats the party hit and when. Heroes does not infer it.
