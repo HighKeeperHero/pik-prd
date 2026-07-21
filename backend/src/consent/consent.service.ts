@@ -8,6 +8,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
@@ -110,12 +111,23 @@ export class ConsentService {
   async revokeLink(rootId: string, linkId: string, dto: RevokeLinkDto) {
     const link = await this.prisma.sourceLink.findFirst({
       where: { id: linkId, rootId },
-      include: { source: { select: { name: true } } },
+      include: { source: { select: { name: true, sourceType: true } } },
     });
 
     if (!link) {
       throw new NotFoundException(
         `Source link not found: ${linkId} for identity ${rootId}`,
+      );
+    }
+
+    // Heroes' Codex itself is a Source, and every hero is linked to it —
+    // hero creation FK-depends on that row. Revoking it would sever a
+    // player from their own game, which no consent surface should be able
+    // to do by accident. Only third-party links are withdrawable.
+    if (link.source.sourceType === 'first_party') {
+      throw new ForbiddenException(
+        'Heroes\' Codex is not a third party; this link cannot be withdrawn. ' +
+          'Delete your account instead if that is what you intend.',
       );
     }
 
@@ -176,7 +188,7 @@ export class ConsentService {
 
     const links = await this.prisma.sourceLink.findMany({
       where: { rootId },
-      include: { source: { select: { name: true } } },
+      include: { source: { select: { name: true, sourceType: true } } },
       orderBy: { grantedAt: 'desc' },
     });
 
@@ -184,6 +196,9 @@ export class ConsentService {
       link_id: l.id,
       source_id: l.sourceId,
       source_name: l.source.name,
+      source_type: l.source.sourceType,
+      /** False for Heroes' Codex itself — see revokeLink. */
+      withdrawable: l.source.sourceType !== 'first_party',
       scope: l.scope,
       status: l.status,
       granted_by: l.grantedBy,
