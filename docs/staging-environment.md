@@ -10,28 +10,51 @@ Railway project `PIK-PRD`, service `pik-prd`, two environments:
 |---|---|---|
 | Env name (exact) | `Staging` | `production` (lowercase) |
 | URL | `pik-prd-staging.up.railway.app` | `pik-prd-production.up.railway.app` |
-| Deploys | automatically from `main` | automatically from `main`, **lagging** |
+| Deploys from | `main` branch | `production` branch |
 | Data | disposable (`StageProbe` et al.) | real alpha testers |
 
-**Both environments auto-deploy from `main`. Production just arrives later.**
+## Promoting
 
-Observed 2026-07-20 pushing Slice 0: staging was serving the new build (403 on
-the newly guarded routes) while production still served the old one (200) — for
-roughly an hour. Production then picked it up on its own with no manual action.
+`main` is safe to push: it reaches staging only. Production is an explicit
+merge.
 
-This lag is a trap. It is easy to check production shortly after a push, see
-old behavior, and conclude production is on a manual promote. It is not. **A
-push to `main` reaches real players.** Treat every merge as a production
-deploy and verify *both* hosts before assuming otherwise — the environment now
-reports itself in `/api/health`, so:
+```bash
+# 1. push work — deploys to staging
+git push origin main
+
+# 2. verify on staging
+npx ts-node scripts/verify-slice1.ts       # or whatever the slice ships
+
+# 3. promote — deploys to production
+git checkout production
+git merge --ff-only main
+git push origin production
+git checkout main
+```
+
+Because production only fast-forwards from `main`, the two can never diverge,
+and every production deploy is a commit that has already run on staging.
+
+### History: why this exists
+
+Until 2026-07-21 **both** environments auto-deployed from `main`, production
+just lagging ~1 hour behind. That lag actively deceived: checking production
+shortly after a push showed old behavior, which reads exactly like a manual
+promote. It was not one — a push to `main` reached real players, and there was
+no way to test on staging without also shipping to production.
+
+That was tolerable for guard/dedup work. It stopped being tolerable at Slice 1,
+which grants XP and mints loot.
+
+The `production` branch was created at `a77d8d0` — the exact commit production
+was already running — so the cutover changed nothing that was deployed.
+
+Verify which build answers, always empirically:
 
 ```bash
 curl -s https://pik-prd-production.up.railway.app/api/health
 curl -s https://pik-prd-staging.up.railway.app/api/health
 ```
-
-The exact promote/build trigger was not observed and is not documented here;
-if it is ever made deliberate, update this section.
 
 ## The trap
 
