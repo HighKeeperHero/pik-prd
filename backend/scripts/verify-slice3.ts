@@ -467,6 +467,49 @@ async function main() {
     }
   }
 
+  // ── 5. Re-inviting a stale invite ───────────────────────────
+  console.log('\n5. A never-accepted invite must be recoverable');
+
+  // Found in production: heroes-demo-venue's founding owner sat 'invited'
+  // forever. Reset does not apply (no password yet) and a second invite
+  // used to 409, so the only way back was a Heroes engineer with database
+  // access — the exact dependency this phase removes.
+  const stale = `stale+${RUN}@slice3.test`;
+  const first = await call(`/api/sources/${venueId}/staff`, {
+    method: 'POST', headers: admin(), body: { email: stale, role: 'manager' },
+  });
+  const firstToken = unwrap(first.body)?.invite_token;
+  requireOrAbort('an invite was issued', !!firstToken, first.body);
+
+  const second = await call(`/api/sources/${venueId}/staff`, {
+    method: 'POST', headers: admin(), body: { email: stale, role: 'manager' },
+  });
+  const secondToken = unwrap(second.body)?.invite_token;
+  check('re-inviting an UNACCEPTED invite succeeds',
+    second.status === 200 || second.status === 201, second.body);
+  check('it reports itself as a reissue', unwrap(second.body)?.reissued === true, second.body);
+  check('and mints a DIFFERENT token', !!secondToken && secondToken !== firstToken,
+    { same: secondToken === firstToken });
+
+  // Burning the old link is the security property that makes reissue safe.
+  const replayOld = await call('/api/portal/v1/auth/accept', {
+    method: 'POST', body: { invite_token: firstToken, password: `Stale-${RUN}!` },
+  });
+  check('the PREVIOUS invite token is dead', replayOld.status === 401, replayOld.status);
+
+  const acceptNew = await call('/api/portal/v1/auth/accept', {
+    method: 'POST', body: { invite_token: secondToken, password: `Stale-${RUN}!` },
+  });
+  check('the reissued token activates the account', acceptNew.status === 200, acceptNew.body);
+
+  // Now ACTIVE — re-inviting must go back to being a conflict, or this
+  // would be a way to mint a credential for someone else's live account.
+  const thirdOnActive = await call(`/api/sources/${venueId}/staff`, {
+    method: 'POST', headers: admin(), body: { email: stale, role: 'manager' },
+  });
+  check('re-inviting an ACTIVE account is still refused',
+    thirdOnActive.status === 409, thirdOnActive.status);
+
   // The outbox must be shut to anyone without the platform key.
   const unguarded = await call('/api/portal/v1/_mail/outbox');
   check('the mail outbox refuses an unauthenticated caller',

@@ -384,26 +384,52 @@ export class PortalService {
     const existing = await this.prisma.venueStaff.findUnique({
       where: { sourceId_email: { sourceId, email } },
     });
-    if (existing) {
+
+    // An account that was invited and never accepted is a DEAD END, not a
+    // conflict. Its invite token was shown once and is stored hashed, so
+    // if it was lost or expired there is no way back: reset does not apply
+    // (there is no password yet) and a second invite used to throw here.
+    // The only remaining route was a Heroes engineer editing the database
+    // — which is exactly the per-venue custom engineering this phase
+    // exists to remove. Found in production: heroes-demo-venue's founding
+    // owner sat 'invited' with no way to ever sign in.
+    //
+    // Re-inviting is safe precisely because the account is inert: no
+    // password, no sessions, nothing to hijack. Re-issuing also BURNS the
+    // previous token, so this narrows the window rather than widening it.
+    const reissuing = existing?.status === 'invited';
+
+    if (existing && !reissuing) {
+      // 'active' or 'suspended' — a real account. Still a conflict, and
+      // deliberately so: re-inviting an active member would be a way to
+      // hand out a credential for someone else's live account.
       throw new ConflictException(
         `${email} already has an account at this venue`,
       );
     }
 
     const inviteToken = randomBytes(32).toString('base64url');
+    const inviteData = {
+      role: params.role,
+      displayName: params.display_name ?? existing?.displayName ?? null,
+      status: 'invited',
+      inviteHash: createHash('sha256').update(inviteToken).digest('hex'),
+      inviteExpires: new Date(Date.now() + INVITE_TTL_DAYS * 86400000),
+    };
 
-    const created = await this.prisma.venueStaff.create({
-      data: {
-        sourceId,
-        email,
-        role: params.role,
-        displayName: params.display_name ?? null,
-        status: 'invited',
-        invitedBy: actor ? `staff:${actor.id}` : 'platform',
-        inviteHash: createHash('sha256').update(inviteToken).digest('hex'),
-        inviteExpires: new Date(Date.now() + INVITE_TTL_DAYS * 86400000),
-      },
-    });
+    const created = reissuing
+      ? await this.prisma.venueStaff.update({
+          where: { id: existing!.id },
+          data: inviteData,
+        })
+      : await this.prisma.venueStaff.create({
+          data: {
+            sourceId,
+            email,
+            invitedBy: actor ? `staff:${actor.id}` : 'platform',
+            ...inviteData,
+          },
+        });
 
     const venue = await this.prisma.source.findUnique({
       where: { id: sourceId },
@@ -422,11 +448,13 @@ export class PortalService {
       ttlDays: INVITE_TTL_DAYS,
     });
 
-    await this.audit(sourceId, actor?.id ?? null, 'staff.invited', created.id, {
-      email,
-      role: params.role,
-      delivered: delivery.delivered,
-    });
+    await this.audit(
+      sourceId,
+      actor?.id ?? null,
+      reissuing ? 'staff.invite_reissued' : 'staff.invited',
+      created.id,
+      { email, role: params.role, delivered: delivery.delivered },
+    );
 
     return {
       ...this.presentStaff(created),
@@ -439,6 +467,10 @@ export class PortalService {
       // So the portal can say "emailed" or "copy this link" honestly
       // rather than claiming a delivery that did not happen.
       invite_emailed: delivery.delivered,
+      // True when this replaced a stale unaccepted invite. The caller
+      // should know it burned the previous link rather than issuing a
+      // second valid one.
+      reissued: reissuing,
     };
   }
 
