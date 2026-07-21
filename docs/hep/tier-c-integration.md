@@ -25,7 +25,7 @@ technical:
 
 | Blocker | Status |
 |---|---|
-| **Tier C has no owner** | Confirmed 2026-07-20. Not a scheduling gap — a hiring/partner gap. |
+| ~~**Tier C has no owner**~~ | **RESOLVED 2026-07-21: partnered out to a design firm.** This changes the priority order — see §6. |
 | **There is no Unity repository** | The tri-repo is `codexpwa` (web), `pik-prd` (NestJS), `heroes-veritas-native` (React Native/Expo). Every C# interface in the spec has nowhere to live. |
 
 A third, softer blocker matters for Sprint Group 5: **"Echoes of Kingvale"
@@ -198,3 +198,44 @@ hired for, partnered out, or deferred. Slices 4–7 are worth building under
 "hired" or "partnered." Under "deferred," they are speculative schema for
 a client that may never arrive, and the honest move is to build only 3.3
 (the telemetry, which pays for itself on the current product) and stop.
+
+
+---
+
+## 6. Update — Tier C partnered out (2026-07-21)
+
+Tim confirmed Tier C goes to an external design firm. That **inverts the
+urgency** of everything above: the contract is no longer speculative
+schema for a client that may never arrive, it is a document another
+company starts building against shortly. A partner with no contract
+invents one, and then we integrate against their assumptions.
+
+So **Slice 4 was built the same day** — see
+`docs/hep/spatial-integration-guide.md`, the partner-facing brief.
+
+Shipped: six tables (`VenueRoom`, `RoomConfig`, `AnchorRecord`,
+`ContentPlacement`, `SpatialZone`, `DeviceCapabilityProfile`), the
+manifest schema with `manifestSchemaVersion`, validated manifest
+authoring, the calibration API, the publish gate, immutability and
+rollback, seeded tolerances and device tiers, and the runtime resolve.
+`verify-slice4` is green at 71 checks. All additive — safe to deploy long
+before any XR client exists, which is the point.
+
+**Revised order for what remains:**
+
+1. **Slice 6 (telemetry) next, not Slice 5.** Once the firm has a client
+   in a room, drift and localization numbers are the only way to know
+   whether any of this works, and the Workstream 9 thresholds are
+   guesses until real data moves them. Telemetry also pays for itself
+   immediately: reward-sync ≥99.5% is measurable today.
+2. **Slice 7 (portal calibration UI)** when the firm's operator flow
+   settles — building screens before their client exists would be
+   guessing at a workflow they are still designing.
+3. **Slice 5 (asset/content-package validation)** last: it constrains
+   *their* pipeline, so it should be negotiated rather than imposed.
+
+**Three things to put in front of the firm early**, because they are
+cheaper to agree than to retrofit — the tracking-quality signal, the
+relocalization operation, and anchor enumeration (all §4 above), plus the
+commercial question of what a tracking-lost session pays. All four are
+written up as open questions in §6 of the integration guide.
