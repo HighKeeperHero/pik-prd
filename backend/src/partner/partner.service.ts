@@ -36,6 +36,23 @@ const DEFAULT_CLAIM_TTL_DAYS = 30;
 /** A run with no heartbeat for this long is considered abandoned. */
 export const RUN_STALE_AFTER_MS = 90 * 60 * 1000; // 90 min
 
+/**
+ * Default ceiling on Fate XP one venue may grant in a rolling 24h.
+ *
+ * A venue API key is held on hardware in a room full of strangers. If one
+ * leaks — or a partner's integration simply loops — there was previously
+ * nothing between that and unlimited minting into the live economy, and
+ * the kernel is append-only so there is no undo. This is the circuit
+ * breaker.
+ *
+ * Sized to be invisible in normal operation: Echoes of Kingvale pays
+ * ~720 XP per seat at 6 seats, so a venue running back-to-back parties
+ * all day lands near 50k. 250k is roughly five times a busy day.
+ *
+ * Override per venue with the `venue.daily_xp_ceiling` config key.
+ */
+export const DEFAULT_DAILY_XP_CEILING = 250_000;
+
 export interface StartRunInput {
   experience_slug: string;
   partner_run_key: string;
@@ -264,16 +281,36 @@ export class PartnerService {
 
     // A venue may be licensed to run experiences without paying them out —
     // that is how a demo or pilot venue is provisioned.
-    const mayPay = intersectScopes(source.scopes).has(SCOPES.REWARDS);
+    let mayPay = intersectScopes(source.scopes).has(SCOPES.REWARDS);
+
+    const participants = await this.prisma.runParticipant.findMany({
+      where: { runId },
+    });
+
+    // Circuit breaker. Checked BEFORE paying, not after, because the
+    // kernel is append-only — there is no way to take XP back once it is
+    // granted, so the only safe place to stop is in front.
+    let ceilingBreached = false;
+    if (mayPay && reward.xp > 0) {
+      const ceiling = await this.dailyXpCeiling();
+      const spent = await this.xpGrantedToday(source.id);
+      const projected = reward.xp * participants.length;
+
+      if (spent + projected > ceiling) {
+        ceilingBreached = true;
+        mayPay = false;
+        this.logger.error(
+          `PAYOUT CEILING: ${source.name} (${source.id}) granted ${spent} XP in 24h; ` +
+            `this run would add ~${projected}, over the ${ceiling} ceiling. ` +
+            `Payouts suspended for this run — the run still settles.`,
+        );
+      }
+    }
 
     const endedAt = new Date();
     const durationSec =
       dto.duration_sec ??
       Math.round((endedAt.getTime() - run.startedAt.getTime()) / 1000);
-
-    const participants = await this.prisma.runParticipant.findMany({
-      where: { runId },
-    });
 
     const results: Record<string, unknown>[] = [];
 
@@ -287,7 +324,11 @@ export class PartnerService {
           participant_id: seat.id,
           root_id: seat.rootId,
           reward_state: 'skipped',
-          reason: mayPay ? 'zero payout' : 'venue lacks rewards scope',
+          reason: ceilingBreached
+            ? 'venue daily payout ceiling reached'
+            : mayPay
+              ? 'zero payout'
+              : 'venue lacks rewards scope',
         });
         continue;
       }
@@ -470,6 +511,40 @@ export class PartnerService {
       throw new NotFoundException(`Run not found: ${runId}`);
     }
     return run;
+  }
+
+  /** Per-venue 24h XP ceiling. Config-tunable, no deploy required. */
+  private async dailyXpCeiling(): Promise<number> {
+    const row = await this.prisma.config.findUnique({
+      where: { key: 'venue.daily_xp_ceiling' },
+    });
+    const parsed = Number(row?.value);
+    return Number.isFinite(parsed) && parsed > 0
+      ? parsed
+      : DEFAULT_DAILY_XP_CEILING;
+  }
+
+  /**
+   * XP this venue has actually granted in the last 24 hours.
+   *
+   * Read from the identity ledger rather than from run rows: the ledger
+   * is what actually happened, and it captures grants made through any
+   * path, including a future one this method has never heard of.
+   */
+  private async xpGrantedToday(sourceId: string): Promise<number> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const events = await this.prisma.identityEvent.findMany({
+      where: {
+        sourceId,
+        eventType: 'venue.reward_granted',
+        createdAt: { gte: since },
+      },
+      select: { changes: true },
+    });
+    return events.reduce((sum, e) => {
+      const xp = Number((e.changes as Record<string, unknown> | null)?.xp_granted ?? 0);
+      return sum + (Number.isFinite(xp) ? xp : 0);
+    }, 0);
   }
 
   /** Global calibration dial — a DB edit, never a deploy. */

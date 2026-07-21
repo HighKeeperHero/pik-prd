@@ -17,6 +17,7 @@ import { PartnerService } from './partner.service';
 import { RewardService } from './reward.service';
 import { ClaimService } from './claim.service';
 import { VenueAccessService } from './venue-access.service';
+import { VenueSweeperService } from './venue-sweeper.service';
 import { PrismaService } from '../prisma.service';
 import { EventsModule } from '../events/events.module';
 import { LevelingModule } from '../leveling/leveling.module';
@@ -35,6 +36,7 @@ import { AccountGuard } from '../auth/guards/account.guard';
     RewardService,
     ClaimService,
     VenueAccessService,
+    VenueSweeperService,
     PrismaService,
     ApiKeyGuard,
     AccountGuard,
