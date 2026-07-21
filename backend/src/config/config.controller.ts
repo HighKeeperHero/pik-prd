@@ -143,6 +143,51 @@ export class ConfigController {
     return this.sourceAdmin.rotateApiKey(id);
   }
 
+  /**
+   * POST /api/sources/:id/scopes — set a venue's capability ceiling.
+   * Body: { scopes: string[] }  e.g. ["xp","titles","runs","rewards","guests"]
+   */
+  @Post('sources/:id/scopes')
+  @UseGuards(PlatformAdminGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  async setSourceScopes(
+    @Param('id') id: string,
+    @Body() body: { scopes?: string[] },
+  ) {
+    if (!Array.isArray(body.scopes)) {
+      throw new BadRequestException('Request body requires: scopes (string[])');
+    }
+    return this.sourceAdmin.setScopes(id, body.scopes);
+  }
+
+  /**
+   * POST /api/sources/:id/experiences — assign a canonical experience.
+   * Body: { experience_slug, enabled?, available_from?, available_until? }
+   */
+  @Post('sources/:id/experiences')
+  @UseGuards(PlatformAdminGuard)
+  @Throttle({ default: { ttl: 60000, limit: 20 } })
+  async assignExperience(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      experience_slug?: string;
+      enabled?: boolean;
+      available_from?: string;
+      available_until?: string;
+    },
+  ) {
+    if (!body.experience_slug) {
+      throw new BadRequestException('Request body requires: experience_slug');
+    }
+    return this.sourceAdmin.assignExperience(id, {
+      experience_slug: body.experience_slug,
+      enabled: body.enabled,
+      available_from: body.available_from,
+      available_until: body.available_until,
+    });
+  }
+
   @Post('sources/:id/status')
   @UseGuards(PlatformAdminGuard)
   @Throttle({ default: { ttl: 60000, limit: 10 } })

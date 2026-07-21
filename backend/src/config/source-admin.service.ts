@@ -20,6 +20,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../prisma.service';
+import { SCOPES } from '../auth/scopes';
 
 @Injectable()
 export class SourceAdminService {
@@ -124,6 +125,108 @@ export class SourceAdminService {
   /**
    * Update source status (active, suspended, deactivated).
    */
+  /**
+   * Set a venue's capability ceiling (Slice 1).
+   *
+   * A partner's effective permission is this intersected with each player's
+   * consent grant, so widening here can never bypass a player's choice. The
+   * separation matters commercially: a pilot venue can be licensed to RUN
+   * experiences without being licensed to PAY OUT for them.
+   */
+  async setScopes(
+    sourceId: string,
+    scopes: string[],
+  ): Promise<{ source_id: string; scopes: string; updated_at: string }> {
+    const valid = Object.values(SCOPES) as string[];
+    const requested = [...new Set(scopes.map((s) => s.trim()).filter(Boolean))];
+    const unknown = requested.filter((s) => !valid.includes(s));
+    if (unknown.length > 0) {
+      throw new BadRequestException(
+        `Unknown scope(s): ${unknown.join(', ')}. Valid: ${valid.join(', ')}`,
+      );
+    }
+
+    const source = await this.prisma.source.findUnique({
+      where: { id: sourceId },
+    });
+    if (!source) {
+      throw new NotFoundException(`Source "${sourceId}" not found`);
+    }
+
+    const updated = await this.prisma.source.update({
+      where: { id: sourceId },
+      data: { scopes: requested.join(' ') },
+    });
+
+    this.logger.log(`Source ${sourceId} scopes → ${updated.scopes}`);
+
+    return {
+      source_id: updated.id,
+      scopes: updated.scopes,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Assign a canonical experience to a venue, optionally windowed (Slice 1).
+   *
+   * This is the Partner Portal's "Experience Assignment" / "Schedule content
+   * availability" in primitive form. Partners never author experiences —
+   * they are granted the right to run one Heroes already wrote.
+   */
+  async assignExperience(
+    sourceId: string,
+    params: {
+      experience_slug: string;
+      enabled?: boolean;
+      available_from?: string;
+      available_until?: string;
+    },
+  ) {
+    const source = await this.prisma.source.findUnique({
+      where: { id: sourceId },
+    });
+    if (!source) {
+      throw new NotFoundException(`Source "${sourceId}" not found`);
+    }
+
+    const experience = await this.prisma.experience.findUnique({
+      where: { slug: params.experience_slug },
+    });
+    if (!experience) {
+      throw new NotFoundException(
+        `Unknown experience: "${params.experience_slug}". Seed it first (npm run seed:experiences).`,
+      );
+    }
+
+    const data = {
+      enabled: params.enabled ?? true,
+      availableFrom: params.available_from ? new Date(params.available_from) : null,
+      availableUntil: params.available_until ? new Date(params.available_until) : null,
+    };
+
+    const assignment = await this.prisma.venueExperience.upsert({
+      where: {
+        sourceId_experienceId: { sourceId, experienceId: experience.id },
+      },
+      create: { sourceId, experienceId: experience.id, ...data },
+      update: data,
+    });
+
+    this.logger.log(
+      `Experience ${experience.slug} → ${sourceId} (enabled=${assignment.enabled})`,
+    );
+
+    return {
+      source_id: sourceId,
+      experience_slug: experience.slug,
+      experience_version: experience.version,
+      enabled: assignment.enabled,
+      available_from: assignment.availableFrom?.toISOString() ?? null,
+      available_until: assignment.availableUntil?.toISOString() ?? null,
+    };
+  }
+
   async setStatus(
     sourceId: string,
     status: string,
