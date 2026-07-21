@@ -6,15 +6,32 @@ Written 2026-07-20 alongside HEP Phase 2 Slice 0.
 
 Railway project `PIK-PRD`, service `pik-prd`, two environments:
 
-| | Staging | Production |
+| | Staging | production |
 |---|---|---|
+| Env name (exact) | `Staging` | `production` (lowercase) |
 | URL | `pik-prd-staging.up.railway.app` | `pik-prd-production.up.railway.app` |
-| Deploys | **automatically from `main`** | deliberate promote |
+| Deploys | automatically from `main` | automatically from `main`, **lagging** |
 | Data | disposable (`StageProbe` et al.) | real alpha testers |
 
-**Pushing `main` is a staging event, not a production event.** Verified
-2026-07-20: after the Slice 0 push, staging returned 403 on the newly guarded
-operator routes while production still returned 200.
+**Both environments auto-deploy from `main`. Production just arrives later.**
+
+Observed 2026-07-20 pushing Slice 0: staging was serving the new build (403 on
+the newly guarded routes) while production still served the old one (200) — for
+roughly an hour. Production then picked it up on its own with no manual action.
+
+This lag is a trap. It is easy to check production shortly after a push, see
+old behavior, and conclude production is on a manual promote. It is not. **A
+push to `main` reaches real players.** Treat every merge as a production
+deploy and verify *both* hosts before assuming otherwise — the environment now
+reports itself in `/api/health`, so:
+
+```bash
+curl -s https://pik-prd-production.up.railway.app/api/health
+curl -s https://pik-prd-staging.up.railway.app/api/health
+```
+
+The exact promote/build trigger was not observed and is not documented here;
+if it is ever made deliberate, update this section.
 
 ## The trap
 
