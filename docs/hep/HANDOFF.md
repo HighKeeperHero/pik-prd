@@ -53,6 +53,39 @@ pointed at the environment with real players): first-party guard
 `first_party` with 3 links, 4 tolerances seeded, certification gate
 `spatial`, 3 device profiles, new tables reachable and empty.
 
+### Slice 10 — staff-authed run operation (built, NOT yet deployed)
+
+`runs.operate` had been granted to three roles and enforced by nothing:
+the run lifecycle was API-key only, so an operator could not operate a
+run. `/api/portal/v1/runs/*` now closes that on the staff token.
+
+**One policy, two doors.** Handlers delegate to `PartnerService` with a
+`ResolvedSource` built from the staff member's venue, so scopes, seat
+range, consent, the certification gate, payouts and the daily ceiling are
+identical on both paths. `verify-slice10` asserts each through the staff
+door rather than trusting it.
+
+⚠ **Never put the venue API key in a browser to shortcut this.** It mints
+rewards, terminals are shared, and the ledger is append-only.
+
+`GET /runs/active` is shaped for the floor: elapsed seconds, heartbeat
+staleness, seat count. `complete`/`fail` are audited by PERSON;
+heartbeats deliberately are not.
+
+⚠ `verify-slice10` is 28/28 green LOCALLY. Slices 3/6/8 re-ran green as a
+regression on the API-key path. **Slice 9 was not re-run since this
+change** (the local dev server kept dying) — run it against staging on
+deploy.
+
+### Next after this
+
+The operator-forward UI (`/floor.html`) now has a backing API. Large
+touch targets (≥44px — current buttons are ~38px), one task per screen,
+errors recoverable without a manager, and login routing operators there
+automatically. Also proposed: permission-driven nav on the main portal,
+which becomes necessary once calibration/certification/telemetry land on
+that single scroll.
+
 ### Still open
 
 1. **Verify `heroesveritas.com` in Resend** — the last thing between a
