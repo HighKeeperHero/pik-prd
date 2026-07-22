@@ -1,0 +1,272 @@
+/* ============================================================
+   Heroes — shared web surface styles
+   Used by /venue.html (partner portal) and /support.html (Heroes internal)
+
+   ── What this is, and deliberately is not ────────────────────
+   BRAND, not ceremony. Palette, type and rhythm come from the app's
+   design tokens (heroes-veritas-native/src/theme/*) so these pages are
+   unmistakably Heroes. The Crownfall ornament — framed nine-slice
+   panels, rarity tiles, the ceremonial motion layer — is deliberately
+   ABSENT.
+
+   The app's design canon says every screen should feel like "a rite to
+   return to, not a dashboard." These pages ARE dashboards, used by staff
+   at work and sometimes at 11pm fixing something before doors open.
+   Borrowing the game's ceremony would make an operational tool wear a
+   costume, and the portal is explicitly connective tissue rather than a
+   screen in Codex.
+
+   So: same voice, working clothes.
+
+   ── Fonts are self-hosted ────────────────────────────────────
+   Not a CDN. A venue terminal on hotel wifi should not have its login
+   screen degrade because fonts.googleapis.com is slow, and these pages
+   ship with the backend that already serves them. ~250KB total, cached.
+   All four faces are OFL.
+   ============================================================ */
+
+@font-face {
+  font-family: 'Marcellus SC';
+  src: url('/fonts/MarcellusSC-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Marcellus';
+  src: url('/fonts/Marcellus-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cinzel';
+  src: url('/fonts/Cinzel-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cinzel';
+  src: url('/fonts/Cinzel-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  /* ── Palette — mirrors src/theme/colors.ts exactly ────────── */
+  --bg: #06080F;
+  --bg-elevated: #08090F;
+  --panel: #0D1220;
+  --line: rgba(30, 46, 72, .8);
+  --faint: rgba(30, 46, 72, .35);
+
+  --text: #C8C0B8;
+  --muted: #8FA8CC;
+  --dim: #3A4A6A;
+
+  --gold: #C8900A;
+  --gold-lt: #FFA500;
+  --gold-glow: rgba(200, 144, 10, .4);
+  --chaos: #8B3A62;
+  --veil: #1E90FF;
+
+  /* ── Accent, set per surface ──────────────────────────────
+     Venue-facing is gold (the brand). Heroes-internal is ember.
+     That difference is a SAFETY signal, not decoration: a support
+     engineer holding a cross-tenant key should never be one glance
+     from believing they are inside a single venue's dashboard.     */
+  --accent: var(--gold);
+  --accent-lt: var(--gold-lt);
+
+  /* ── Type — the app's hybrid (docs/design-language.md) ─────
+     Titles in Marcellus SC, numbers in Cinzel, body in system sans.
+     Body stays sans ON PURPOSE, in the app and here: it is the
+     readable one, and these pages are read under time pressure.   */
+  --font-title: 'Marcellus SC', Georgia, serif;
+  --font-serif: 'Marcellus', Georgia, serif;
+  --font-display: 'Cinzel', Georgia, serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Spacing — src/theme/spacing.ts ───────────────────────── */
+  --sp-1: 4px;  --sp-2: 8px;   --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 24px;  --sp-6: 32px;
+}
+
+/* Heroes-internal surfaces opt in. See --accent above. */
+:root.internal {
+  --accent: #B0463C;
+  --accent-lt: #E0685A;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent-lt); cursor: pointer; }
+
+.wrap { max-width: 940px; margin: 0 auto; padding: var(--sp-6) 20px 80px; }
+
+/* ── Type scale ──────────────────────────────────────────────
+   Letter-spacing is doing the ceremonial work here rather than
+   ornament: it is what makes small caps read as considered instead
+   of merely uppercase, and it costs nothing at load time.        */
+h1 {
+  font-family: var(--font-title);
+  font-size: 24px;
+  letter-spacing: 4px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--text);
+}
+h2 {
+  font-family: var(--font-title);
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--muted);
+  margin: 34px 0 12px;
+  font-weight: 400;
+}
+.eyebrow {
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 3.5px;
+  /* --muted, not --dim. At 11px with 3.5px tracking on a near-black
+     background, --dim (#3A4A6A) is decorative rather than readable, and
+     this is the line telling an operator which product they are in. */
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* ── Surfaces ────────────────────────────────────────────────
+   Flat, with a hairline. NOT a nine-slice frame: see the header.  */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 18px 20px;
+  margin-bottom: 12px;
+}
+
+.row { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-4); }
+.row + .row { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--faint); }
+
+/* ── Controls ───────────────────────────────────────────────── */
+label {
+  display: block;
+  font-family: var(--font-title);
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+input, select {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 11px 12px;
+  font: 15px/1.4 var(--font-body);
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+button {
+  background: var(--accent);
+  color: var(--bg);
+  border: 0;
+  padding: 12px 22px;
+  font: 400 13px/1 var(--font-title);
+  letter-spacing: 2.5px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { background: var(--accent-lt); }
+button:disabled { opacity: .45; cursor: default; }
+button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+button.ghost:hover { border-color: var(--accent); color: var(--text); }
+button.danger { background: transparent; color: var(--chaos); border: 1px solid var(--chaos); }
+
+/* ── Stats — Cinzel, as in the app ──────────────────────────── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat { background: var(--panel); border: 1px solid var(--line); padding: var(--sp-4); }
+.stat .n {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--accent-lt);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+.stat .k {
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-top: var(--sp-1);
+}
+
+/* ── Tables ─────────────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th {
+  text-align: left;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  font-weight: 400;
+  padding: 0 0 var(--sp-2);
+}
+td { padding: 11px 0; border-top: 1px solid var(--faint); vertical-align: middle; }
+
+/* ── The sign-in gate ────────────────────────────────────────
+   Centred rather than sitting at the top-left of an empty page.
+   A lone panel above 600px of void reads as unfinished, which the
+   design canon calls out by name — and this is the first screen a
+   new venue owner ever sees.                                        */
+.gate {
+  min-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 420px;
+  /* Centred horizontally too. Left-aligned inside the 940px column left
+     it hugging one edge of an otherwise empty screen. */
+  margin: 0 auto;
+}
+.gate h1, .gate .eyebrow { text-align: left; }
+
+/* ── Utility ────────────────────────────────────────────────── */
+.muted { color: var(--muted); }
+.dim { color: var(--dim); font-size: 12px; }
+.err { color: var(--chaos); margin-top: 10px; font-size: 14px; }
+.ok { color: var(--accent-lt); margin-top: 10px; font-size: 14px; }
+.hide { display: none; }
+.scroll { overflow-x: auto; }
+
+code {
+  background: var(--bg-elevated);
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.pill {
+  display: inline-block;
+  font-family: var(--font-title);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  color: var(--muted);
+}
+.pill.good { border-color: #4E7D5A; color: #4E7D5A; }
+.pill.bad { border-color: var(--chaos); color: var(--chaos); }
+.pill.warn { border-color: var(--gold); color: var(--gold); }
+
+/* Small screens: a venue owner checking a room from the floor. */
+@media (max-width: 600px) {
+  .wrap { padding: var(--sp-5) var(--sp-4) 60px; }
+  h1 { font-size: 20px; letter-spacing: 3px; }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+}
