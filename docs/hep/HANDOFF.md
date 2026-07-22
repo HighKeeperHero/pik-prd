@@ -173,8 +173,13 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
 
 ## Known gaps in Phase 2 coverage
 
-- **P11 Support Portal / P12 Certification — now SCOPED** as Slices 8
-  and 9, see `docs/hep/slice-8-9-support-and-certification-scope.md`.
+- **P11 Support Portal — BUILT (Slice 8).** `/api/support/venues[/:id]`
+  (platform admin, READ-ONLY) + `/support.html`. `verify-slice8` 33/33
+  green locally. Player data is minimised to `root_id` + reward state;
+  the harness asserts hero names and player emails appear nowhere.
+  ⚠ **The HTML is not visually verified** — needs an eyeball once
+  deployed.
+- **P12 Certification — scoped, not built.** Both scoped in see `docs/hep/slice-8-9-support-and-certification-scope.md`.
   Decided 2026-07-21: P11 is Heroes-staff-only and read-only (no
   helpdesk — integrate one if ticketing is the need); P12 is a gate with
   an audited override. Slice 8 first, since its aggregation is Slice 9's
