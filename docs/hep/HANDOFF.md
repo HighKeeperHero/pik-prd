@@ -159,8 +159,12 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
   whose metadata names the branch and commit.
 - **`railway run` injects the INTERNAL DB host.** Prisma scripts need
   `sh -c 'DATABASE_URL="$DATABASE_PUBLIC_URL" …'`.
-- **`no_data` is not `pass`.** The Slice 6 rollup counts unmeasured
-  thresholds separately for this reason. A quality dashboard that reads
+- **`no_data` is not `pass`, but it must not block indiscriminately.**
+  Slice 6 counts unmeasured thresholds separately. Slice 9 learned the
+  harder half: "have you measured anything?" and "has history
+  accumulated yet?" are different questions, and conflating them
+  deadlocked the certification gate (no payout history → cannot certify
+  → cannot run → no payout history). A quality dashboard that reads
   green because nothing was measured is the worst place to relearn the
   vacuous-pass lesson.
 - **Harnesses that pass vacuously.** `[].every()` is `true`; a test that passes
@@ -179,7 +183,16 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
   the harness asserts hero names and player emails appear nowhere.
   ⚠ **The HTML is not visually verified** — needs an eyeball once
   deployed.
-- **P12 Certification — scoped, not built.** Both scoped in see `docs/hep/slice-8-9-support-and-certification-scope.md`.
+- **P12 Certification — BUILT (Slice 9).** A gate with an audited
+  override. `/api/certification/*` (platform admin) + a venue read at
+  `/api/portal/v1/certification`. `verify-slice9` 36/36 green locally.
+  **The gate defaults to `spatial` mode** — it only bites experiences
+  declaring a manifest, so deploying it changes nothing for today's
+  venues. `venue.certification_required` (seeded) is the force/kill
+  switch: `spatial` | `always` | `never`.
+  ⚠ **Run `npm run seed:spatial` again on both environments** — Slice 9
+  added that key, and an unseeded key cannot be created via the API.
+- Both were scoped in see `docs/hep/slice-8-9-support-and-certification-scope.md`.
   Decided 2026-07-21: P11 is Heroes-staff-only and read-only (no
   helpdesk — integrate one if ticketing is the need); P12 is a gate with
   an audited override. Slice 8 first, since its aggregation is Slice 9's
