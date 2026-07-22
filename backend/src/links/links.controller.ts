@@ -85,14 +85,42 @@ export class LinksController {
 }
 
 /**
+ * Where to send someone who does not have the app.
+ *
+ * Env-driven and ABSENT BY DEFAULT. The first version of this page
+ * shipped a hardcoded Play URL and an INVENTED App Store id
+ * (`id0000000000`) — a fabricated identifier can resolve to a stranger's
+ * app, so a Heroes-branded page could have handed a guest to someone
+ * else's product. Neither store listing exists yet.
+ *
+ * A link you know is dead is worse than no link: it tells the guest the
+ * problem is theirs. So when these are unset the page says plainly that
+ * the app is not public yet and to ask a member of staff — and lights up
+ * on its own, with no code change, the day the listings exist.
+ */
+function storeLinks(): { android: string | null; ios: string | null } {
+  return {
+    android: process.env.ANDROID_STORE_URL?.trim() || null,
+    ios: process.env.IOS_STORE_URL?.trim() || null,
+  };
+}
+
+/**
  * The bounce page.
  *
- * Auto-attempts the scheme once, then relies on a real button. The
- * automatic attempt is a convenience; the button is the guarantee,
- * because a user gesture is the only thing every mobile browser will
- * reliably honour for a custom scheme. If the app is absent, nothing
- * happens and the install links are already on screen — no error dialog
- * to interpret, no dead end.
+ * ── Why there is no automatic redirect ─────────────────────────
+ * The first version fired the scheme from a `setTimeout`. Android Chrome
+ * blocks custom-scheme navigation without a user gesture, and iOS Safari
+ * answers a failed one with "cannot open the page" — so it did nothing
+ * useful and could produce an error dialog for a guest holding a phone
+ * in a queue. One deliberate tap is more predictable than a redirect
+ * that fails differently on every browser.
+ *
+ * ── Why Android gets a different URL ───────────────────────────
+ * Chrome will not follow `heroescodex://` from a page even on a tap.
+ * `intent://` is the supported mechanism: it names the package, so the
+ * OS resolves it without the browser having to trust an unknown scheme.
+ * iOS Safari honours the plain scheme on a tap, and has no intent://.
  */
 function page(o: {
   deepLink: string;
@@ -102,6 +130,22 @@ function page(o: {
 }): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  // heroescodex://venue/abc -> intent://venue/abc#Intent;scheme=...;package=...;end
+  const path = o.deepLink.replace(/^heroescodex:\/\//, '');
+  const intentUrl =
+    `intent://${path}#Intent;scheme=heroescodex;` +
+    `package=com.heroesveritas.codex;end`;
+
+  const store = storeLinks();
+  const storeBlock = [
+    store.android
+      ? `<a class="alt" href="${esc(store.android)}">GET IT ON ANDROID</a>`
+      : '',
+    store.ios ? `<a class="alt" href="${esc(store.ios)}">GET IT ON iOS</a>` : '',
+  ].join('');
+
+  const noStores = !store.android && !store.ios;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -113,7 +157,7 @@ function page(o: {
 <style>
   .gate{min-height:88vh}
   .lede{font-size:17px;line-height:1.6;margin:0 0 28px}
-  /* 56px: this is tapped one-handed, standing, possibly in a queue. */
+  /* Tapped one-handed, standing, possibly in a queue. */
   .cta{display:block;width:100%;text-align:center;padding:18px 20px;
        background:var(--accent);color:var(--bg);text-decoration:none;
        font:400 15px/1 var(--font-title);letter-spacing:2.5px}
@@ -130,10 +174,14 @@ function page(o: {
   ${
     o.showActions
       ? `<a class="cta" id="open" href="${esc(o.deepLink)}">OPEN THE CODEX</a>
-  <a class="alt" href="https://play.google.com/store/apps/details?id=com.heroesveritas.codex">GET IT ON ANDROID</a>
-  <a class="alt" href="https://apps.apple.com/app/heroes-codex/id0000000000">GET IT ON iOS</a>
+  ${storeBlock}
   <p class="dim" style="margin-top:26px">
-    Nothing happens when you tap? The app is not installed yet — use a link above.
+    ${
+      noStores
+        ? 'Heroes’ Codex is in closed testing and is not on the app stores yet. ' +
+          'If you do not have it, ask a member of staff.'
+        : 'Nothing happens when you tap? The app is not installed yet — use a link above.'
+    }
   </p>`
       : ''
   }
@@ -141,11 +189,12 @@ function page(o: {
 ${
   o.showActions
     ? `<script>
-// One automatic attempt. If the app is installed this never renders;
-// if it is not, the page simply stays put and the buttons are already
-// there. No timers guessing at "did it work", which is what produces
-// the false "app not installed" bounces on iOS.
-setTimeout(function(){ window.location.href = ${JSON.stringify(o.deepLink)}; }, 250);
+// Android Chrome refuses a bare custom scheme even on a tap; intent://
+// names the package so the OS resolves it. iOS Safari has no intent://
+// and honours the plain scheme, so it keeps the server-rendered href.
+if (/android/i.test(navigator.userAgent)) {
+  document.getElementById('open').setAttribute('href', ${JSON.stringify(intentUrl)});
+}
 </script>`
     : ''
 }

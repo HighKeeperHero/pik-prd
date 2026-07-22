@@ -584,10 +584,32 @@ async function main() {
   const landingHtml = await (await fetch(`${API}/v/${venueId}`)).text();
   check('it names the venue (so the page does not look like phishing)',
     landingHtml.includes(RUN), landingHtml.slice(0, 200));
-  check('it offers a way in for someone WITHOUT the app',
-    /play\.google\.com|apps\.apple\.com/.test(landingHtml), 'no store links');
   check('and it still carries the deep link for someone who has it',
     landingHtml.includes(`heroescodex://venue/${venueId}`), 'deep link missing');
+
+  // Android Chrome refuses a bare custom scheme even on a tap, which is
+  // why the button did nothing on a real phone. intent:// names the
+  // package so the OS resolves it without the browser trusting a scheme.
+  check('the page swaps in an intent:// URL for Android',
+    /intent:\/\/[^#]*#Intent;scheme=heroescodex;package=com\.heroesveritas\.codex;end/
+      .test(landingHtml), 'intent url missing or malformed');
+  check('iOS keeps the plain scheme (there is no intent:// there)',
+    landingHtml.includes(`href="heroescodex://venue/${venueId}"`), 'plain scheme href missing');
+
+  // A fabricated store id can resolve to a STRANGER'S app. The first
+  // version of this page shipped an invented App Store id; a link you
+  // know is dead is worse than none, because it tells the guest the
+  // problem is theirs.
+  check('no invented App Store id is shipped',
+    !/id0{6,}/.test(landingHtml), 'placeholder store id present');
+  const storeConfigured = /play\.google\.com|apps\.apple\.com/.test(landingHtml);
+  check(
+    storeConfigured
+      ? 'store links are present (configured via env)'
+      : 'with no store configured, it says so honestly instead of linking nowhere',
+    storeConfigured || /closed testing/i.test(landingHtml),
+    landingHtml.slice(0, 200),
+  );
 
   const unknownVenue = await (await fetch(`${API}/v/definitely-not-a-venue`)).text();
   check('an unknown code says so rather than pretending',
