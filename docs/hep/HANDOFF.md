@@ -88,12 +88,32 @@ that single scroll.
 
 ### Still open
 
-1. **Verify `heroesveritas.com` in Resend** — the last thing between a
-   locked-out venue owner and self-recovery. `MAIL_FROM` is currently
-   `onboarding@resend.dev`, which only delivers to the Resend account
-   owner. **No email has ever been proven to arrive.**
-2. `heroes-demo-venue`'s owner (`tim.base@heroesveritas.com`) is still
-   `invited` — reissuing is now possible and sends the first real mail.
+1. ~~Verify the Resend domain~~ — **DONE 2026-07-22. `mail.heroesveritas.com`
+   verified; `MAIL_FROM` is `noreply@mail.heroesveritas.com` on both
+   environments.**
+
+   **✅ THE MAIL SEAM IS PROVEN IN PRODUCTION.** Not asserted — executed.
+   The audit ledger records the whole journey:
+
+   ```
+   18:39:32  staff.invite_reissued   delivered: true
+   18:40:28  staff.invite_accepted        ← 56s later, from the email
+   18:44:03  staff.reset_requested   delivered: true, transport: resend
+   18:44:18  staff.password_reset    sessions_revoked: 1
+   ```
+
+   `heroes-demo-venue`'s owner is now `active`, the old invite token is
+   burned, and the session-eviction property fired for real.
+
+   **The Phase 2 criterion is therefore true end to end**: a venue is
+   onboarded in one command, self-administers, and recovers from a
+   lockout with no Heroes engineer involved.
+
+2. ⚠ **`lastLoginAt` stays null for staff who arrive via invite-accept or
+   reset** — both issue a session directly without passing through
+   `login`. So an actively-used account reads "Never signed in" in the
+   portal and the support console, which is misleading during triage.
+   Small, real, worth fixing when the portal is next touched.
 3. Four questions for the design firm — `spatial-integration-guide.md` §6.
 4. Kingvale content (Tim owns).
 5. Tier B (P3/P4/P9) unscoped.
