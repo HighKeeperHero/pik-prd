@@ -38,6 +38,12 @@ const TOLERANCES: Array<{ key: string; value: string; description: string }> = [
     description: 'Max floor-height error to publish a room (metres). W9 target: 3cm.',
   },
   {
+    key: 'venue.certification_required',
+    value: 'spatial',
+    description:
+      "Certification gate: 'spatial' (default, only experiences with a manifest) | 'always' | 'never'. The kill switch.",
+  },
+  {
     key: 'spatial.min_verification_points',
     value: '2',
     description: 'Verification points required to publish a room. Spec says two or three.',

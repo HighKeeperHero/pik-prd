@@ -265,6 +265,7 @@ model Source {
   auditEntries     VenueAuditEntry[]
   rooms            VenueRoom[]
   spatialMetrics   SpatialMetric[]
+  certifications   VenueCertification[]
 
   @@map("sources")
 }
@@ -407,6 +408,7 @@ model Experience {
 
   venueAssignments VenueExperience[]
   runs             ExperienceRun[]
+  certifications   VenueCertification[]
 
   @@map("experiences")
 }
@@ -1591,6 +1593,7 @@ model VenueRoom {
   source       Source      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   configs      RoomConfig[] @relation("RoomConfigs")
   activeConfig RoomConfig?  @relation("ActiveConfig", fields: [activeConfigId], references: [id])
+  certifications VenueCertification[]
 
   @@unique([sourceId, slug])
   @@index([sourceId, status])
@@ -1851,4 +1854,63 @@ model SpatialMetric {
   @@index([roomConfigId, metric])
   @@index([runId])
   @@map("spatial_metrics")
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// HEP Phase 2 Slice 9 — venue certification (P12)
+//
+// Whether a venue is fit to run a live experience for a paying guest.
+// Today that judgement lives in a Heroes engineer's head, which is the
+// same per-venue human dependency the missing password reset was.
+// ════════════════════════════════════════════════════════════════════════
+
+/// A certification of ONE room, for ONE experience, at ONE venue.
+///
+/// That granularity is the honest one: you certify that this room runs
+/// this experience. A venue with two rooms certifies each, and adding a
+/// third does not invalidate the others.
+model VenueCertification {
+  id           String @id @default(uuid()) @map("certification_id")
+  sourceId     String @map("source_id")
+  experienceId String @map("experience_id")
+  roomId       String @map("room_id")
+
+  /// certified | stale | revoked | override
+  status String @default("certified")
+
+  /// The full verdict, frozen at certification. Kept so "why was this
+  /// certified?" is answerable months later, when the inputs have moved.
+  checks Json @default("{}")
+
+  /// Identity of the inputs this verdict was about: the roomConfigId,
+  /// the experience version, and the venue's scopes.
+  ///
+  /// This is the heart of the design. A time-based expiry is the obvious
+  /// answer and the wrong one — a venue certified on Monday whose room
+  /// was recalibrated on Tuesday is not certified, however many days
+  /// remain. Comparing this against the live values makes recalibration
+  /// invalidate certification without anyone remembering to, for the same
+  /// reason RoomConfig is immutable: a verdict about a snapshot is
+  /// meaningless once the snapshot moves.
+  fingerprint Json @default("{}")
+
+  /// Required for `override` and `revoked`. An override with no recorded
+  /// reason is not a gate at all.
+  reason String?
+
+  /// Override only. A permanent override is just a disabled gate.
+  expiresAt DateTime? @map("expires_at")
+
+  certifiedAt DateTime  @default(now()) @map("certified_at")
+  /// VenueStaff.id, or 'platform' for a Heroes operator.
+  certifiedBy String?   @map("certified_by")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  source     Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  room       VenueRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, experienceId, roomId])
+  @@index([sourceId, status])
+  @@map("venue_certifications")
 }

@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
+import { CertificationService } from '../certification/certification.service';
 import { EventsService } from '../events/events.service';
 import { RewardService } from './reward.service';
 import {
@@ -75,6 +76,7 @@ export class PartnerService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly certification: CertificationService,
     private readonly events: EventsService,
     private readonly rewards: RewardService,
   ) {}
@@ -119,6 +121,41 @@ export class PartnerService {
       throw new ForbiddenException(
         `Experience '${dto.experience_slug}' is not currently available at this venue`,
       );
+    }
+
+    // ── The certification gate (Slice 9) ──────────────────────
+    //
+    // Default mode is 'spatial': the gate arms itself only for
+    // experiences that declare a spatial manifest. That is deliberate —
+    // turning a hard gate on for every venue at once would have broken
+    // every live partner the moment it deployed, and certification is a
+    // statement about a ROOM. An experience with no room to certify has
+    // nothing for this gate to check.
+    //
+    // So it activates exactly when spatial content arrives, which is
+    // when it starts to matter. `always` and `never` exist as the
+    // kill/force switches, seeded so they can actually be turned.
+    const mode = await this.certificationMode();
+    const isSpatial =
+      Array.isArray((experience.manifest as any)?.requiredAnchors) &&
+      (experience.manifest as any).requiredAnchors.length > 0;
+
+    if (mode === 'always' || (mode === 'spatial' && isSpatial)) {
+      const verdict = await this.certification.mayRun(source.id, experience.id);
+      if (!verdict.ok) {
+        // Say WHY. A gate that will not explain itself is one operators
+        // route around, and the reason is the actionable part.
+        throw new ForbiddenException({
+          message: verdict.message,
+          reason: verdict.reason,
+          experience: experience.slug,
+        });
+      }
+      if (verdict.via === 'override') {
+        this.logger.warn(
+          `Run starting at ${source.id} under a certification OVERRIDE: ${verdict.reason}`,
+        );
+      }
     }
 
     const rootIds = [...new Set(dto.root_ids ?? [])];
@@ -492,6 +529,26 @@ export class PartnerService {
   // ────────────────────────────────────────────────────────────
   // HELPERS
   // ────────────────────────────────────────────────────────────
+
+  /**
+   * How hard the certification gate bites.
+   *
+   *   spatial — (default) only experiences declaring a manifest
+   *   always  — every experience, everywhere
+   *   never   — the kill switch
+   *
+   * A seeded Config key, not a constant: this is the control you want to
+   * turn at 11pm during a pilot, and the config API cannot CREATE keys,
+   * so an unseeded one would be a dial welded shut. Seeded by
+   * scripts/seed-spatial.ts.
+   */
+  private async certificationMode(): Promise<'spatial' | 'always' | 'never'> {
+    const row = await this.prisma.config
+      .findUnique({ where: { key: 'venue.certification_required' } })
+      .catch(() => null);
+    const v = row?.value?.trim();
+    return v === 'always' || v === 'never' ? v : 'spatial';
+  }
 
   private requireScope(source: ResolvedSource, scope: string) {
     const granted = intersectScopes(source.scopes);

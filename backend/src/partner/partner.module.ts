@@ -20,6 +20,7 @@ import { VenueAccessService } from './venue-access.service';
 import { VenueSweeperService } from './venue-sweeper.service';
 import { ReversalService } from './reversal.service';
 import { PrismaService } from '../prisma.service';
+import { CertificationModule } from '../certification/certification.module';
 import { EventsModule } from '../events/events.module';
 import { LevelingModule } from '../leveling/leveling.module';
 import { FateAccountModule } from '../fate-account/fate-account.module';
@@ -30,7 +31,7 @@ import { AccountGuard } from '../auth/guards/account.guard';
   // FateAccountModule exports FateAccountService — AccountGuard's dependency,
   // used by the claim redemption route. Omitting it crashes Nest bootstrap at
   // runtime while the build stays green (see fox.module.ts, 2026-07-09).
-  imports: [EventsModule, LevelingModule, FateAccountModule],
+  imports: [EventsModule, LevelingModule, FateAccountModule, CertificationModule],
   controllers: [PartnerController, ClaimController, VenueAccessController],
   providers: [
     PartnerService,

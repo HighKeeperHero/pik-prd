@@ -47,6 +47,7 @@ import { FlagsModule }      from './flags/flags.module';              // ← 202
 import { FoxModule }        from './fox/fox.module';                  // ← 2026-07-09 Fate Fox Calling (L50)
 import { SpatialModule }    from './spatial/spatial.module';         // ← HEP Phase 2 Slice 4 (room calibration)
 import { SupportModule }    from './support/support.module';          // ← HEP Phase 2 Slice 8 (venue support console)
+import { CertificationModule } from './certification/certification.module'; // ← HEP Phase 2 Slice 9 (venue certification)
 import { MailModule }       from './mail/mail.module';                // ← HEP Phase 2 (venue staff password reset + invites)
 
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
@@ -155,6 +156,7 @@ class HealthController {
     MailModule,           // ← HEP Phase 2 (global: reset + invite delivery)
     SpatialModule,        // ← HEP Phase 2 Slice 4 (spatial data model)
     SupportModule,        // ← HEP Phase 2 Slice 8 (support console, read-only)
+    CertificationModule,  // ← HEP Phase 2 Slice 9 (certification gate)
   ],
   controllers: [HealthController],
   providers: [
