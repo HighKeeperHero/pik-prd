@@ -591,7 +591,7 @@ async function main() {
   // why the button did nothing on a real phone. intent:// names the
   // package so the OS resolves it without the browser trusting a scheme.
   check('the page swaps in an intent:// URL for Android',
-    /intent:\/\/[^#]*#Intent;scheme=heroescodex;package=com\.heroesveritas\.codex;end/
+    /intent:\/\/[^#]*#Intent;scheme=heroescodex;package=com\.heroesveritas\.codex;/
       .test(landingHtml), 'intent url missing or malformed');
   check('iOS keeps the plain scheme (there is no intent:// there)',
     landingHtml.includes(`href="heroescodex://venue/${venueId}"`), 'plain scheme href missing');
@@ -602,14 +602,34 @@ async function main() {
   // problem is theirs.
   check('no invented App Store id is shipped',
     !/id0{6,}/.test(landingHtml), 'placeholder store id present');
-  const storeConfigured = /play\.google\.com|apps\.apple\.com/.test(landingHtml);
+  // "link invalid" was what a real phone showed: an intent with no
+  // fallback dead-ends when the app is absent, or when a QR app's
+  // in-app browser will not follow one. A dead end at this exact moment
+  // is a walk-in guest lost.
+  check('the intent carries a browser fallback',
+    /S\.browser_fallback_url=/.test(landingHtml), 'no fallback on the intent');
+  check('and the fallback points at /get',
+    /S\.browser_fallback_url=[^;]*%2Fget/.test(landingHtml), 'fallback is not /get');
+  check('the page always offers a route for someone without the app',
+    landingHtml.includes('href="/get"'), 'no GET THE APP link');
+
+  const getPage = await fetch(`${API}/get`);
+  const getHtml = await getPage.text();
+  check('/get is reachable unauthenticated', getPage.status === 200, getPage.status);
+  check('/get ships no invented store id', !/id0{6,}/.test(getHtml), 'placeholder id');
+  const getHasStores = /play\.google\.com|apps\.apple\.com/.test(getHtml);
   check(
-    storeConfigured
-      ? 'store links are present (configured via env)'
-      : 'with no store configured, it says so honestly instead of linking nowhere',
-    storeConfigured || /closed testing/i.test(landingHtml),
-    landingHtml.slice(0, 200),
+    getHasStores
+      ? '/get links the configured stores'
+      : '/get states the closed-testing situation instead of linking nowhere',
+    getHasStores || /closed testing/i.test(getHtml),
+    getHtml.slice(0, 200),
   );
+  // The public codexpwa page still says "now an iOS application", written
+  // before the Android alpha existed. A page that misdescribes which
+  // platforms work makes the guest think the problem is their phone.
+  check('/get does not claim to be iOS-only',
+    !/now an iOS application/i.test(getHtml), 'stale iOS-only copy');
 
   const unknownVenue = await (await fetch(`${API}/v/definitely-not-a-venue`)).text();
   check('an unknown code says so rather than pretending',
