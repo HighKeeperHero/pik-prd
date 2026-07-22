@@ -9,7 +9,6 @@
 
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import type { ResolvedStaff } from '../portal/venue-staff.guard';
 import {
   THRESHOLDS,
   THRESHOLD_BY_METRIC,
@@ -153,11 +152,11 @@ export class TelemetryService {
    * average error of 3cm hides the one session in twenty that localized
    * 20cm out, and that session is the one that generates a complaint.
    */
-  async summary(staff: ResolvedStaff, days = 30) {
+  async summary(sourceId: string, days = 30) {
     const since = new Date(Date.now() - Math.min(days, 365) * 86400_000);
 
     const rows = await this.prisma.spatialMetric.findMany({
-      where: { sourceId: staff.sourceId, capturedAt: { gte: since } },
+      where: { sourceId, capturedAt: { gte: since } },
       select: { metric: true, value: true, unit: true, deviceProfile: true },
     });
 
@@ -175,7 +174,7 @@ export class TelemetryService {
     // itself would be worthless. It is also the one Workstream 9
     // threshold that already governs a system carrying real players, so
     // it should not sit at no_data waiting for an XR client to exist.
-    const rewardSync = await this.computeRewardSync(staff.sourceId, since);
+    const rewardSync = await this.computeRewardSync(sourceId, since);
 
     const evaluated = THRESHOLDS.map((spec) => {
       const values = byMetric.get(spec.metric) ?? [];

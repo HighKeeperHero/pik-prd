@@ -171,7 +171,7 @@ export class SpatialMetricsController {
   @UseGuards(VenueStaffGuard)
   @RequirePermission('analytics.read')
   metrics(@Req() req: StaffRequest, @Query('days') days?: string) {
-    return this.telemetry.summary(req.staff, days ? parseInt(days, 10) : 30);
+    return this.telemetry.summary(req.staff.sourceId, days ? parseInt(days, 10) : 30);
   }
 }
 

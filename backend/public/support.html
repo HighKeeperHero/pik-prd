@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heroes — Venue Support</title>
+<!--
+  Venue Support Console (HEP Phase 2 Slice 8).
+
+  HEROES STAFF ONLY. This is the one surface that reads across tenants,
+  so it is authed with the platform admin key and is strictly READ-ONLY.
+  Remedial actions live on their own routes with their own guards and
+  their own audit entries; this page prints the command rather than
+  firing it, so nothing here can make an incident worse.
+
+  Deliberately visually distinct from /venue.html (red accent, not gold):
+  they are different audiences with different powers, and a support
+  engineer should never be one glance away from thinking they are
+  looking at a venue's own dashboard.
+-->
+<style>
+  :root{
+    --bg:#06080F; --panel:#0D1220; --line:rgba(30,46,72,.8);
+    --faint:rgba(30,46,72,.35);
+    --text:#C8C0B8; --muted:#8FA8CC; --dim:#3A4A6A;
+    --accent:#B0463C; --accent-lt:#E0685A; --warn:#C8900A; --ok:#4E7D5A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  a{color:var(--accent-lt);cursor:pointer}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:22px;letter-spacing:3px;font-weight:600;margin:0}
+  .eyebrow{font-size:11px;letter-spacing:3px;color:var(--accent);margin-bottom:6px}
+  h2{font-size:12px;letter-spacing:2.5px;color:var(--muted);
+     margin:34px 0 12px;font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);padding:18px 20px;margin-bottom:12px}
+  label{display:block;font-size:11px;letter-spacing:2px;color:var(--muted);margin-bottom:6px}
+  input{width:100%;background:#080A12;border:1px solid var(--line);
+    color:var(--text);padding:11px 12px;font-size:15px;font-family:inherit}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{background:var(--accent);color:#fff;border:0;padding:11px 20px;
+    font:600 13px/1 inherit;letter-spacing:2px;cursor:pointer}
+  button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat{background:var(--panel);border:1px solid var(--line);padding:16px}
+  .stat .n{font-size:26px;color:var(--accent-lt);font-variant-numeric:tabular-nums}
+  .stat .k{font-size:10px;letter-spacing:2px;color:var(--muted);margin-top:4px}
+  .muted{color:var(--muted)} .dim{color:var(--dim);font-size:12px}
+  .err{color:var(--accent-lt);margin-top:10px}
+  .hide{display:none}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:10px;letter-spacing:2px;color:var(--muted);
+     font-weight:600;padding:0 0 8px}
+  td{padding:10px 0;border-top:1px solid var(--faint);vertical-align:top}
+  code{background:#080A12;padding:2px 6px;font-size:12px;color:var(--muted);
+       word-break:break-all}
+  .flag{display:inline-block;font-size:10px;letter-spacing:1.5px;
+        border:1px solid var(--accent);color:var(--accent-lt);
+        padding:2px 7px;margin:2px 4px 2px 0}
+  .pill{display:inline-block;font-size:10px;letter-spacing:1.5px;
+        border:1px solid var(--line);padding:2px 7px;color:var(--muted)}
+  .pill.bad{border-color:var(--accent);color:var(--accent-lt)}
+  .pill.good{border-color:var(--ok);color:var(--ok)}
+  .pill.warn{border-color:var(--warn);color:var(--warn)}
+  .banner{border:1px solid var(--accent);background:rgba(176,70,60,.08);
+          padding:10px 14px;font-size:12px;letter-spacing:.5px;margin-bottom:22px}
+  .scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HEROES INTERNAL</div>
+  <h1>VENUE SUPPORT</h1>
+  <div class="banner">
+    Read-only, and every venue is visible from here. Remedial actions are
+    printed as commands, never fired from this page.
+  </div>
+
+  <!-- ── Key ─────────────────────────────────────────────── -->
+  <div id="auth">
+    <div class="panel" style="max-width:460px">
+      <label>PLATFORM ADMIN KEY</label>
+      <input id="key" type="password" autocomplete="off">
+      <div style="height:12px"></div>
+      <button id="go">OPEN</button>
+      <div id="authErr" class="err"></div>
+      <p class="dim" style="margin-bottom:0">
+        Held in this tab only (sessionStorage). Never sent anywhere but this API.
+      </p>
+    </div>
+  </div>
+
+  <div id="app" class="hide"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let KEY = sessionStorage.getItem('hv_support_key') || '';
+
+async function api(path) {
+  const r = await fetch('/api/support' + path, { headers: { 'X-HV-Admin-Key': KEY } });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(j?.message || `${r.status}`);
+  return j?.data ?? j;
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const when = (iso) => iso ? new Date(iso).toLocaleString() : '—';
+
+$('go').onclick = async () => {
+  KEY = $('key').value.trim();
+  $('authErr').textContent = '';
+  try {
+    const idx = await api('/venues');
+    sessionStorage.setItem('hv_support_key', KEY);
+    $('auth').classList.add('hide');
+    $('app').classList.remove('hide');
+    renderIndex(idx);
+  } catch (e) { $('authErr').textContent = e.message; }
+};
+$('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('go').click(); });
+
+function renderIndex(d) {
+  const rows = (d.venues || []).slice()
+    // Worst first. A support console sorted by creation date makes you
+    // hunt for the problem you opened it to find.
+    .sort((a, b) => b.flags.length - a.flags.length);
+
+  $('app').innerHTML = `
+    <div class="stats">
+      <div class="stat"><div class="n">${d.venues.length}</div><div class="k">VENUES</div></div>
+      <div class="stat"><div class="n">${d.needing_attention}</div><div class="k">NEED ATTENTION</div></div>
+      <div class="stat"><div class="n">${d.totals.seats_stuck_pending}</div><div class="k">SEATS STUCK</div></div>
+      <div class="stat"><div class="n">${d.totals.seats_expired}</div><div class="k">SEATS EXPIRED</div></div>
+    </div>
+    <h2>VENUES — LAST ${d.window_days} DAYS</h2>
+    <div class="panel scroll">
+      <table>
+        <tr><th>VENUE</th><th>STAFF</th><th>ROOMS</th><th>RUNS</th><th>STATE</th></tr>
+        ${rows.map((v) => `
+          <tr>
+            <td>
+              <a onclick="openVenue('${esc(v.source_id)}')">${esc(v.name)}</a>
+              <div class="dim">${esc(v.source_id)}</div>
+              <div>${v.flags.map((f) => `<span class="flag">${esc(f)}</span>`).join('')}</div>
+            </td>
+            <td>${v.staff_active} active
+              ${v.staff_invited ? `<div class="dim">${v.staff_invited} invited</div>` : ''}</td>
+            <td>${v.rooms}</td>
+            <td>${v.runs_30d}
+              ${v.runs_with_stuck_rewards ? `<div class="dim">${v.runs_with_stuck_rewards} with stuck rewards</div>` : ''}</td>
+            <td><span class="pill ${v.status === 'active' ? 'good' : 'bad'}">${esc(v.status)}</span></td>
+          </tr>`).join('')}
+      </table>
+    </div>`;
+}
+
+async function openVenue(id) {
+  try {
+    const d = await api('/venues/' + encodeURIComponent(id));
+    const t = d.telemetry || {};
+    $('app').innerHTML = `
+      <p><a onclick="back()">← all venues</a></p>
+      <h1 style="font-size:18px">${esc(d.venue.name)}</h1>
+      <div class="dim" style="margin-bottom:18px">${esc(d.venue.source_id)}</div>
+
+      <div class="stats">
+        <div class="stat"><div class="n">${esc(d.venue.status)}</div><div class="k">STATUS</div></div>
+        <div class="stat"><div class="n">${d.venue.can_mint_rewards ? 'YES' : 'NO'}</div><div class="k">CAN MINT</div></div>
+        <div class="stat"><div class="n">${(d.runs || []).length}</div><div class="k">RECENT RUNS</div></div>
+        <div class="stat"><div class="n">${t.summary ? t.summary.fail : '—'}</div><div class="k">FAILING METRICS</div></div>
+      </div>
+
+      <h2>SCOPES</h2>
+      <div class="panel"><code>${esc(d.venue.scopes)}</code></div>
+
+      <h2>STAFF</h2>
+      <div class="panel scroll"><table>
+        <tr><th>EMAIL</th><th>ROLE</th><th>STATE</th><th>LAST IN</th></tr>
+        ${(d.staff || []).map((s) => `<tr>
+          <td>${esc(s.email)}</td><td>${esc(s.role)}</td>
+          <td><span class="pill ${s.status === 'active' ? 'good' : s.invite_stale ? 'bad' : 'warn'}">${esc(s.status)}${s.invite_stale ? ' — EXPIRED' : ''}</span></td>
+          <td class="dim">${when(s.last_login_at)}</td></tr>`).join('') ||
+          '<tr><td colspan="4" class="dim">No staff.</td></tr>'}
+      </table></div>
+
+      <h2>ROOMS</h2>
+      <div class="panel scroll"><table>
+        <tr><th>ROOM</th><th>ACTIVE CONFIG</th><th>PUBLISHED</th></tr>
+        ${(d.rooms || []).map((r) => `<tr>
+          <td>${esc(r.name)}<div class="dim">${esc(r.slug)} · ${r.config_count} version(s)</div></td>
+          <td>${r.active_config ? `v${r.active_config.version} <span class="pill">${esc(r.active_config.origin_mode)}</span>` : '<span class="pill bad">none</span>'}</td>
+          <td class="dim">${when(r.active_config?.published_at)}</td></tr>`).join('') ||
+          '<tr><td colspan="3" class="dim">No rooms calibrated.</td></tr>'}
+      </table></div>
+
+      <h2>SPATIAL QUALITY</h2>
+      <div class="panel scroll"><table>
+        <tr><th>METRIC</th><th>OBSERVED</th><th>TARGET</th><th>N</th><th></th></tr>
+        ${(t.thresholds || []).map((m) => `<tr>
+          <td>${esc(m.label)}${m.derived ? ' <span class="pill">derived</span>' : ''}</td>
+          <td>${m.observed === null ? '—' : esc(m.observed) + ' ' + esc(m.unit)}</td>
+          <td class="dim">${esc(m.target)} ${esc(m.unit)}</td>
+          <td class="dim">${m.samples}</td>
+          <td><span class="pill ${m.status === 'pass' ? 'good' : m.status === 'fail' ? 'bad' : ''}">${esc(m.status)}</span></td>
+        </tr>`).join('')}
+      </table>
+      ${(t.unmeasured_metrics || []).length ? `<p class="dim">Reported with no threshold: ${t.unmeasured_metrics.map(esc).join(', ')}</p>` : ''}
+      </div>
+
+      <h2>RECENT RUNS</h2>
+      <div class="panel scroll"><table>
+        <tr><th>RUN</th><th>EXPERIENCE</th><th>STATUS</th><th>SEATS</th><th>STARTED</th></tr>
+        ${(d.runs || []).map((r) => `<tr>
+          <td class="dim">${esc(r.run_id.slice(0, 8))}</td>
+          <td>${esc(r.experience)}</td>
+          <td><span class="pill ${r.status === 'completed' ? 'good' : r.status === 'active' ? '' : 'warn'}">${esc(r.status)}</span>
+            ${r.failure_reason ? `<div class="dim">${esc(r.failure_reason)}</div>` : ''}</td>
+          <td>${r.seats.map((s) => `<div><code>${esc(s.root_id ? s.root_id.slice(0, 8) : (s.guest_label || 'guest'))}</code>
+            <span class="pill ${s.reward_stuck ? 'bad' : s.reward_state === 'applied' ? 'good' : ''}">${esc(s.reward_state)}</span></div>`).join('')}</td>
+          <td class="dim">${when(r.started_at)}</td></tr>`).join('') ||
+          '<tr><td colspan="5" class="dim">No runs in this window.</td></tr>'}
+      </table></div>
+
+      <h2>AUDIT</h2>
+      <div class="panel scroll"><table>
+        <tr><th>WHEN</th><th>ACTION</th><th>BY</th></tr>
+        ${(d.audit || []).map((a) => `<tr>
+          <td class="dim">${when(a.at)}</td><td>${esc(a.action)}</td>
+          <td class="dim">${esc(a.by)}</td></tr>`).join('') ||
+          '<tr><td colspan="3" class="dim">Nothing recorded.</td></tr>'}
+      </table></div>
+
+      <h2>REMEDIATION</h2>
+      <div class="panel">
+        <p class="dim">Run these yourself — this page will not fire them.</p>
+        ${Object.entries(d.remediation).map(([k, v]) =>
+          `<div style="margin:8px 0"><span class="muted">${esc(k)}</span><br><code>${esc(v)}</code></div>`).join('')}
+      </div>`;
+    window.scrollTo(0, 0);
+  } catch (e) { $('app').innerHTML = `<p class="err">${esc(e.message)}</p><p><a onclick="back()">← back</a></p>`; }
+}
+
+async function back() { renderIndex(await api('/venues')); window.scrollTo(0, 0); }
+
+if (KEY) {
+  api('/venues')
+    .then((d) => { $('auth').classList.add('hide'); $('app').classList.remove('hide'); renderIndex(d); })
+    .catch(() => sessionStorage.removeItem('hv_support_key'));
+}
+</script>
+</body>
+</html>
