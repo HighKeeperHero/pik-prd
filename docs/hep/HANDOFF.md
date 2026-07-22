@@ -31,15 +31,42 @@ venue prints QR → player scans → consent screen → seated in a run → rewa
 guest seat      → claim code   → Testament rite → new hero, level 1 → 6
 ```
 
-## Live right now
+## Live right now — verified 2026-07-21, end of session
 
-- **production** — Slices 0–2 + check-in + breakers; config keys seeded;
-  `heroes-demo-venue` ("Heroes Demo Venue") provisioned, **no `rewards` scope**
-  so it cannot mint
-- **staging** — same, plus `kingvale-demo`; portal owner
-  `owner@kingvale.test` / `KingvalePortal2026`
-- **native** `sprint-28-foundation` — Testament, Threshold, Witnesses screens;
-  version 1.4.0 (versionCode 18); alpha build was running at session end
+**staging and production are both at `db540d6`.** Confirmed from
+`/api/health`, which now reports commit and branch — check the running
+service, never this file.
+
+| | |
+|---|---|
+| Slices 0–2 | partner API, runs, portal + RBAC |
+| Slice 3 | check-in, consent withdrawal, mail seam (reset + invites) |
+| Slice 4 | spatial data model, manifest, calibration, publish gate |
+| Slice 6 | spatial telemetry + W9 thresholds, derived reward-sync |
+| Slice 8 | support console (`/support.html`, read-only, platform admin) |
+| Slice 9 | certification gate (`spatial` mode) + audited override |
+| Web | shared `heroes.css`, app typography, self-hosted fonts |
+
+Harnesses green **against live staging**: slices 3, 4, 6, 8, 9.
+Production verified read-only (harnesses create venues, so they are never
+pointed at the environment with real players): first-party guard
+`first_party` with 3 links, 4 tolerances seeded, certification gate
+`spatial`, 3 device profiles, new tables reachable and empty.
+
+### Still open
+
+1. **Verify `heroesveritas.com` in Resend** — the last thing between a
+   locked-out venue owner and self-recovery. `MAIL_FROM` is currently
+   `onboarding@resend.dev`, which only delivers to the Resend account
+   owner. **No email has ever been proven to arrive.**
+2. `heroes-demo-venue`'s owner (`tim.base@heroesveritas.com`) is still
+   `invited` — reissuing is now possible and sends the first real mail.
+3. Four questions for the design firm — `spatial-integration-guide.md` §6.
+4. Kingvale content (Tim owns).
+5. Tier B (P3/P4/P9) unscoped.
+6. ⚠ Only the signed-out portal view has been eyeballed. The
+   authenticated dashboard and all of `/support.html` render via JS and
+   have never been seen.
 
 ## Session 2 (2026-07-21 afternoon) — done
 
