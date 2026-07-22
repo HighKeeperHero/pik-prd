@@ -709,13 +709,26 @@ export class PortalService {
 
     await this.audit(staff.sourceId, staff.id, 'assets.venue_qr_generated');
 
+    // HTTPS, not the raw `heroescodex://` scheme.
+    //
+    // A generic phone QR reader answers a custom scheme with "no usable
+    // data found" — scanners only act on a whitelist (http(s), tel,
+    // mailto, WIFI:, vCard) and treat anything else as an opaque string.
+    // The earlier device check fired `am start -a VIEW -d <url>`, which
+    // never involves the scanner, so it proved Android's scheme
+    // resolution rather than whether a sign is scannable. It is not.
+    //
+    // The https URL also catches the walk-in who does NOT have the app:
+    // previously they scanned and got nothing at all, and they are
+    // exactly who the guest flow exists for.
     const deepLink = `heroescodex://venue/${venue.id}`;
+    const scanUrl = `${portalBaseUrl()}/v/${venue.id}`;
 
     // SVG rather than PNG: a venue prints this at whatever size the wall
     // needs, and vector survives being scaled up by a print shop. Error
     // correction 'M' tolerates a scuffed or partly-obscured sign, which
     // is the realistic failure mode for something mounted at a door.
-    const svg = await QRCode.toString(deepLink, {
+    const svg = await QRCode.toString(scanUrl, {
       type: 'svg',
       margin: 2,
       errorCorrectionLevel: 'M',
@@ -725,7 +738,9 @@ export class PortalService {
     return {
       source_id: venue.id,
       venue_name: venue.name,
-      /** What the QR encodes. */
+      /** What the QR encodes — universally scannable. */
+      scan_url: scanUrl,
+      /** Where that page sends an installed app. Kept for diagnostics. */
       deep_link: deepLink,
       /** Ready to print. Scales without loss. */
       qr_svg: svg,

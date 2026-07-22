@@ -553,6 +553,53 @@ async function main() {
   check('re-inviting an ACTIVE account is still refused',
     thirdOnActive.status === 409, thirdOnActive.status);
 
+  // ── 6. The printed QR must be SCANNABLE ─────────────────────
+  console.log('\n6. The venue QR encodes a URL a phone can actually read');
+
+  const qr = unwrap(
+    (await call('/api/portal/v1/qr/venue', { headers: bearer(activeOwner) })).body,
+  );
+  requireOrAbort('QR payload responds', !!qr?.scan_url, qr);
+
+  // The regression this exists to prevent: the QR used to encode
+  // `heroescodex://venue/<id>` and a generic phone QR reader answered
+  // "no usable data found". Scanners only act on a whitelist; a custom
+  // scheme is an opaque string to them. Device testing missed it because
+  // `am start -a VIEW -d <url>` never involves the scanner.
+  check('scan_url is an http(s) URL, NOT a custom scheme',
+    /^https?:\/\//.test(qr.scan_url ?? ''), qr.scan_url);
+  check('and it is NOT the heroescodex:// scheme',
+    !String(qr.scan_url).startsWith('heroescodex:'), qr.scan_url);
+  check('the QR image encodes the scan_url, not the deep link',
+    typeof qr.qr_svg === 'string' && qr.qr_svg.length > 0 &&
+    !qr.qr_svg.includes('heroescodex:'), (qr.qr_svg ?? '').slice(0, 80));
+  check('the deep link is still reported for diagnostics',
+    String(qr.deep_link ?? '').startsWith('heroescodex://venue/'), qr.deep_link);
+
+  // The landing page must work for a stranger with no app and no session.
+  const landing = await call(`/v/${venueId}`);
+  check('the scan target is reachable unauthenticated', landing.status === 200,
+    landing.status);
+
+  const landingHtml = await (await fetch(`${API}/v/${venueId}`)).text();
+  check('it names the venue (so the page does not look like phishing)',
+    landingHtml.includes(RUN), landingHtml.slice(0, 200));
+  check('it offers a way in for someone WITHOUT the app',
+    /play\.google\.com|apps\.apple\.com/.test(landingHtml), 'no store links');
+  check('and it still carries the deep link for someone who has it',
+    landingHtml.includes(`heroescodex://venue/${venueId}`), 'deep link missing');
+
+  const unknownVenue = await (await fetch(`${API}/v/definitely-not-a-venue`)).text();
+  check('an unknown code says so rather than pretending',
+    /not found/i.test(unknownVenue), unknownVenue.slice(0, 160));
+
+  // A claim token is a bearer credential printed on a receipt that may
+  // be dropped. The page must not confirm whether one is real.
+  const testament = await (await fetch(`${API}/t/not-a-real-token`)).text();
+  check('the testament page reveals NOTHING about token validity',
+    !/invalid|expired|not found|already used/i.test(testament),
+    testament.slice(0, 200));
+
   // The outbox must be shut to anyone without the platform key.
   const unguarded = await call('/api/portal/v1/_mail/outbox');
   check('the mail outbox refuses an unauthenticated caller',
