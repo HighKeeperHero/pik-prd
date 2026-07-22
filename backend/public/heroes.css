@@ -142,7 +142,39 @@ h2 {
 }
 
 /* ── Surfaces ────────────────────────────────────────────────
-   Flat, with a hairline. NOT a nine-slice frame: see the header.  */
+   Flat, with a hairline. NOT a nine-slice frame — see the header.
+
+   ┌─ ADDING CEREMONY LATER ──────────────────────────────────┐
+   │ Kept to ONE rule so the ornament is a drop-in, not a      │
+   │ rewrite. Every framed surface in both pages is `.panel`;  │
+   │ nothing else needs to change, and no markup moves.        │
+   │                                                            │
+   │ To upgrade:                                                │
+   │  1. Export the Crownfall frame from the kit as a PNG with  │
+   │     transparent middle → public/ui/frame-panel.png         │
+   │  2. Uncomment the block below and tune the four slice      │
+   │     numbers to the exported corner size (they are the      │
+   │     same cap insets CodexPanel/NineSlice already uses in   │
+   │     the app — src/ui/codex/NineSlice.tsx, DEFAULT_INSETS   │
+   │     is 48px, so `border-image-slice: 48` is the start).    │
+   │  3. Bump the padding so content clears the ornament.       │
+   │                                                            │
+   │ border-image IS the web's nine-slice: corners stay fixed,  │
+   │ edges stretch — the same model as the RN component, so the │
+   │ exported asset serves both surfaces.                       │
+   │                                                            │
+   │ Type, palette, spacing and layout are unaffected. That is  │
+   │ the point of doing brand first and ceremony second.        │
+   └────────────────────────────────────────────────────────────┘
+
+.panel {
+  border: 48px solid transparent;
+  border-image-source: url('/ui/frame-panel.png');
+  border-image-slice: 48 fill;
+  border-image-repeat: stretch;
+  padding: 8px 12px;
+}
+*/
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);

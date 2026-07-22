@@ -137,6 +137,36 @@ time. Fixed by `20260721190000_fix_first_party_source_type` (an UPDATE).
 10. `heroes-demo-venue`'s owner invite can now be reissued — the account
    had been stranded in `invited` with no way in.
 
+## Web surface styling (2026-07-21)
+
+`/venue.html` and `/support.html` share `backend/public/heroes.css`.
+Tokens mirror `heroes-veritas-native/src/theme/*` — the app's LIVE
+cool-dark palette, not the unadopted `crownfall` block in `colors.ts`
+(that remains an open app-wide brand decision; the portal follows it, it
+does not pre-empt it).
+
+**Brand, not ceremony** — the app's type (Marcellus SC / Cinzel / system
+sans, fonts self-hosted in `public/fonts/`, all OFL) without the
+Crownfall ornament. These are dashboards used by staff at work; the
+canon's "a rite to return to, not a dashboard" argues *against* the
+game's register here, and the portal is connective tissue rather than a
+screen in Codex.
+
+Gold = venue-facing, ember (`:root.internal`) = Heroes-internal. That
+colour split is a **safety signal**: someone holding a cross-tenant key
+must never be one glance from thinking they are in one venue's
+dashboard.
+
+**Adding ceremony later is a drop-in.** Every framed surface is `.panel`
+— one rule. `heroes.css` carries a commented `border-image` block (the
+web's nine-slice, same model as `NineSlice.tsx`) so the upgrade is
+"export the frame PNG, uncomment, tune the slice numbers". No markup
+moves; type, palette and layout are untouched.
+
+⚠ Only the signed-out portal view is visually verified. The
+authenticated dashboard and `/support.html` render via JS and have NOT
+been eyeballed.
+
 ## Things that will bite, if not remembered
 
 - **The config API refuses to CREATE keys.** Every tunable needs a seed row in
