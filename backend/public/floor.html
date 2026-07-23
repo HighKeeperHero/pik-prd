@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heroes — Floor</title>
+<!--
+  Operator floor console (HEP Phase 2 Slice 10 UI).
+
+  A different PRODUCT from /venue.html, not a skin on it. The portal is a
+  dashboard for an owner at a desk; this is for an operator standing in a
+  dim room, one-handed, guests waiting. So: one task per screen, targets
+  a thumb can hit without looking (≥56px), errors recoverable without
+  fetching a manager, and no analytics/staff/settings clutter — those
+  live in the portal.
+
+  Talks only to /api/portal/v1 with a staff session, same as the portal,
+  and every write is gated by `runs.operate` server-side. It does NOT
+  hold the venue API key — that mints rewards and must never sit in a tab
+  on a shared terminal.
+-->
+<link rel="stylesheet" href="/heroes.css">
+<style>
+  /* Floor-specific: everything bigger. A desk UI's 44px is a miss when
+     you are not looking at the screen. */
+  body{-webkit-text-size-adjust:100%}
+  .wrap{max-width:560px}
+  .bigbtn{display:block;width:100%;text-align:center;padding:20px;
+          background:var(--accent);color:var(--bg);border:0;cursor:pointer;
+          font:400 16px/1 var(--font-title);letter-spacing:2px;margin-top:12px}
+  .bigbtn:disabled{opacity:.4}
+  .bigbtn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .bigbtn.danger{background:transparent;color:var(--chaos);border:1px solid var(--chaos)}
+  /* A run card, sized to be read across a room. */
+  .run{background:var(--panel);border:1px solid var(--line);padding:20px;margin-bottom:14px}
+  .run .exp{font-family:var(--font-title);font-size:19px;letter-spacing:1px;color:var(--text)}
+  .run .clock{font-family:var(--font-display);font-size:40px;color:var(--accent-lt);
+              font-variant-numeric:tabular-nums;letter-spacing:2px;margin:6px 0}
+  .run .meta{color:var(--muted);font-size:14px}
+  .run .actions{display:flex;gap:10px;margin-top:16px}
+  .run .actions .bigbtn{margin-top:0}
+  /* Stale-heartbeat warning: a run about to be swept to no payout. */
+  .warn{color:var(--gold);font-size:13px;letter-spacing:.5px;margin-top:8px}
+  .empty{color:var(--muted);text-align:center;padding:40px 0;font-size:16px}
+  select.big{padding:16px 12px;font-size:16px}
+  .who{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  #toast{position:sticky;top:0;z-index:10}
+  .banner{border:1px solid var(--line);background:var(--bg-elevated);
+          padding:12px 16px;margin-bottom:14px;font-size:14px}
+  .banner.err{border-color:var(--chaos);color:var(--chaos)}
+  .banner.ok{border-color:var(--accent);color:var(--accent-lt)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ── Sign in ─────────────────────────────────────────── -->
+  <div id="login" class="gate">
+    <div class="eyebrow">HEROES — FLOOR</div>
+    <h1>OPERATOR</h1>
+    <div class="panel" style="margin-top:24px">
+      <label>EMAIL</label>
+      <input id="email" type="email" autocomplete="username">
+      <div style="height:14px"></div>
+      <label>PASSWORD</label>
+      <input id="password" type="password" autocomplete="current-password">
+      <div id="venuePickWrap" class="hide" style="margin-top:14px">
+        <label>VENUE</label><select id="venuePick" class="big"></select>
+      </div>
+      <button class="bigbtn" id="loginBtn">SIGN IN</button>
+      <div id="loginErr" class="err"></div>
+    </div>
+    <p class="dim" style="margin-top:14px">
+      For venue operators. Owners and managers can sign in here too.
+    </p>
+  </div>
+
+  <!-- ── Floor ───────────────────────────────────────────── -->
+  <div id="app" class="hide">
+    <div id="toast"></div>
+    <div class="who">
+      <div class="eyebrow" id="venueName">—</div>
+      <a id="signOut" class="dim" style="font-size:13px">Sign out</a>
+    </div>
+
+    <h2>RUNNING NOW</h2>
+    <div id="activeRuns"></div>
+
+    <h2>START A RUN</h2>
+    <div class="panel">
+      <label>EXPERIENCE</label>
+      <select id="expPick" class="big"></select>
+      <div style="height:12px"></div>
+      <label>GUEST SEATS</label>
+      <select id="seatPick" class="big"></select>
+      <button class="bigbtn" id="startBtn">START</button>
+      <div id="startErr" class="err"></div>
+    </div>
+    <p class="dim" style="margin-top:12px">
+      Seats guests here. A Codex player who scanned the venue QR is added
+      to their own run from the app — this screen is for walk-ins.
+    </p>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let TOKEN = sessionStorage.getItem('hv_floor_token') || '';
+let PERMS = [];
+let EXPERIENCES = [];
+let ticker = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api/portal/v1' + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}),
+      ...(opts.headers || {}),
+    },
+  });
+  const body = await res.json().catch(() => null);
+  if (res.status === 401 && TOKEN) { signOut(); throw new Error('Session ended — sign in again'); }
+  if (!res.ok) {
+    const e = new Error(body?.message || `Something went wrong (${res.status})`);
+    Object.assign(e, body || {});
+    throw e;
+  }
+  return body?.data ?? body;
+}
+
+function toast(msg, kind) {
+  $('toast').innerHTML = `<div class="banner ${kind || ''}">${esc(msg)}</div>`;
+  if (kind === 'ok') setTimeout(() => { $('toast').innerHTML = ''; }, 4000);
+}
+
+// ── Sign in ───────────────────────────────────────────────
+$('loginBtn').onclick = async () => {
+  $('loginErr').textContent = '';
+  $('loginBtn').disabled = true;
+  try {
+    const pick = $('venuePick');
+    const out = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: $('email').value.trim(),
+        password: $('password').value,
+        ...(pick.value ? { source_id: pick.value } : {}),
+      }),
+    });
+    TOKEN = out.session_token;
+    sessionStorage.setItem('hv_floor_token', TOKEN);
+    await boot(out.permissions || []);
+  } catch (e) {
+    if (e.venues) {
+      $('venuePickWrap').classList.remove('hide');
+      $('venuePick').innerHTML = e.venues.map(v => `<option>${esc(v)}</option>`).join('');
+    }
+    $('loginErr').textContent = e.message;
+  } finally {
+    $('loginBtn').disabled = false;
+  }
+};
+$('password').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+
+function signOut() {
+  TOKEN = ''; PERMS = [];
+  sessionStorage.removeItem('hv_floor_token');
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  $('app').classList.add('hide');
+  $('login').classList.remove('hide');
+}
+$('signOut').onclick = async () => { await api('/auth/logout', { method: 'POST' }).catch(()=>{}); signOut(); };
+
+// ── Boot ──────────────────────────────────────────────────
+async function boot(perms) {
+  PERMS = perms.length ? perms : (await api('/me')).permissions || [];
+
+  // The one hard gate the UI enforces (the server enforces it too). A
+  // viewer has no business on the floor, and should be told plainly
+  // rather than shown buttons that 403.
+  if (!PERMS.includes('runs.operate')) {
+    $('login').classList.remove('hide');
+    $('app').classList.add('hide');
+    $('loginErr').textContent =
+      'This account cannot operate runs. Ask an owner for operator access.';
+    signOut();
+    return;
+  }
+
+  const me = await api('/me');
+  $('venueName').textContent = (me.venue.name || me.venue.source_id) + ' — FLOOR';
+  $('login').classList.add('hide');
+  $('app').classList.remove('hide');
+
+  EXPERIENCES = (await api('/experiences')).filter(e => e.enabled);
+  renderExperiencePicker();
+  await refresh();
+
+  // Live clocks without hammering the server: re-fetch active runs every
+  // 5s, but tick the visible elapsed counters locally each second.
+  if (ticker) clearInterval(ticker);
+  ticker = setInterval(() => { tickClocks(); }, 1000);
+  setInterval(() => { refresh().catch(()=>{}); }, 5000);
+}
+
+function renderExperiencePicker() {
+  if (EXPERIENCES.length === 0) {
+    $('expPick').innerHTML = '<option value="">No experiences assigned</option>';
+    $('startBtn').disabled = true;
+    return;
+  }
+  $('expPick').innerHTML = EXPERIENCES
+    .map(e => `<option value="${esc(e.slug)}" data-min="${e.min_players}" data-max="${e.max_players}">${esc(e.name)}</option>`)
+    .join('');
+  $('expPick').onchange = renderSeatPicker;
+  renderSeatPicker();
+}
+
+function renderSeatPicker() {
+  const opt = $('expPick').selectedOptions[0];
+  const min = parseInt(opt?.dataset.min || '1', 10);
+  const max = parseInt(opt?.dataset.max || '6', 10);
+  let html = '';
+  for (let n = min; n <= max; n++) html += `<option value="${n}">${n} guest${n===1?'':'s'}</option>`;
+  $('seatPick').innerHTML = html;
+}
+
+// ── Start ─────────────────────────────────────────────────
+$('startBtn').onclick = async () => {
+  $('startErr').textContent = '';
+  $('startBtn').disabled = true;
+  const slug = $('expPick').value;
+  const seats = parseInt($('seatPick').value, 10);
+  try {
+    await api('/runs', {
+      method: 'POST',
+      body: JSON.stringify({
+        experience_slug: slug,
+        // The staff endpoint stamps its own run key off the session; a
+        // stable one per screen-start keeps a double-tap idempotent.
+        partner_run_key: `floor-${slug}-${Date.now()}`,
+        guests: Array.from({ length: seats }, (_, i) => ({ label: `Player ${i + 1}` })),
+      }),
+    });
+    toast('Run started.', 'ok');
+    await refresh();
+  } catch (e) {
+    // The certification gate and scope checks surface here. Say what the
+    // server said — it is written to be read by a person.
+    $('startErr').textContent = e.message;
+  } finally {
+    $('startBtn').disabled = false;
+  }
+};
+
+// ── Active runs ───────────────────────────────────────────
+async function refresh() {
+  const runs = await api('/runs/active');
+  window.__runs = runs;
+  if (runs.length === 0) {
+    $('activeRuns').innerHTML = '<div class="empty">Nothing running right now.</div>';
+    return;
+  }
+  $('activeRuns').innerHTML = runs.map(r => {
+    const stale = r.stale_sec > 300;
+    return `<div class="run" data-run="${esc(r.run_id)}" data-started="${Date.now() - r.elapsed_sec*1000}">
+      <div class="exp">${esc(r.experience)}</div>
+      <div class="clock">${fmt(r.elapsed_sec)}</div>
+      <div class="meta">${r.seats} seat${r.seats===1?'':'s'} · ${r.milestones_hit} milestone${r.milestones_hit===1?'':'s'}</div>
+      ${stale ? `<div class="warn">⚠ No heartbeat for ${fmt(r.stale_sec)} — this run will be closed as abandoned and pay nothing. Complete it now if it is really over.</div>` : ''}
+      <div class="actions">
+        <button class="bigbtn" onclick="complete('${esc(r.run_id)}')">COMPLETE</button>
+        <button class="bigbtn danger" onclick="fail('${esc(r.run_id)}')">END / ABANDON</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Local per-second tick so the clock is alive between 5s refreshes.
+function tickClocks() {
+  document.querySelectorAll('.run').forEach(el => {
+    const started = parseInt(el.dataset.started, 10);
+    if (!started) return;
+    const clock = el.querySelector('.clock');
+    if (clock) clock.textContent = fmt(Math.round((Date.now() - started) / 1000));
+  });
+}
+
+async function complete(runId) {
+  if (!confirm('Complete this run and pay the seats?')) return;
+  try {
+    // Milestones are reported by the venue's own room runtime in the real
+    // flow; from the floor we settle on completion as a plain victory.
+    await api(`/runs/${runId}/complete`, { method: 'POST', body: JSON.stringify({ milestones_hit: 0 }) });
+    toast('Run completed — rewards issued.', 'ok');
+    await refresh();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function fail(runId) {
+  if (!confirm('End this run without full rewards? Use this if guests left early.')) return;
+  try {
+    await api(`/runs/${runId}/fail`, { method: 'POST', body: JSON.stringify({ outcome: 'abandoned' }) });
+    toast('Run ended.', 'ok');
+    await refresh();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+function fmt(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ── Resume a session ──────────────────────────────────────
+if (TOKEN) boot([]).catch(signOut);
+</script>
+</body>
+</html>
