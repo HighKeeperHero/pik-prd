@@ -635,6 +635,40 @@ async function main() {
   check('an unknown code says so rather than pretending',
     /not found/i.test(unknownVenue), unknownVenue.slice(0, 160));
 
+  // ── Deep-link domain association ────────────────────────────
+  // These files are what let a scan open the app directly. Apple and
+  // Google fetch them by exact name; a wrong content-type or a redirect
+  // silently breaks verification with no error anyone sees.
+  const aasaRes = await fetch(`${API}/.well-known/apple-app-site-association`);
+  check('AASA serves 200 at the extensionless path', aasaRes.status === 200, aasaRes.status);
+  check('AASA is application/json',
+    (aasaRes.headers.get('content-type') || '').includes('application/json'),
+    aasaRes.headers.get('content-type'));
+  const aasa = await aasaRes.json().catch(() => null);
+  check('AASA names the real Apple app id',
+    aasa?.applinks?.details?.[0]?.appID === '936L85M7CN.com.heroesveritas.codex',
+    aasa?.applinks?.details?.[0]?.appID);
+  checkAll('AASA scopes only /v/ and /t/',
+    aasa?.applinks?.details?.[0]?.paths,
+    (p: string) => p.startsWith('/v/') || p.startsWith('/t/'),
+    aasa?.applinks?.details?.[0]?.paths);
+
+  // assetlinks.json is env-gated: absent (404) is correct until the real
+  // release fingerprint is set, and NEVER a file naming no valid signer.
+  const alRes = await fetch(`${API}/.well-known/assetlinks.json`);
+  if (alRes.status === 200) {
+    const al = await alRes.json().catch(() => null);
+    check('assetlinks names the real package',
+      al?.[0]?.target?.package_name === 'com.heroesveritas.codex', al?.[0]?.target);
+    check('and carries at least one fingerprint',
+      (al?.[0]?.target?.sha256_cert_fingerprints ?? []).length > 0, al?.[0]?.target);
+    check('with no obviously-placeholder fingerprint',
+      !JSON.stringify(al).includes('AB:CD:EF'), 'placeholder fingerprint shipped');
+  } else {
+    check('assetlinks 404s honestly when the fingerprint is unset',
+      alRes.status === 404, alRes.status);
+  }
+
   // A claim token is a bearer credential printed on a receipt that may
   // be dropped. The page must not confirm whether one is real.
   const testament = await (await fetch(`${API}/t/not-a-real-token`)).text();

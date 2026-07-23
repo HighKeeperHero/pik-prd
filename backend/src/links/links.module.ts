@@ -9,10 +9,11 @@
 
 import { Module } from '@nestjs/common';
 import { LinksController } from './links.controller';
+import { WellKnownController } from './well-known.controller';
 import { PrismaService } from '../prisma.service';
 
 @Module({
-  controllers: [LinksController],
+  controllers: [LinksController, WellKnownController],
   providers: [PrismaService],
 })
 export class LinksModule {}
