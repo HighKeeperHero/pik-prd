@@ -247,6 +247,35 @@ moves; type, palette and layout are untouched.
 authenticated dashboard and `/support.html` render via JS and have NOT
 been eyeballed.
 
+## Deep links — DONE end to end (2026-07-22)
+
+The QR / "Open Codex" saga is closed on both platforms.
+
+- **QR** encodes an https `/v/:sourceId` URL (was the raw `heroescodex://`
+  scheme, which generic scanners reject). Scannable everywhere.
+- **Bounce page** names the venue, offers OPEN THE CODEX + GET THE APP,
+  and `/get` explains closed-testing honestly. Android verified on the
+  emulator: scan target → tap → `MainActivity` foregrounds.
+- **`intent://`** with `S.browser_fallback_url=/get` — Chrome refuses a
+  bare scheme even on a tap; the fallback stops "link invalid".
+- **App Links / Universal Links** shipped. `/.well-known/apple-app-site-
+  association` (extensionless, application/json) and `/.well-known/
+  assetlinks.json` (fingerprint from `ANDROID_CERT_SHA256`, SET on both
+  envs = `A1:A8:30:82…`) serve 200 on staging AND production.
+  `app.config.js` has the matching `associatedDomains` + autoVerify
+  intent filters.
+- **iOS was dead until a build.** The scheme compiles in at 1.4.0; newest
+  iOS build was 1.3.0. Root cause of "Open Codex doesn't work on iOS" —
+  no web change could fix it.
+- **`eas build` ≠ `eas submit`.** Three testflight builds succeeded and
+  none reached TestFlight because build compiles, it does not upload.
+  Fixed: `autoSubmit: true` on `build.testflight`. See [[eas-build-vs-submit]].
+
+**Both iOS and Android are now deployed with the deep-link build.**
+
+⚠ **One unpushed native commit:** `54ad749` (autoSubmit) in
+heroes-veritas-native. Push it or a fresh clone loses the setting.
+
 ## Things that will bite, if not remembered
 
 - **The config API refuses to CREATE keys.** Every tunable needs a seed row in
