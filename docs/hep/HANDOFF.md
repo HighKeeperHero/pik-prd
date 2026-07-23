@@ -22,9 +22,15 @@ prints), `provision-venue.ts` (one-command onboarding).
 
 ## Verified end to end, on a real device
 
-Both arrival paths work, and QR deep links were confirmed on the
-production-signed 1.4.0 binary by firing `am start` **without** a package hint,
-so Android resolved the scheme itself — exactly what a scanner does.
+⚠ **This earlier claim was WRONG and cost real time (corrected 2026-07-22).**
+"QR deep links confirmed by firing `am start` **without** a package hint, so
+Android resolved the scheme itself — exactly what a scanner does." It is NOT
+what a scanner does: `am start` exercises Android's scheme resolution and never
+involves the scanner, which only acts on http(s)/tel/mailto/WIFI/vCard and
+rejects a raw custom scheme with "no usable data found". A real scan failed.
+The fix was an https `/v/:id` bounce page; the whole saga is under "Deep links
+— DONE" below. Lesson: to verify a scan, scan — do not simulate the layer under
+it.
 
 ```
 venue prints QR → player scans → consent screen → seated in a run → rewards in Codex
@@ -53,7 +59,7 @@ pointed at the environment with real players): first-party guard
 `first_party` with 3 links, 4 tolerances seeded, certification gate
 `spatial`, 3 device profiles, new tables reachable and empty.
 
-### Slice 10 — staff-authed run operation (built, NOT yet deployed)
+### Slice 10 — staff-authed run operation (DEPLOYED — both envs at/after 08340a4)
 
 `runs.operate` had been granted to three roles and enforced by nothing:
 the run lifecycle was API-key only, so an operator could not operate a
