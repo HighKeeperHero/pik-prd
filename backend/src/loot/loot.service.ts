@@ -178,8 +178,9 @@ export class LootService {
     // Roll from Phase 4 family engine
     const engineResult = await this.lootEngine.rollFromFamily({
       rootId,
-      cacheType: cache.cacheType,
+      cacheType:   cache.cacheType,
       fateLevel,
+      cacheRarity: cache.rarity,   // the icon rarity — the open floors here
     });
 
     let rewardType:  string;

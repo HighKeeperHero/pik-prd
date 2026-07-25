@@ -200,6 +200,26 @@ function applyRarityFloor(rolled: string, floor: string): string {
   return rolledIdx >= floorIdx ? rolled : floor;
 }
 
+// ── Cache rarity honouring (2026-07-25) ───────────────────────────────────────
+// A cache opens AT ITS OWN icon rarity, never below (the old engine
+// re-rolled from the cache-TYPE floor + band-snapped down, so a
+// purple/epic cache opened blue/rare). Small chance to discover it's
+// the next rarity up. The ladder is the cache-icon set (no 'rare+',
+// which is a gear-only in-between tier), so an upgrade steps
+// rare→epic→legendary the way the icons read.
+const CACHE_RARITY_LADDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+const CACHE_RARITY_UPGRADE_CHANCE = 0.12;   // Tim: "small chance next up"
+
+/** The cache's rarity is the floor; roll the small upgrade. */
+function cacheRarityOutcome(cacheRarity: string): string {
+  const i = CACHE_RARITY_LADDER.indexOf(cacheRarity);
+  if (i < 0) return cacheRarity; // unknown label — pass through as floor
+  if (i < CACHE_RARITY_LADDER.length - 1 && Math.random() < CACHE_RARITY_UPGRADE_CHANCE) {
+    return CACHE_RARITY_LADDER[i + 1];
+  }
+  return cacheRarity;
+}
+
 @Injectable()
 export class LootEngineService {
   private readonly logger = new Logger(LootEngineService.name);
@@ -267,6 +287,7 @@ export class LootEngineService {
     cacheType:     string;
     fateLevel:     number;
     regionHint?:   string;  // optional — biases region weighting
+    cacheRarity?:  string;  // the cache's icon rarity — the open floors here
   }): Promise<{
     slot:         string;
     rarity:       string;
@@ -277,7 +298,7 @@ export class LootEngineService {
     item_power:   number;
     slot_budget:  number;
   } | null> {
-    const { rootId, cacheType, fateLevel, regionHint } = params;
+    const { rootId, cacheType, fateLevel, regionHint, cacheRarity } = params;
 
     const familyKey = CACHE_TYPE_TO_FAMILY[cacheType] ?? 'cache_pre40';
     const family    = DROP_TABLE_FAMILIES[familyKey];
@@ -292,13 +313,22 @@ export class LootEngineService {
       return null;
     }
 
-    // Step 2 — Roll rarity with pity
-    let rarityWeights = { ...family.rarity_weights };
-    rarityWeights = await this._applyPity(rootId, rarityWeights);
+    // Step 2 — Rarity. When the cache carries its own icon rarity
+    // (all real opens do), that IS the outcome — floored there, with
+    // a small chance to step one up — so what you open matches (or
+    // beats) the icon. The weighted pity roll only drives caches with
+    // no stored rarity (legacy / demo).
+    let rarity: string;
+    if (cacheRarity) {
+      rarity = cacheRarityOutcome(cacheRarity);
+    } else {
+      let rarityWeights = { ...family.rarity_weights };
+      rarityWeights = await this._applyPity(rootId, rarityWeights);
+      rarity = rollFromWeights(rarityWeights);
+    }
 
-    let rarity = rollFromWeights(rarityWeights);
-
-    // Step 3 — Apply rarity floor for this cache type
+    // Step 3 — Never below the cache-type floor (a safety net; the
+    // cache's own rarity already sits at or above it).
     const floor = CACHE_RARITY_FLOOR[cacheType] ?? 'common';
     rarity = applyRarityFloor(rarity, floor);
 
@@ -322,12 +352,24 @@ export class LootEngineService {
 
     let candidates = bandSlot.filter(i => i.rarity_allowed.includes(rarity as any));
     if (candidates.length === 0) {
-      const allowed = [...new Set(bandSlot.flatMap(i => i.rarity_allowed))]
-        .sort((a, b) => RARITY_ORDER.indexOf(a) - RARITY_ORDER.indexOf(b));
-      const rolledIdx = RARITY_ORDER.indexOf(rarity);
-      const below = allowed.filter(r => RARITY_ORDER.indexOf(r) <= rolledIdx);
-      rarity = below.length > 0 ? below[below.length - 1] : allowed[0];
-      candidates = bandSlot.filter(i => i.rarity_allowed.includes(rarity as any));
+      if (cacheRarity) {
+        // Honour the cache's rarity even when no band item lists it
+        // (e.g. an epic cache earned before the level band unlocks
+        // epic gear). Keep the item in the hero's BAND so power stays
+        // level-appropriate — rarity is an instance property and the
+        // multiplier rides on band power, not a wrong-band item. Never
+        // snap below the icon.
+        candidates = bandSlot;
+      } else {
+        // Legacy (no cache rarity): snap to the nearest rarity the
+        // band allows at-or-below the roll, keeping gear level-locked.
+        const allowed = [...new Set(bandSlot.flatMap(i => i.rarity_allowed))]
+          .sort((a, b) => RARITY_ORDER.indexOf(a) - RARITY_ORDER.indexOf(b));
+        const rolledIdx = RARITY_ORDER.indexOf(rarity);
+        const below = allowed.filter(r => RARITY_ORDER.indexOf(r) <= rolledIdx);
+        rarity = below.length > 0 ? below[below.length - 1] : allowed[0];
+        candidates = bandSlot.filter(i => i.rarity_allowed.includes(rarity as any));
+      }
     }
 
     // Region preference — try to match, fall back to any candidate
