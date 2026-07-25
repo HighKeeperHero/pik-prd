@@ -1153,7 +1153,7 @@ export class VeilService {
       species: FAUNA_SPECIES.map(sp => {
         const rec = byId.get(sp.id);
         return {
-          id: sp.id, name: sp.name, tier: sp.tier, reads: sp.reads,
+          id: sp.id, name: sp.name, realm: sp.realm, tier: sp.tier, reads: sp.reads,
           habitat: sp.habitat, lore: sp.lore,
           count:   rec?.count ?? 0,
           mastery: rec ? masteryFor(rec.count) : null,
