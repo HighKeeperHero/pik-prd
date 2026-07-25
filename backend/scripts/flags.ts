@@ -22,6 +22,11 @@
 //                    per channel to launch)
 //   rift_distortions — element-keyed distortion modifiers in rift
 //                    containment (client default FALSE — ships dark)
+//   rift_v2        — Veil Rift 2.0: the Identify → Stabilize → Seal
+//                    ritual replacing the gesture-combat rift loop
+//                    (client default FALSE — ships dark; on for
+//                    preview 2026-07-24). Client-only: reuses the
+//                    existing /api/veil/encounter seal path.
 // ============================================================
 import { PrismaClient } from '@prisma/client';
 
