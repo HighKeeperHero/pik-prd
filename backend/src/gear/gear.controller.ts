@@ -34,6 +34,13 @@ export class GearController {
     return this.gear.getComputedResonance(rootId);
   }
 
+  // Gear-derived Paradigm — playstyle totals, threshold perks, and
+  // the dominant paradigm's recommended Job (canon §13.3).
+  @Get('users/:root_id/paradigm')
+  async getParadigm(@Param('root_id') rootId: string) {
+    return this.gear.getComputedParadigm(rootId);
+  }
+
   @Post('users/:root_id/equipment/equip')
   @UseGuards(AccountGuard)
   async equipItem(

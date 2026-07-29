@@ -23,6 +23,52 @@ const EMPTY_MODIFIERS: GearModifiers = {
 
 const VALID_SLOTS = ['weapon', 'helm', 'chest', 'arms', 'legs', 'rune'];
 
+// ── Paradigm (canon §13.3) ─────────────────────────────────
+// Gear-derived PLAYSTYLE axis — distinct from Resonance (power).
+// Four paradigms map 1:1 to the four Jobs, so a hero's dominant
+// paradigm feeds the L40 Vocation recommendation directly.
+export type Paradigm = 'bulwark' | 'onslaught' | 'verdant' | 'reap';
+const PARADIGMS: Paradigm[] = ['bulwark', 'onslaught', 'verdant', 'reap'];
+const PARADIGM_JOB: Record<Paradigm, string> = {
+  bulwark: 'AEGIS', onslaught: 'SCALESWORN', verdant: 'DRYADIC', reap: 'HARVESTER',
+};
+// Which paradigm each gear modifier leans toward. Seeded catalog
+// items carry these; the modifier's value is its point contribution.
+const MODIFIER_PARADIGM: Record<string, Paradigm> = {
+  defense:         'bulwark',
+  boss_damage_pct: 'onslaught',
+  crit_pct:        'onslaught',
+  cooldown_pct:    'verdant',
+  luck_pct:        'reap',
+  xp_bonus_pct:    'reap',
+  fate_affinity:   'reap',
+};
+// Fallback lean by slot for loot-engine items, which carry itemPower
+// but no modifiers. itemPower is routed here, divided down so a full
+// loadout spans the 25/50/100/150/200 thresholds rather than one
+// legendary blowing past 200 on its own.
+const SLOT_PARADIGM: Record<string, Paradigm> = {
+  weapon: 'onslaught', arms: 'onslaught',
+  chest:  'bulwark',   legs: 'bulwark',
+  helm:   'reap',      rune: 'verdant',
+};
+const ITEMPOWER_DIVISOR = 8;
+const PARADIGM_THRESHOLDS = [25, 50, 100, 150, 200];
+// Modest playstyle perks (Tim, 2026-07-29) — style, not raw power;
+// combat power stays Resonance (canon §11). value = perTier × tier.
+const PARADIGM_PERK: Record<Paradigm, { key: string; label: string; perTier: number; unit: string }> = {
+  bulwark:   { key: 'stability_bonus',    label: 'Stability',      perTier: 1, unit: 'hp'  },
+  onslaught: { key: 'crit_pct',           label: 'Crit Chance',    perTier: 2, unit: 'pct' },
+  verdant:   { key: 'resonance_gain_pct', label: 'Resonance Gain', perTier: 4, unit: 'pct' },
+  reap:      { key: 'luck_pct',           label: 'Loot Luck',      perTier: 3, unit: 'pct' },
+};
+/** Threshold tier reached (0–5) for a paradigm point total. */
+function paradigmTier(total: number): number {
+  let t = 0;
+  for (const th of PARADIGM_THRESHOLDS) if (total >= th) t++;
+  return t;
+}
+
 const COMPONENT_META: Record<string, { name: string; icon: string }> = {
   salvage_shard:  { name: 'Salvage Shard',  icon: '🪨' },
   refined_core:   { name: 'Refined Core',   icon: '⚙️' },
@@ -178,6 +224,58 @@ export class GearService {
       }
     }
     return totals;
+  }
+
+  // ── COMPUTED PARADIGM (canon §13.3) ────────────────────────
+  // Gear-derived playstyle. Each equipped item adds points to a
+  // paradigm — seeded items via their modifier lean, loot-engine
+  // items via itemPower routed by slot. Dominant paradigm is the
+  // Vocation recommender's 40% input; thresholds grant modest
+  // playstyle perks (never raw combat power — that stays Resonance).
+  async getComputedParadigm(rootId: string): Promise<{
+    totals: Record<Paradigm, number>;
+    dominant: Paradigm | null;
+    recommended_job: string | null;
+    perks: Array<{ paradigm: Paradigm; tier: number; threshold: number; key: string; label: string; unit: string; value: number }>;
+  }> {
+    const equipped = await this.prisma.playerEquipment.findMany({
+      where: { rootId }, include: { inventory: { include: { item: true } } },
+    });
+    const totals: Record<Paradigm, number> = { bulwark: 0, onslaught: 0, verdant: 0, reap: 0 };
+    for (const eq of equipped) {
+      const item = eq.inventory.item;
+      const mods = (item.modifiers || {}) as Record<string, number>;
+      for (const [key, val] of Object.entries(mods)) {
+        const p = MODIFIER_PARADIGM[key];
+        if (p && val) totals[p] += val;
+      }
+      // itemPower base — loot-engine items (empty modifiers) get their
+      // whole paradigm signal here; seeded items (itemPower null) rely
+      // on their modifiers above.
+      const ip = item.itemPower ?? 0;
+      if (ip > 0) {
+        const p = SLOT_PARADIGM[item.slot] ?? 'onslaught';
+        totals[p] += Math.round(ip / ITEMPOWER_DIVISOR);
+      }
+    }
+    const perks = PARADIGMS.flatMap(p => {
+      const tier = paradigmTier(totals[p]);
+      if (tier < 1) return [];
+      const def = PARADIGM_PERK[p];
+      return [{
+        paradigm: p, tier, threshold: PARADIGM_THRESHOLDS[tier - 1],
+        key: def.key, label: def.label, unit: def.unit, value: def.perTier * tier,
+      }];
+    });
+    let dominant: Paradigm = 'bulwark';
+    for (const p of PARADIGMS) if (totals[p] > totals[dominant]) dominant = p;
+    const anyPoints = PARADIGMS.some(p => totals[p] > 0);
+    return {
+      totals,
+      dominant: anyPoints ? dominant : null,
+      recommended_job: anyPoints ? PARADIGM_JOB[dominant] : null,
+      perks,
+    };
   }
 
   // ── GEAR CATALOG ───────────────────────────────────────────
