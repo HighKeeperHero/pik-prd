@@ -17,6 +17,8 @@ import { EventsService } from '../events/events.service';
 import { EnrollUserDto } from './dto/enroll-user.dto';
 import { LandmarkService } from '../landmark/landmark.service'; // Sprint 25
 import { levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
+import { jobLevelFromXp } from '../job/job.constants';
+import { doctrineResonance, selectionList, pruneSelections } from '../doctrine/doctrine.logic';
 
 @Injectable()
 export class IdentityService {
@@ -445,6 +447,13 @@ export class IdentityService {
         // Phase 3a — JobXP track (canon §13.4). Job Level / JobRank
         // derive from this client-side; 0 until a Job is chosen.
         job_xp:              (user as any).jobXp ?? 0,
+        // Phase 4 — Doctrine's Resonance contribution (canon §13.2/§13.5),
+        // precomputed so the client Resonance mirror needs no catalog.
+        doctrine_resonance:  doctrineResonance(
+          (user as any).heroClass ?? null,
+          jobLevelFromXp((user as any).jobXp ?? 0),
+          pruneSelections((user as any).heroClass ?? null, selectionList((user as any).doctrines)),
+        ),
         total_sessions: totalSessions,
         titles: user.titles.map((t) => t.titleId),
         titles_detail: user.titles.map((t) => ({

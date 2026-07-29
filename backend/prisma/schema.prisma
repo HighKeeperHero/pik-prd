@@ -76,6 +76,11 @@ model RootIdentity {
   // (canon §13.4). Job Level + JobRank are DERIVED from jobXp; only
   // accrues once a Job is chosen (heroClass set at L40).
   jobXp         Int       @default(0) @map("job_xp")
+  // Phase 4 — Doctrine branch selections (canon §13.5): an array of
+  // chosen branch node ids. Core nodes are implicit from Job Level;
+  // definitions live in code (doctrine.catalog), so new doctrines
+  // need no migration. Null/[] = nothing chosen.
+  doctrines     Json?     @map("doctrines")
   enrolledBy    String    @default("self") @map("enrolled_by")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")

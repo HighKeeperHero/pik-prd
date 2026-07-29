@@ -10,6 +10,8 @@ import { QuestLogService } from '../quest/quest-log.service';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
+import { jobLevelFromXp } from '../job/job.constants';
+import { doctrineResonance, selectionList, pruneSelections } from '../doctrine/doctrine.logic';
 
 export interface GearModifiers {
   xp_bonus_pct: number; boss_damage_pct: number; luck_pct: number;
@@ -192,9 +194,14 @@ export class GearService {
     additive_layer: number;
     per_slot: Record<string, number>;
   }> {
-    const equipped = await this.prisma.playerEquipment.findMany({
-      where: { rootId }, include: { inventory: { include: { item: true } } },
-    });
+    const [equipped, hero] = await Promise.all([
+      this.prisma.playerEquipment.findMany({
+        where: { rootId }, include: { inventory: { include: { item: true } } },
+      }),
+      this.prisma.rootIdentity.findUnique({
+        where: { id: rootId }, select: { heroClass: true, jobXp: true, doctrines: true },
+      }),
+    ]);
     const perSlot: Record<string, number> = {};
     let sum = 0;
     for (const slot of VALID_SLOTS) {
@@ -204,7 +211,11 @@ export class GearService {
       sum += power;
     }
     const gearAverage = sum / VALID_SLOTS.length;
-    const additiveLayer = 0; // Master Echoes + Doctrine nodes — canon §13.2, not yet built
+    // Additive layer (canon §13.2): Doctrine nodes now contribute
+    // (Master Echoes join here when that system ships).
+    const jobLevel   = jobLevelFromXp(hero?.jobXp ?? 0);
+    const selections = pruneSelections(hero?.heroClass ?? null, selectionList(hero?.doctrines));
+    const additiveLayer = doctrineResonance(hero?.heroClass ?? null, jobLevel, selections);
     return {
       resonance: Math.floor(gearAverage + additiveLayer),
       gear_average: gearAverage,
