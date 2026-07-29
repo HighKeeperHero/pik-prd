@@ -442,6 +442,9 @@ export class IdentityService {
         fate_xp_to_next:     fateXpToNext,
         // Sprint 22.C — Job Class (null until level 40 selection)
         hero_class:          (user as any).heroClass ?? null,
+        // Phase 3a — JobXP track (canon §13.4). Job Level / JobRank
+        // derive from this client-side; 0 until a Job is chosen.
+        job_xp:              (user as any).jobXp ?? 0,
         total_sessions: totalSessions,
         titles: user.titles.map((t) => t.titleId),
         titles_detail: user.titles.map((t) => ({

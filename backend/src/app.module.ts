@@ -40,6 +40,7 @@ import { SanctumModule }    from './sanctum/sanctum.module';     // ← Sprint 2
 import { PushModule }       from './push/push.module';            // ← Sprint 28 (iOS push token register)
 import { IapModule }        from './iap/iap.module';              // ← Sprint 28 (iOS StoreKit 2 redeem)
 import { LevelingModule }   from './leveling/leveling.module';    // ← Phase 2 Arc A (hero XP curve)
+import { JobModule }        from './job/job.module';              // ← Phase 3a (JobXP track + ranks)
 import { RelicMarksModule } from './relic-marks/relic-marks.module'; // ← Sprint 31 (XR interop seam: USDZ assets)
 import { MemoriaModule }    from './memoria/memoria.module';          // ← Sprint 32 (Tier 2 identity-collection)
 import { LoreModule }       from './lore/lore.module';                // ← 2026-07-06 Lore Archive collection
@@ -149,6 +150,7 @@ class HealthController {
     PushModule,           // ← Sprint 28 (iOS push token register)
     IapModule,            // ← Sprint 28 (iOS StoreKit 2 redeem)
     LevelingModule,       // ← Phase 2 Arc A (hero XP curve)
+    JobModule,            // ← Phase 3a (JobXP track + ranks)
     RelicMarksModule,     // ← Sprint 31 (XR interop seam: USDZ assets)
     MemoriaModule,        // ← Sprint 32 (Tier 2 identity-collection)
     LoreModule,           // ← 2026-07-06 Lore Archive collection

@@ -25,6 +25,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { jobXpToReach, MAX_JOB_LEVEL } from '../job/job.constants';
 
 // ── The two-era curve (recalibrated 2026-07-10) ─────────────
 // v2 (07-09) anchored to ~500 XP/day but MISSED cache-open XP
@@ -119,7 +120,7 @@ export class LevelingService {
     if (amount <= 0) return null;
     const hero = await this.prisma.rootIdentity.findUnique({
       where:  { id: rootId },
-      select: { fateXp: true, fateLevel: true, fateFox: true },
+      select: { fateXp: true, fateLevel: true, fateFox: true, heroClass: true, jobXp: true },
     });
     if (!hero) return null;
 
@@ -141,9 +142,20 @@ export class LevelingService {
     const newLevel  = Math.max(hero.fateLevel ?? 1, levelFromXp(newXp));
     const leveledUp = newLevel > (hero.fateLevel ?? 1);
 
+    // Phase 3a — JobXP accrues on the same actions once a Job has
+    // been chosen (heroClass set at L40), on its own track (canon
+    // §13.4). Uses the base grant (no fox bonus — the fox tilts
+    // Fate, not the Job) and clamps at the Job level cap.
+    const jobCapXp = jobXpToReach(MAX_JOB_LEVEL);
+    const newJobXp = hero.heroClass
+      ? Math.min((hero.jobXp ?? 0) + amount, jobCapXp)
+      : (hero.jobXp ?? 0);
+
     await this.prisma.rootIdentity.update({
       where: { id: rootId },
-      data:  { fateXp: newXp, fateLevel: newLevel },
+      data:  hero.heroClass
+        ? { fateXp: newXp, fateLevel: newLevel, jobXp: newJobXp }
+        : { fateXp: newXp, fateLevel: newLevel },
     });
 
     if (leveledUp) {

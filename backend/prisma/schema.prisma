@@ -72,6 +72,10 @@ model RootIdentity {
   fateLevel     Int       @default(1) @map("fate_level")
   // Sprint 22.C — Job Class (selected at level 40, null until then)
   heroClass     String?   @map("hero_class")
+  // Phase 3a — Job progression: a JobXP track independent of Fate
+  // (canon §13.4). Job Level + JobRank are DERIVED from jobXp; only
+  // accrues once a Job is chosen (heroClass set at L40).
+  jobXp         Int       @default(0) @map("job_xp")
   enrolledBy    String    @default("self") @map("enrolled_by")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")
