@@ -111,7 +111,8 @@ export class GearService {
       inventory_id: inv.id, item_id: inv.item.id, item_name: inv.item.name,
       slot: inv.item.slot, rarity: inv.item.rarityTier, icon: inv.item.icon,
       description: inv.item.description, lore_text: inv.item.loreText,
-      modifiers: inv.item.modifiers, acquired_via: inv.acquiredVia,
+      modifiers: inv.item.modifiers, item_power: inv.item.itemPower,
+      acquired_via: inv.acquiredVia,
       acquired_at: inv.acquiredAt.toISOString(), is_equipped: !!inv.equipment,
     }));
   }
@@ -122,9 +123,48 @@ export class GearService {
     const loadout: Record<string, unknown> = {};
     for (const slot of VALID_SLOTS) {
       const eq = equipped.find(e => e.slot === slot);
-      loadout[slot] = eq ? { inventory_id: eq.inventoryId, item_id: eq.inventory.item.id, item_name: eq.inventory.item.name, rarity: eq.inventory.item.rarityTier, icon: eq.inventory.item.icon, modifiers: eq.inventory.item.modifiers } : null;
+      loadout[slot] = eq ? { inventory_id: eq.inventoryId, item_id: eq.inventory.item.id, item_name: eq.inventory.item.name, rarity: eq.inventory.item.rarityTier, icon: eq.inventory.item.icon, modifiers: eq.inventory.item.modifiers, item_power: eq.inventory.item.itemPower } : null;
     }
     return loadout;
+  }
+
+  // ── COMPUTED RESONANCE (canon §3, §13.2) ───────────────────
+  // Gear-derived combat power. Slot-averaged over the six gear
+  // slots so progression pressure runs *across* slots rather than
+  // concentrating in a single weapon — empty slots count as zero
+  // and drag the average down.
+  //   Resonance = floor( gear_average + additive_grant_layer )
+  // The additive layer (Master Echoes + Doctrine nodes) is not yet
+  // built and is 0 until those systems ship (canon §13.2 / §13.5).
+  // itemPower is written per item by the loot engine
+  // (addEngineItemToInventory); catalog items with null itemPower
+  // contribute 0 here — the client applies a rarity fallback for
+  // display only.
+  async getComputedResonance(rootId: string): Promise<{
+    resonance: number;
+    gear_average: number;
+    additive_layer: number;
+    per_slot: Record<string, number>;
+  }> {
+    const equipped = await this.prisma.playerEquipment.findMany({
+      where: { rootId }, include: { inventory: { include: { item: true } } },
+    });
+    const perSlot: Record<string, number> = {};
+    let sum = 0;
+    for (const slot of VALID_SLOTS) {
+      const eq = equipped.find(e => e.slot === slot);
+      const power = eq?.inventory.item.itemPower ?? 0;
+      perSlot[slot] = power;
+      sum += power;
+    }
+    const gearAverage = sum / VALID_SLOTS.length;
+    const additiveLayer = 0; // Master Echoes + Doctrine nodes — canon §13.2, not yet built
+    return {
+      resonance: Math.floor(gearAverage + additiveLayer),
+      gear_average: gearAverage,
+      additive_layer: additiveLayer,
+      per_slot: perSlot,
+    };
   }
 
   // ── COMPUTED MODIFIERS ─────────────────────────────────────

@@ -26,6 +26,14 @@ export class GearController {
     return this.gear.getComputedModifiers(rootId);
   }
 
+  // Gear-derived Resonance scalar (canon §3, §13.2) — authoritative
+  // server-side value for battle calibration and any consumer that
+  // must not trust a client compute.
+  @Get('users/:root_id/resonance')
+  async getResonance(@Param('root_id') rootId: string) {
+    return this.gear.getComputedResonance(rootId);
+  }
+
   @Post('users/:root_id/equipment/equip')
   @UseGuards(AccountGuard)
   async equipItem(
