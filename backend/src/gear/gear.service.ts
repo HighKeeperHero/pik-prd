@@ -78,13 +78,19 @@ const COMPONENT_META: Record<string, { name: string; icon: string }> = {
   void_fragment:  { name: 'Void Fragment',  icon: '💠' },
 };
 
-// Must match client-side DISMANTLE_YIELD in VaultScreen.tsx
+// Must match client-side DISMANTLE_YIELD in the native
+// DismantleScreen (src/screens/Sanctum/DismantleScreen.tsx).
+// rare+/mythic added 2026-07-30 — the loot engine can mint 'rare+'
+// and the client Rarity type carries 'mythic'; both used to fall
+// back to COMMON yields (10◈ for a better-than-rare item).
 const DISMANTLE_YIELD: Record<string, { nexus: number; components: { type: string; qty: number }[] }> = {
   common:    { nexus: 10,  components: [{ type: 'salvage_shard', qty: 2 }] },
   uncommon:  { nexus: 25,  components: [{ type: 'salvage_shard', qty: 2 }, { type: 'refined_core', qty: 1 }] },
   rare:      { nexus: 50,  components: [{ type: 'refined_core', qty: 2 }, { type: 'arcane_essence', qty: 1 }] },
+  'rare+':   { nexus: 75,  components: [{ type: 'refined_core', qty: 2 }, { type: 'arcane_essence', qty: 2 }] },
   epic:      { nexus: 100, components: [{ type: 'arcane_essence', qty: 2 }, { type: 'void_fragment', qty: 1 }] },
   legendary: { nexus: 200, components: [{ type: 'arcane_essence', qty: 2 }, { type: 'void_fragment', qty: 2 }] },
+  mythic:    { nexus: 400, components: [{ type: 'arcane_essence', qty: 3 }, { type: 'void_fragment', qty: 3 }] },
 };
 
 @Injectable()
