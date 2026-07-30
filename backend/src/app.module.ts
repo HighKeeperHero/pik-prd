@@ -54,6 +54,7 @@ import { SupportModule }    from './support/support.module';          // ← HEP
 import { LinksModule }      from './links/links.module';              // ← HEP (scannable https QR targets)
 import { CertificationModule } from './certification/certification.module'; // ← HEP Phase 2 Slice 9 (venue certification)
 import { MailModule }       from './mail/mail.module';                // ← HEP Phase 2 (venue staff password reset + invites)
+import { TrialsModule }     from './trials/trials.module';            // ← 2026-07-30 Arena trials (seasonal score-attack)
 
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
@@ -167,6 +168,7 @@ class HealthController {
     SupportModule,        // ← HEP Phase 2 Slice 8 (support console, read-only)
     LinksModule,          // ← HEP (/v/:id and /t/:token — what QRs encode)
     CertificationModule,  // ← HEP Phase 2 Slice 9 (certification gate)
+    TrialsModule,         // ← 2026-07-30 Arena trials (seasonal score-attack)
   ],
   controllers: [HealthController],
   providers: [

@@ -145,6 +145,7 @@ model RootIdentity {
   sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
   loreFinds                HeroLore[]                  // 2026-07-06 — Lore Archive collection
   runSeats                 RunParticipant[]            // HEP Phase 2 Slice 1 — venue experience runs
+  trialBests               TrialBest[]                 // 2026-07-30 — Arena trials (seasonal score-attack)
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -1945,4 +1946,32 @@ model VenueCertification {
   @@unique([sourceId, experienceId, roomId])
   @@index([sourceId, status])
   @@map("venue_certifications")
+}
+
+// ============================================================
+// ARENA TRIALS — seasonal score-attack (2026-07-30)
+// Trial definitions live in code (TrialsService); this table
+// keeps each hero's per-trial seasonal best. Seasons are the
+// UTC month key ("2026-08") — resets are implicit in the key.
+// ============================================================
+
+model TrialBest {
+  id         String   @id @default(uuid()) @map("trial_best_id")
+  rootId     String   @map("root_id")
+  trialId    String   @map("trial_id")
+  seasonKey  String   @map("season_key")   // "2026-08" UTC month
+  score      Int
+  tells      Int                            // sequence length of the scoring run
+  perfect    Int                            // perfect reads in the scoring run
+  misses     Int                            // misses in the scoring run
+  runs       Int      @default(1)           // total submissions this season
+  achievedAt DateTime @default(now()) @map("achieved_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, trialId, seasonKey])
+  @@index([seasonKey, trialId, score])
+  @@index([seasonKey, rootId])
+  @@map("trial_bests")
 }

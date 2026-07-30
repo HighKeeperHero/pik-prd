@@ -8,6 +8,7 @@
 //
 // Query params:
 //   board    = xp | level | sessions | boss_kills | quests | gear_score
+//              | arena | warband   (seasonal — 2026-07-30)
 //   period   = all_time | daily | weekly | monthly
 //   source   = filter by source_id
 //   limit    = max entries (default 25, max 100)

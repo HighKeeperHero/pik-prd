@@ -633,6 +633,31 @@ async function main() {
   }
   console.log(`  ✓ ${pillarTitles.length} pillar titles`);
 
+  // ── Legacy milestone titles (Arena/Legacy slice, 2026-07-30) ──────────────
+  // Granted on Legacy level crossings (floor of avg pillar levels).
+  // Cosmetic-only per v4 rule 5 — Legacy never buys combat power.
+
+  const legacyTitles = [
+    { id: 'legacy_2',  displayName: 'Life-Tender',        description: 'Two lives kept in one week of days.',              category: 'legacy' },
+    { id: 'legacy_3',  displayName: 'Threefold Keeper',   description: 'Body, mind, and stillness — none left untended.',  category: 'legacy' },
+    { id: 'legacy_4',  displayName: 'Steadfast',          description: 'The practice held when no one was watching.',      category: 'legacy' },
+    { id: 'legacy_5',  displayName: 'Well-Forged Soul',   description: 'Half the proving ground rebuilt by lived days.',   category: 'legacy' },
+    { id: 'legacy_6',  displayName: 'Life-Sworn',         description: 'The record reads like an oath, kept daily.',       category: 'legacy' },
+    { id: 'legacy_7',  displayName: 'The Balanced',       description: 'No pillar leans. No life goes hungry.',            category: 'legacy' },
+    { id: 'legacy_8',  displayName: 'Paragon of Practice', description: 'What was discipline is now simply who you are.',  category: 'legacy' },
+    { id: 'legacy_9',  displayName: 'Living Legend',      description: 'The Arena stands nearly whole around your name.',  category: 'legacy' },
+    { id: 'legacy_10', displayName: 'Legacy Incarnate',   description: 'Adventure built your Hero. Life built this.',      category: 'legacy' },
+  ];
+
+  for (const t of legacyTitles) {
+    await prisma.title.upsert({
+      where: { id: t.id },
+      update: {},
+      create: t,
+    });
+  }
+  console.log(`  ✓ ${legacyTitles.length} legacy titles`);
+
   console.log('');
   console.log('=== SEED COMPLETE ===');
   console.log('');

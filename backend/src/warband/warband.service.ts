@@ -2,7 +2,7 @@
 // WarbandService — Sprint 23
 //
 // Warband formation, membership, and invite system.
-// Max 6 members. Open alignment but alignment bonuses
+// Max 8 members (2026-07-30). Open alignment but alignment bonuses
 // awarded to members matching Warband primary alignment.
 //
 // Rank hierarchy: FOUNDER > OFFICER > MEMBER
@@ -18,7 +18,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
-const MAX_MEMBERS  = 6;
+const MAX_MEMBERS  = 8; // Tim's 2026-07-30 lock — matches the Shared Flame framing
 const INVITE_TTL   = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 const RANK_ORDER   = ['MEMBER', 'OFFICER', 'FOUNDER'];
 const VALID_GLYPHS = ['⚔','🛡','🏹','⚡','◈','✦','🌿','⚓','🃏','⚙','📖','🐉'];

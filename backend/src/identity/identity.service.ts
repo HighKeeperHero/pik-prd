@@ -1470,6 +1470,35 @@ export class IdentityService {
       }
     }
 
+    // 7. Legacy milestones — the Life track deepening (Arena/Legacy,
+    //    2026-07-30). Written by TrainingService.checkLegacyMilestone
+    //    when a pillar level-up carries the Legacy level (floor of avg
+    //    pillar levels) across a threshold. The title lands silently on
+    //    the shelf; this entry is the moment's Chronicle record.
+    const legacyEvents = await this.prisma.identityEvent.findMany({
+      where:   { rootId, eventType: 'legacy.milestone_reached' },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const le of legacyEvents) {
+      const payload = (le.payload ?? {}) as { legacy_level?: number; title_id?: string };
+      const lv = payload.legacy_level ?? 0;
+      if (lv < 2) continue;
+      const titleRow = payload.title_id
+        ? await this.prisma.title.findUnique({ where: { id: payload.title_id } })
+        : null;
+      entries.push({
+        id:        le.id,
+        kind:      'legacy-milestone',
+        title:     `YOUR LEGACY DEEPENED — LEVEL ${lv}`,
+        subtitle:  titleRow
+          ? `Life, tended threefold, named you ${titleRow.displayName}.`
+          : 'The life behind the hero grew. The Arena felt it.',
+        glyph:     '❦',
+        accent:    '#5E8C61',
+        timestamp: le.createdAt.toISOString(),
+      });
+    }
+
     // Newest first
     entries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 

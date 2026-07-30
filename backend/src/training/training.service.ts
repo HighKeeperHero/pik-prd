@@ -175,7 +175,7 @@ export class TrainingService {
       // Pillar progress + 7-day streak Fate Seal stay inside the tx so they
       // mirror the rite completion's atomicity. Fate XP is granted after the
       // tx commits — LevelingService does its own findUnique+update.
-      await this.updatePillarXp(tx, rootId, rite.template.pillar as Pillar, xp);
+      const pillarLevels = await this.updatePillarXp(tx, rootId, rite.template.pillar as Pillar, xp);
 
       let sealGranted = false;
       if (newStreak >= 7 && newStreak % 7 === 0) {
@@ -185,8 +185,11 @@ export class TrainingService {
         sealGranted = true;
       }
 
-      return { entry, xp, sealGranted, allThreeBonus, resonanceApplied };
+      return { entry, xp, sealGranted, allThreeBonus, resonanceApplied, pillarLevels };
     });
+
+    // Legacy milestone check (post-tx, non-critical)
+    await this.checkLegacyMilestone(rootId, result.pillarLevels.oldLevel, result.pillarLevels.newLevel);
 
     // Grant Fate XP (LevelingService is the canonical curve + level-up source)
     const xpAward = await this.leveling.grantXp(rootId, xp);
@@ -231,7 +234,7 @@ export class TrainingService {
     const duration = dto.duration_min ?? 30;
     const pillarXp = Math.round(Math.min(duration / 30, 1) * 50);
 
-    const entry = await this.prisma.$transaction(async (tx) => {
+    const { entry, pillarLevels } = await this.prisma.$transaction(async (tx) => {
       const e = await tx.trainingEntry.create({
         data: {
           rootId,
@@ -243,10 +246,13 @@ export class TrainingService {
         },
       });
 
-      await this.updatePillarXp(tx, rootId, dto.pillar, pillarXp);
+      const levels = await this.updatePillarXp(tx, rootId, dto.pillar, pillarXp);
 
-      return e;
+      return { entry: e, pillarLevels: levels };
     });
+
+    // Legacy milestone check (post-tx, non-critical)
+    await this.checkLegacyMilestone(rootId, pillarLevels.oldLevel, pillarLevels.newLevel);
 
     await this.events.log({
       rootId,
@@ -483,7 +489,9 @@ export class TrainingService {
     });
   }
 
-  private async updatePillarXp(tx: any, rootId: string, pillar: Pillar, xp: number) {
+  private async updatePillarXp(
+    tx: any, rootId: string, pillar: Pillar, xp: number,
+  ): Promise<{ oldLevel: number; newLevel: number }> {
     const existing = await tx.pillarProgress.findUnique({
       where: { rootId_pillar: { rootId, pillar } },
     });
@@ -518,8 +526,10 @@ export class TrainingService {
       create: { rootId, pillar, xp: currentXp, level, streak, longestStreak, lastActivityAt: new Date() },
     });
 
-    // Grant pillar title if leveled up
-    if (existing && level > (existing.level ?? 1)) {
+    // Grant pillar title if leveled up (a first-ever record can also
+    // land above level 1, so don't require an existing row)
+    const oldLevel = existing?.level ?? 1;
+    if (level > oldLevel) {
       const titleName = PILLAR_TITLES[pillar]?.[Math.min(level - 1, PILLAR_TITLES[pillar].length - 1)];
       if (titleName) {
         const titleId = `title_${pillar}_${level}`;
@@ -532,6 +542,52 @@ export class TrainingService {
           }).catch(() => {}); // Ignore if already owned
         }
       }
+    }
+
+    return { oldLevel, newLevel: level };
+  }
+
+  // ── LEGACY MILESTONES ─────────────────────────────────────────────────────────
+  // Legacy level = floor(avg of the three pillar levels), min 1 — the server
+  // twin of computeLegacyLevel() in the native client (keep the two in sync).
+  // On a crossing: grant the legacy_<n> title (cosmetic-only, v4 rule 5 —
+  // Legacy never buys combat power) and write the IdentityEvent the Chronicle
+  // derives from. Runs post-tx; every failure is non-critical and swallowed.
+
+  private async checkLegacyMilestone(rootId: string, oldPillarLevel: number, newPillarLevel: number) {
+    if (newPillarLevel <= oldPillarLevel) return;
+    try {
+      const pillars = await this.prisma.pillarProgress.findMany({ where: { rootId } });
+      const levelOf = (p: string) => pillars.find(r => r.pillar === p)?.level ?? 1;
+      const sum = levelOf('forge') + levelOf('lore') + levelOf('veil');
+      const newLegacy = Math.max(1, Math.floor(sum / 3));
+      const oldLegacy = Math.max(1, Math.floor((sum - (newPillarLevel - oldPillarLevel)) / 3));
+      if (newLegacy <= oldLegacy) return;
+
+      for (let lv = oldLegacy + 1; lv <= newLegacy; lv++) {
+        const titleId = `legacy_${lv}`;
+        const title = await this.prisma.title.findUnique({ where: { id: titleId } });
+        if (title) {
+          await this.prisma.userTitle.upsert({
+            where: { rootId_titleId: { rootId, titleId } },
+            update: {},
+            create: { rootId, titleId },
+          }).catch(() => {});
+        }
+        await this.events.log({
+          rootId,
+          sourceId: 'codex-platform',
+          eventType: 'legacy.milestone_reached',
+          payload: {
+            legacy_level: lv,
+            title_id:     title ? titleId : null,
+            pillars:      { forge: levelOf('forge'), lore: levelOf('lore'), veil: levelOf('veil') },
+          },
+        });
+        this.logger.log(`Legacy milestone: ${rootId} reached Legacy ${lv}`);
+      }
+    } catch (e) {
+      this.logger.warn(`Legacy milestone check failed for ${rootId}: ${e}`);
     }
   }
 
