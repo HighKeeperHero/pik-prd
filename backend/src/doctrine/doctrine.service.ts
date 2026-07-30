@@ -11,7 +11,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma.service';
 import { jobLevelFromXp } from '../job/job.constants';
 import {
-  doctrineTree, doctrineResonance, validateChoice,
+  doctrineTree, doctrineResonance, doctrineEffects, validateChoice,
   selectionList, pruneSelections,
 } from './doctrine.logic';
 
@@ -39,6 +39,9 @@ export class DoctrineService {
       unlocked:           !!h.heroClass,   // a Job has been chosen (L40)
       job_level:          h.jobLevel,
       doctrine_resonance: doctrineResonance(h.heroClass, h.jobLevel, h.selections),
+      // Phase 4b — summed combat effects from chosen branches; the
+      // client folds these into battle calibration (flag-gated).
+      doctrine_effects:   doctrineEffects(h.heroClass, h.selections),
       selections:         h.selections,
       nodes:              doctrineTree(h.heroClass, h.jobLevel, h.selections),
     };

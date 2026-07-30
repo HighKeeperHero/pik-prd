@@ -271,16 +271,61 @@ async function main() {
     { id: 'rune_sigil_first_flame',    name: 'Sigil of the First Flame',  slot: 'rune',   rarityTier: 'legendary', icon: '🌟', minLevel: 10, description: 'The original fire that lit all worlds.', loreText: 'Before the Veil, before the War, there was the Flame.', modifiers: { luck_pct: 12, fate_affinity: 10, xp_bonus_pct: 8, boss_damage_pct: 5 } },
     { id: 'rune_threshold_mark',       name: 'Threshold Mark',            slot: 'rune',   rarityTier: 'rare',      icon: '✨', minLevel: 5, description: 'Marks the boundary between realms.',   loreText: 'Anointed by the Pale Warden of the Threshold.', modifiers: { fate_affinity: 5, luck_pct: 4 } },
     { id: 'rune_echo_stone',           name: 'Echo Stone',                slot: 'rune',   rarityTier: 'uncommon',  icon: '🔮', minLevel: 3, description: 'Resonates with distant events.',       loreText: 'Shaped by the Echoes of the First War.', modifiers: { fate_affinity: 3, cooldown_pct: 2 } },
+
+    // ── T3 BAND (L11-15) — v4 expansion (2026-07-29) ─────────
+    // Paradigm-leaning by design: each item's modifier mix votes for
+    // a playstyle (canon §13.3). No 'rare+' or mythic — neither has
+    // dismantle yields or client frames yet.
+    { id: 'weapon_wyrmfang_saber',     name: 'Wyrmfang Saber',            slot: 'weapon', rarityTier: 'rare',      icon: '⚔', minLevel: 12, description: 'Carved from a wyrm\'s hollow fang.',    loreText: 'The fang remembers the throat it guarded.', modifiers: { crit_pct: 8, boss_damage_pct: 6 } },
+    { id: 'helm_oracles_diadem',       name: "Oracle's Diadem",           slot: 'helm',   rarityTier: 'rare',      icon: '👑', minLevel: 12, description: 'Sees a heartbeat ahead.',               loreText: 'Worn by the Seer of Kingvale before the fall.', modifiers: { xp_bonus_pct: 8, luck_pct: 5 } },
+    { id: 'chest_bastion_of_roots',    name: 'Bastion of Roots',          slot: 'chest',  rarityTier: 'rare',      icon: '🛡', minLevel: 13, description: 'Living wood that closes over wounds.',  loreText: 'Grown, not forged, in the Ancient Grove.', modifiers: { defense: 12, cooldown_pct: 4 } },
+    { id: 'legs_wardens_greaves',      name: "Warden's Greaves",          slot: 'legs',   rarityTier: 'rare',      icon: '👢', minLevel: 13, description: 'Holds the line at the threshold.',      loreText: 'They have never once stepped backward.', modifiers: { defense: 9, xp_bonus_pct: 4 } },
+    { id: 'arms_stormbinder_grips',    name: 'Stormbinder Grips',         slot: 'arms',   rarityTier: 'epic',      icon: '🧤', minLevel: 14, description: 'Lightning answers the closed fist.',    loreText: 'Bound during the Eternal Storm\'s last hour.', modifiers: { crit_pct: 9, boss_damage_pct: 7, cooldown_pct: 4 } },
+    { id: 'rune_heartwood_core',       name: 'Heartwood Core',            slot: 'rune',   rarityTier: 'epic',      icon: '✨', minLevel: 14, description: 'A slow green pulse, like sap rising.',  loreText: 'Cut from the World Tree\'s first ring.', modifiers: { cooldown_pct: 7, luck_pct: 6, fate_affinity: 5 } },
+
+    // ── T4 BAND (L16-20) — v4 expansion (2026-07-29) ─────────
+    { id: 'weapon_sundering_maul',     name: 'Sundering Maul',            slot: 'weapon', rarityTier: 'epic',      icon: '🔨', minLevel: 17, description: 'What it strikes, stays struck.',        loreText: 'It has broken things that were promised unbreakable.', modifiers: { boss_damage_pct: 14, crit_pct: 8 } },
+    { id: 'helm_crown_of_vigil',       name: 'Crown of Vigil',            slot: 'helm',   rarityTier: 'epic',      icon: '👑', minLevel: 17, description: 'The wearer does not blink first.',      loreText: 'Forged for the Watch that never ended.', modifiers: { defense: 8, xp_bonus_pct: 10, luck_pct: 6 } },
+    { id: 'legs_pathfinders_stride',   name: "Pathfinder's Stride",       slot: 'legs',   rarityTier: 'epic',      icon: '👢', minLevel: 17, description: 'Every road shortens beneath them.',     loreText: 'Walked the Deep Road end to end, twice.', modifiers: { cooldown_pct: 8, xp_bonus_pct: 8 } },
+    { id: 'arms_reapers_talons',       name: "Reaper's Talons",           slot: 'arms',   rarityTier: 'epic',      icon: '🧤', minLevel: 18, description: 'Nothing owed goes uncollected.',        loreText: 'The Gleaner\'s own harvest-hooks, re-tempered.', modifiers: { crit_pct: 11, luck_pct: 8 } },
+    { id: 'chest_dragonscale_aegis',   name: 'Dragonscale Aegis',         slot: 'chest',  rarityTier: 'legendary', icon: '🛡', minLevel: 20, description: 'Scales that outlived their dragon.',    loreText: 'The Elder Wyrm shed once, and only once.', modifiers: { defense: 24, boss_damage_pct: 8, fate_affinity: 6 } },
+    { id: 'rune_grandmasters_seal',    name: "Grandmaster's Seal",        slot: 'rune',   rarityTier: 'legendary', icon: '🌟', minLevel: 20, description: 'The mark of a finished path.',          loreText: 'Pressed only by hands that mastered a doctrine.', modifiers: { luck_pct: 10, xp_bonus_pct: 10, crit_pct: 6, fate_affinity: 8 } },
   ];
 
+  // ── v4 adoption (canon §13.2, 2026-07-29): every catalog item
+  // carries loot-engine-scale power so seeded and engine-dropped
+  // gear live on ONE Resonance scale. Derived from the minLevel
+  // band × rarity, mirroring loot-engine.service BASE_POWER /
+  // RARITY_MULTIPLIER / SLOT_WEIGHT (lowercase slots; arms=Hands).
+  const V4_BASE_POWER: Record<string, number> = {
+    T1: 10, T2: 20, T3: 35, T4: 55, T5: 80, T6: 110, T7: 150, T8: 200,
+  };
+  const V4_RARITY_MULT: Record<string, number> = {
+    common: 1.0, uncommon: 1.15, rare: 1.3, 'rare+': 1.45, epic: 1.65, legendary: 2.0,
+  };
+  const V4_SLOT_WEIGHT: Record<string, number> = {
+    chest: 0.30, weapon: 0.25, legs: 0.20, helm: 0.15, arms: 0.10, rune: 0.60,
+  };
+  const v4Band = (minLevel: number) => `T${Math.min(8, Math.max(1, Math.ceil(minLevel / 5)))}`;
+  const enrichGearItem = (item: (typeof gearItems)[number]) => {
+    const levelBand  = v4Band(item.minLevel);
+    const itemPower  = Math.round((V4_BASE_POWER[levelBand] ?? 10) * (V4_RARITY_MULT[item.rarityTier] ?? 1));
+    const slotBudget = Math.round(itemPower * (V4_SLOT_WEIGHT[item.slot] ?? 0.15));
+    return { ...item, levelBand, itemPower, slotBudget };
+  };
+
   for (const item of gearItems) {
+    const enriched = enrichGearItem(item);
     await prisma.gearItem.upsert({
       where: { id: item.id },
-      update: {},
-      create: item,
+      // Sync on re-seed — with the old `update: {}`, rows already in
+      // a deployed env would NEVER adopt itemPower/levelBand (the
+      // same welded-shut trap the loot table hit; see § 7 above).
+      update: enriched,
+      create: enriched,
     });
   }
-  console.log(`  ✓ ${gearItems.length} gear items`);
+  console.log(`  ✓ ${gearItems.length} gear items (v4: itemPower/slotBudget/levelBand)`);
 
   // ── 8. Gear Loot Table Entries ────────────────────────────
 
@@ -316,13 +361,30 @@ async function main() {
     { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'helm_duskwalkers_cowl',     displayName: "Duskwalker's Cowl",          weight: 8,  rarityTier: 'epic',     minLevel: 7 },
     { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'chest_aegis_eternal',       displayName: 'Aegis of the Eternal',       weight: 2,  rarityTier: 'legendary', minLevel: 10 },
     { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'rune_sigil_first_flame',    displayName: 'Sigil of the First Flame',   weight: 2,  rarityTier: 'legendary', minLevel: 10 },
+
+    // ── T3/T4 expansion (v4, 2026-07-29) — the L11-20 tail. Entries
+    // carry minLevel, so pre-11 heroes never see them roll.
+    { cacheType: 'level_up',  rewardType: 'gear', rewardValue: 'weapon_wyrmfang_saber',     displayName: 'Wyrmfang Saber',             weight: 12, rarityTier: 'rare',      minLevel: 12 },
+    { cacheType: 'level_up',  rewardType: 'gear', rewardValue: 'helm_oracles_diadem',       displayName: "Oracle's Diadem",            weight: 12, rarityTier: 'rare',      minLevel: 12 },
+    { cacheType: 'level_up',  rewardType: 'gear', rewardValue: 'legs_wardens_greaves',      displayName: "Warden's Greaves",           weight: 12, rarityTier: 'rare',      minLevel: 13 },
+    { cacheType: 'boss_kill', rewardType: 'gear', rewardValue: 'chest_bastion_of_roots',    displayName: 'Bastion of Roots',           weight: 15, rarityTier: 'rare',      minLevel: 13 },
+    { cacheType: 'boss_kill', rewardType: 'gear', rewardValue: 'arms_stormbinder_grips',    displayName: 'Stormbinder Grips',          weight: 6,  rarityTier: 'epic',      minLevel: 14 },
+    { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'rune_heartwood_core',       displayName: 'Heartwood Core',             weight: 8,  rarityTier: 'epic',      minLevel: 14 },
+    { cacheType: 'boss_kill', rewardType: 'gear', rewardValue: 'weapon_sundering_maul',     displayName: 'Sundering Maul',             weight: 5,  rarityTier: 'epic',      minLevel: 17 },
+    { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'helm_crown_of_vigil',       displayName: 'Crown of Vigil',             weight: 6,  rarityTier: 'epic',      minLevel: 17 },
+    { cacheType: 'level_up',  rewardType: 'gear', rewardValue: 'legs_pathfinders_stride',   displayName: "Pathfinder's Stride",        weight: 5,  rarityTier: 'epic',      minLevel: 17 },
+    { cacheType: 'boss_kill', rewardType: 'gear', rewardValue: 'arms_reapers_talons',       displayName: "Reaper's Talons",            weight: 5,  rarityTier: 'epic',      minLevel: 18 },
+    { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'chest_dragonscale_aegis',   displayName: 'Dragonscale Aegis',          weight: 2,  rarityTier: 'legendary', minLevel: 20 },
+    { cacheType: 'milestone', rewardType: 'gear', rewardValue: 'rune_grandmasters_seal',    displayName: "Grandmaster's Seal",         weight: 1,  rarityTier: 'legendary', minLevel: 20 },
   ];
 
   for (const entry of gearLoot) {
     const id = `loot-${entry.cacheType}-gear-${entry.rewardValue}`;
     await prisma.lootTable.upsert({
       where: { id },
-      update: {},
+      // Sync on re-seed (same welded-shut trap as above — weights
+      // and new entries must reach already-seeded envs).
+      update: { ...entry },
       create: { id, ...entry },
     });
   }

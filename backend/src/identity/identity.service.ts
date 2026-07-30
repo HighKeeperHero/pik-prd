@@ -18,7 +18,7 @@ import { EnrollUserDto } from './dto/enroll-user.dto';
 import { LandmarkService } from '../landmark/landmark.service'; // Sprint 25
 import { levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
 import { jobLevelFromXp } from '../job/job.constants';
-import { doctrineResonance, selectionList, pruneSelections } from '../doctrine/doctrine.logic';
+import { doctrineResonance, doctrineEffects, selectionList, pruneSelections } from '../doctrine/doctrine.logic';
 
 @Injectable()
 export class IdentityService {
@@ -452,6 +452,12 @@ export class IdentityService {
         doctrine_resonance:  doctrineResonance(
           (user as any).heroClass ?? null,
           jobLevelFromXp((user as any).jobXp ?? 0),
+          pruneSelections((user as any).heroClass ?? null, selectionList((user as any).doctrines)),
+        ),
+        // Phase 4b — summed branch combat effects, ready for battle
+        // calibration client-side (behind the doctrine_effects flag).
+        doctrine_effects:    doctrineEffects(
+          (user as any).heroClass ?? null,
           pruneSelections((user as any).heroClass ?? null, selectionList((user as any).doctrines)),
         ),
         total_sessions: totalSessions,

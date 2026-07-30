@@ -7,7 +7,7 @@
 // Imported by DoctrineService, GearService (Resonance additive
 // layer), and the hero-payload serializer.
 // ============================================================
-import { catalogForJob, doctrineById, DoctrineNode } from './doctrine.catalog';
+import { catalogForJob, doctrineById, DoctrineNode, DoctrineEffect } from './doctrine.catalog';
 
 export type NodeStatus = 'unlocked' | 'available' | 'locked';
 
@@ -56,6 +56,27 @@ export function doctrineResonance(
     if (n.kind === 'core') return jobLevel >= n.jobLevel ? sum + n.resonance : sum;
     return chosen.has(n.id) ? sum + n.resonance : sum;
   }, 0);
+}
+
+/** Summed combat effects from the hero's CHOSEN branches (Phase 4b).
+ *  Cores carry no effects — their weight is Resonance. All fields
+ *  present, zero-defaulted, so consumers can read without guards. */
+export function doctrineEffects(
+  job: string | null | undefined,
+  selections: string[],
+): Required<DoctrineEffect> {
+  const out: Required<DoctrineEffect> = {
+    crit: 0, window: 0, resGain: 0, stability: 0, shardLuck: 0, counter: 0,
+  };
+  if (!job) return out;
+  for (const id of selections) {
+    const n = doctrineById(id);
+    if (!n || n.job !== job || !n.effects) continue;
+    for (const [k, v] of Object.entries(n.effects)) {
+      if (k in out && typeof v === 'number') out[k as keyof DoctrineEffect] += v;
+    }
+  }
+  return out;
 }
 
 export type ChoiceError = 'unknown_node' | 'wrong_job' | 'not_a_branch' | 'level_locked' | 'group_taken';
