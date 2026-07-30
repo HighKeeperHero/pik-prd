@@ -12,6 +12,7 @@ import { EventsService } from '../events/events.service';
 import { HuntTrackerService } from '../quest/hunt-tracker.service';
 import { jobLevelFromXp } from '../job/job.constants';
 import { doctrineResonance, selectionList, pruneSelections } from '../doctrine/doctrine.logic';
+import { echoResonanceFromRows } from '../echo/echo.catalog';
 
 export interface GearModifiers {
   xp_bonus_pct: number; boss_damage_pct: number; luck_pct: number;
@@ -200,12 +201,15 @@ export class GearService {
     additive_layer: number;
     per_slot: Record<string, number>;
   }> {
-    const [equipped, hero] = await Promise.all([
+    const [equipped, hero, echoRows] = await Promise.all([
       this.prisma.playerEquipment.findMany({
         where: { rootId }, include: { inventory: { include: { item: true } } },
       }),
       this.prisma.rootIdentity.findUnique({
         where: { id: rootId }, select: { heroClass: true, jobXp: true, doctrines: true },
+      }),
+      this.prisma.playerEchoFragment.findMany({
+        where: { rootId, registeredAt: { not: null } }, select: { echoId: true },
       }),
     ]);
     const perSlot: Record<string, number> = {};
@@ -217,11 +221,13 @@ export class GearService {
       sum += power;
     }
     const gearAverage = sum / VALID_SLOTS.length;
-    // Additive layer (canon §13.2): Doctrine nodes now contribute
-    // (Master Echoes join here when that system ships).
+    // Additive layer (canon §13.2): Doctrine nodes + registered
+    // (Master) Hero Echoes — both halves live as of 2026-07-30.
     const jobLevel   = jobLevelFromXp(hero?.jobXp ?? 0);
     const selections = pruneSelections(hero?.heroClass ?? null, selectionList(hero?.doctrines));
-    const additiveLayer = doctrineResonance(hero?.heroClass ?? null, jobLevel, selections);
+    const additiveLayer =
+      doctrineResonance(hero?.heroClass ?? null, jobLevel, selections)
+      + echoResonanceFromRows(echoRows);
     return {
       resonance: Math.floor(gearAverage + additiveLayer),
       gear_average: gearAverage,

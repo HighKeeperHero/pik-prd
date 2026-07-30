@@ -21,6 +21,7 @@
 // ============================================================
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { echoJobSharesFromRows } from '../echo/echo.catalog';
 import { EventsService } from '../events/events.service';
 import { GearService } from '../gear/gear.service';
 
@@ -181,10 +182,28 @@ export class VocationService {
         : 'No encounters on record yet.',
     });
 
-    // Echo usage (10) — NEUTRAL (Master Echoes unbuilt; canon §13.2).
+    // Echo usage (10) — LIVE (canon §13.9 unification, 2026-07-30):
+    // the heroes you chose to restore at the Altar say something
+    // about who you are. Rarity-weighted jobLean shares from
+    // REGISTERED echoes only.
+    const echoRows = await this.prisma.playerEchoFragment.findMany({
+      where: { rootId, registeredAt: { not: null } }, select: { echoId: true },
+    }).catch(() => []);
+    const echoShares = echoJobSharesFromRows(echoRows);
+    const echoTotal  = Object.values(echoShares).reduce((a, b) => a + b, 0);
+    if (echoTotal > 0) {
+      shares.echo = normalize({
+        AEGIS:      echoShares.AEGIS      ?? 0,
+        SCALESWORN: echoShares.SCALESWORN ?? 0,
+        DRYADIC:    echoShares.DRYADIC    ?? 0,
+        HARVESTER:  echoShares.HARVESTER  ?? 0,
+      } as Share);
+    }
     signals.push({
-      key: 'echo', weight: WEIGHTS.echo, active: false,
-      note: 'Echoes are a coming mechanic; weighed evenly for now.',
+      key: 'echo', weight: WEIGHTS.echo, active: echoTotal > 0,
+      note: echoTotal > 0
+        ? `${echoRows.length} ${echoRows.length === 1 ? 'hero' : 'heroes'} of Elysendar restored at the Altar.`
+        : 'No echoes registered at the Altar yet; weighed evenly for now.',
     });
 
     // Weapon usage (10) — history of weapon equips, classified by

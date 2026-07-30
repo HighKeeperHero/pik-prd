@@ -7,6 +7,7 @@ import { LevelingService, type XpAward } from '../leveling/leveling.service';
 import { ConfigService } from '../config/config.service';
 import { TearGenService, type GenParams, type GenTear } from './tear-gen.service';
 import { LoreService, type LoreFound } from '../lore/lore.service';
+import { EchoService, EchoFragmentFound } from '../echo/echo.service';
 import { QuestLogService, type QuestProgressUpdate } from '../quest/quest-log.service';
 import { FAUNA_SPECIES, FAUNA_BY_ID, masteryFor } from './fauna-catalog';
 import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
@@ -172,6 +173,7 @@ export class VeilService {
     private readonly config:       ConfigService,
     private readonly tearGen:      TearGenService,
     private readonly lore:         LoreService,
+    private readonly echo:         EchoService,
     private readonly questLog:    QuestLogService,
   ) {}
 
@@ -370,6 +372,13 @@ export class VeilService {
       loreFound = await this.lore.maybeDropOnSeal(rootId, tearType);
     }
 
+    // Hero Echo fragment drop (canon §13.9) — same shape as the
+    // lore drop, rarer; best-effort, a seal must never fail on it.
+    let echoFound: EchoFragmentFound | null = null;
+    if (outcome === 'won') {
+      echoFound = await this.echo.maybeDropOnSeal(rootId, tearType).catch(() => null);
+    }
+
     // Sprint 32 — cadence quest progress (daily/weekly/story log).
     // Tear tiers: minor 1 · wander 2 · dormant 3 · double 4.
     const questUpdates: QuestProgressUpdate[] = [];
@@ -393,6 +402,7 @@ export class VeilService {
       is_first_seal:     isFirstSeal,
       xp_award:          xpAward,
       lore_found:        loreFound,
+      echo_found:        echoFound,
     };
   }
 

@@ -19,6 +19,7 @@ import { LandmarkService } from '../landmark/landmark.service'; // Sprint 25
 import { levelFromXp, xpForLevel, xpToReach } from '../leveling/leveling.service';
 import { jobLevelFromXp } from '../job/job.constants';
 import { doctrineResonance, doctrineEffects, selectionList, pruneSelections } from '../doctrine/doctrine.logic';
+import { echoResonanceFromRows } from '../echo/echo.catalog';
 
 @Injectable()
 export class IdentityService {
@@ -459,6 +460,13 @@ export class IdentityService {
         doctrine_effects:    doctrineEffects(
           (user as any).heroClass ?? null,
           pruneSelections((user as any).heroClass ?? null, selectionList((user as any).doctrines)),
+        ),
+        // Hero Echoes (canon §13.9) — the Master-Echo half of the
+        // Resonance additive layer, from REGISTERED echoes only.
+        echo_resonance: echoResonanceFromRows(
+          await this.prisma.playerEchoFragment.findMany({
+            where: { rootId, registeredAt: { not: null } }, select: { echoId: true },
+          }).catch(() => []),
         ),
         total_sessions: totalSessions,
         titles: user.titles.map((t) => t.titleId),

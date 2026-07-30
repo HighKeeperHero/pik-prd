@@ -81,6 +81,8 @@ model RootIdentity {
   // definitions live in code (doctrine.catalog), so new doctrines
   // need no migration. Null/[] = nothing chosen.
   doctrines     Json?     @map("doctrines")
+
+  echoFragments PlayerEchoFragment[]
   enrolledBy    String    @default("self") @map("enrolled_by")
   enrolledAt    DateTime  @default(now()) @map("enrolled_at")
   status        String    @default("active")
@@ -1035,6 +1037,27 @@ model FateFox {
 // triggerKey; the DB stores the def's display metadata only.
 // New Memoria ship via INSERT + a new resolver in the service.
 // ============================================================
+// ── Hero Echoes (2026-07-30, canon §13.9 unification) ─────────
+// Per-player fragment progress toward registering a hero of
+// Elysendar at the Altar. The Echo CATALOG lives in code
+// (src/echo/echo.catalog.ts) — new heroes need no migration.
+// A registered Echo (registeredAt set) IS a v4 "Master Echo":
+// it grants rarity-keyed Resonance into the additive layer and
+// feeds the Vocation echo signal.
+model PlayerEchoFragment {
+  id           String    @id @default(uuid()) @map("fragment_id")
+  rootId       String    @map("root_id")
+  echoId       String    @map("echo_id")
+  fragments    Int       @default(0)
+  registeredAt DateTime? @map("registered_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  rootIdentity RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, echoId])
+  @@map("player_echo_fragments")
+}
+
 model Memoria {
   id           String   @id @map("memoria_id")     // slug, e.g. 'first_breath'
   name         String                                // 'THE FIRST BREATH'
