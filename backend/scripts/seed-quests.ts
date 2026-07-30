@@ -479,6 +479,32 @@ const QUESTS: QuestSeed[] = [
     objectives: [{ id: 'o1', type: 'banish_fauna', label: 'Banish 10 escaped creatures', target: 10 }],
     rewards: { xp: 150, materials: { veilglass: 3 } },
   },
+
+  // ── LEGACY DEVELOPMENT (2026-07-30) — training feeds the ledger.
+  // The rites/activities already pay discipline + attribute XP at
+  // the source; these rows pay Fate XP for showing up. "The Hero
+  // you become outside the game shapes the Hero you become within."
+  {
+    slug: 'daily_training', name: 'Tend the Lives',
+    description: 'Body, mind, or stillness — complete two of the day\'s rites.',
+    cadence: 'daily', status: 'active', sortOrder: 85,
+    objectives: [{ id: 'o1', type: 'complete_rites', label: 'Complete 2 daily rites', target: 2 }],
+    rewards: { xp: 30 },
+  },
+  {
+    slug: 'weekly_training_rites', name: 'The Lived Week',
+    description: 'Ten rites kept across the week. The record only means what you put into it.',
+    cadence: 'weekly', status: 'active', sortOrder: 85,
+    objectives: [{ id: 'o1', type: 'complete_rites', label: 'Complete 10 daily rites', target: 10 }],
+    rewards: { xp: 200, cache_rarity: 'uncommon' },
+  },
+  {
+    slug: 'weekly_training_logs', name: 'Field Notes',
+    description: 'Beyond the rites: log five practices of your own choosing this week.',
+    cadence: 'weekly', status: 'active', sortOrder: 86,
+    objectives: [{ id: 'o1', type: 'log_training', label: 'Log 5 activities', target: 5 }],
+    rewards: { xp: 150 },
+  },
 ];
 
 async function main() {

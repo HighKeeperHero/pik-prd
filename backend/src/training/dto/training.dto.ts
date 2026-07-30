@@ -3,10 +3,16 @@
 import { IsString, IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
 
 export const PILLARS   = ['forge', 'lore', 'veil'] as const;
+// Expanded 2026-07-30 (Legacy Development brief). The original ten
+// stay valid — existing TrainingEntry rows keep their meaning.
+// Distributions live in src/training/legacy.ts ACTIVITY_CATALOG.
 export const ACTIVITIES = [
-  'workout', 'cardio', 'sport',           // forge
-  'reading', 'writing', 'learning',       // lore
-  'meditation', 'prayer', 'service',      // veil
+  // forge (Physical)
+  'workout', 'cardio', 'walking', 'sport', 'stretching', 'nutrition', 'challenge',
+  // lore (Mental)
+  'reading', 'learning', 'studying', 'writing', 'art', 'research', 'practice', 'teaching',
+  // veil (Spiritual / Reflective)
+  'prayer', 'meditation', 'journaling', 'gratitude', 'service', 'planning',
   'other',
 ] as const;
 

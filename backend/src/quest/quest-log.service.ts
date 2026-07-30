@@ -67,7 +67,11 @@ export type QuestEvent =
   // 2026-07-10 — Chapter I 'Arms of the Covenant' (first equip).
   | { type: 'gear_equip' }
   // 2026-07-10 — Veil Fauna banished (tier 1-4).
-  | { type: 'fauna'; tier: number };
+  | { type: 'fauna'; tier: number }
+  // 2026-07-30 — Legacy Development: training feeds the cadence
+  // engine (a daily rite completed; a free activity logged).
+  | { type: 'rite_done'; pillar: string }
+  | { type: 'training_log'; pillar: string; minutes: number };
 
 export interface CadenceObjective {
   id: string;
@@ -78,6 +82,7 @@ export interface CadenceObjective {
   rarity_min?: string;
   track?: string;
   chapter?: number;
+  pillar?: string;   // 2026-07-30 — training objectives may bind to one discipline
 }
 
 export interface CadenceRewards {
@@ -480,6 +485,16 @@ export class QuestLogService {
       case 'perfect_purity':     return event.type === 'rite' && event.purity >= 100 ? 1 : 0;
       case 'purify_nodes':       return event.type === 'rite' ? event.nodes : 0;
       case 'cleanse_corruption': return event.type === 'rite' ? event.corruption : 0;
+      // 2026-07-30 — Legacy Development training objectives. An
+      // optional obj.pillar binds the objective to one discipline
+      // (same pattern as upgrade_wings' track filter).
+      case 'complete_rites':
+        return event.type === 'rite_done' && (!obj.pillar || obj.pillar === event.pillar) ? 1 : 0;
+      case 'log_training':
+        return event.type === 'training_log' && (!obj.pillar || obj.pillar === event.pillar) ? 1 : 0;
+      case 'training_minutes':
+        return event.type === 'training_log' && (!obj.pillar || obj.pillar === event.pillar)
+          ? event.minutes : 0;
       case 'reach_level':
         // Any event can surface a level threshold already met —
         // there is no level-up event, so the NEXT gameplay event

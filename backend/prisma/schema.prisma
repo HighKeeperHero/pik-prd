@@ -146,6 +146,7 @@ model RootIdentity {
   loreFinds                HeroLore[]                  // 2026-07-06 — Lore Archive collection
   runSeats                 RunParticipant[]            // HEP Phase 2 Slice 1 — venue experience runs
   trialBests               TrialBest[]                 // 2026-07-30 — Arena trials (seasonal score-attack)
+  attributeProgress        AttributeProgress[]         // 2026-07-30 — Legacy Development attributes
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -1974,4 +1975,27 @@ model TrialBest {
   @@index([seasonKey, trialId, score])
   @@index([seasonKey, rootId])
   @@map("trial_bests")
+}
+
+// ============================================================
+// LEGACY DEVELOPMENT — attributes (2026-07-30 brief)
+// 18 attributes, six per discipline, independent XP + levels.
+// The catalog (names, activities, XP distribution) lives in
+// code: src/training/legacy.ts. Permanent — never resets.
+// ============================================================
+
+model AttributeProgress {
+  id         String   @id @default(uuid()) @map("attribute_progress_id")
+  rootId     String   @map("root_id")
+  discipline String                          // forge | lore | veil
+  attribute  String                          // e.g. 'strength', 'faith'
+  xp         Int      @default(0)
+  level      Int      @default(1)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, attribute])
+  @@index([rootId, discipline])
+  @@map("attribute_progress")
 }

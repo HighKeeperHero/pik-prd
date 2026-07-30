@@ -32,6 +32,13 @@ export class TrainingController {
     return this.service.getPillarProgress(rootId);
   }
 
+  // Legacy Development readout (2026-07-30): legacy level, the three
+  // disciplines, all 18 attributes, and the activity catalog.
+  @Get('legacy/:rootId')
+  async getLegacy(@Param('rootId') rootId: string) {
+    return this.service.getLegacy(rootId);
+  }
+
   @Get('chronicle/:rootId')
   async getChronicle(
     @Param('rootId') rootId: string,

@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
 import { LevelingService } from '../leveling/leveling.service';
+import { QuestLogService } from '../quest/quest-log.service';
 import {
   LogTrainingDto,
   CompleteRiteDto,
@@ -20,6 +21,10 @@ import {
   ResolveOathDto,
   Pillar,
 } from './dto/training.dto';
+import {
+  DISCIPLINE_ATTRIBUTES, ACTIVITY_CATALOG, activityById, scaledGrants,
+  RITE_ACTIVITY, ATTR_LEVELS, LEGACY_LEVELS, levelFromXp,
+} from './legacy';
 
 // ── XP Constants ──────────────────────────────────────────────────────────────
 const XP = {
@@ -75,6 +80,7 @@ export class TrainingService {
     private readonly prisma:   PrismaService,
     private readonly events:   EventsService,
     private readonly leveling: LevelingService,
+    private readonly questLog: QuestLogService,
   ) {}
 
   // ── GET DAILY RITES ───────────────────────────────────────────────────────────
@@ -175,7 +181,15 @@ export class TrainingService {
       // Pillar progress + 7-day streak Fate Seal stay inside the tx so they
       // mirror the rite completion's atomicity. Fate XP is granted after the
       // tx commits — LevelingService does its own findUnique+update.
-      const pillarLevels = await this.updatePillarXp(tx, rootId, rite.template.pillar as Pillar, xp);
+      await this.updatePillarXp(tx, rootId, rite.template.pillar as Pillar, xp);
+
+      // A rite IS an activity — grant its base-session attribute XP
+      // (Legacy Development brief: quests reward discipline AND
+      // attribute XP; the daily rite is the daily quest).
+      const riteActivity = activityById(RITE_ACTIVITY[rite.templateId] ?? '');
+      const attributeXp = riteActivity
+        ? await this.upsertAttributeXp(tx, rootId, rite.template.pillar as Pillar, scaledGrants(riteActivity))
+        : {};
 
       let sealGranted = false;
       if (newStreak >= 7 && newStreak % 7 === 0) {
@@ -185,11 +199,16 @@ export class TrainingService {
         sealGranted = true;
       }
 
-      return { entry, xp, sealGranted, allThreeBonus, resonanceApplied, pillarLevels };
+      return { entry, xp, sealGranted, allThreeBonus, resonanceApplied, attributeXp };
     });
 
     // Legacy milestone check (post-tx, non-critical)
-    await this.checkLegacyMilestone(rootId, result.pillarLevels.oldLevel, result.pillarLevels.newLevel);
+    await this.checkLegacyMilestone(rootId, xp);
+
+    // Advance daily/weekly training quests (never throws)
+    const questUpdates = await this.questLog.recordEvent(rootId, {
+      type: 'rite_done', pillar: rite.template.pillar,
+    });
 
     // Grant Fate XP (LevelingService is the canonical curve + level-up source)
     const xpAward = await this.leveling.grantXp(rootId, xp);
@@ -217,24 +236,35 @@ export class TrainingService {
       all_three_bonus:  result.allThreeBonus,
       resonance_bonus:  result.resonanceApplied,
       seal_granted:     result.sealGranted,
+      attribute_xp:     result.attributeXp,
       fate_xp:          xpAward?.fate_xp ?? 0,
       fate_level:       xpAward?.fate_level ?? 1,
       leveled_up:       xpAward?.leveled_up ?? false,
+      quest_updates:    questUpdates,
     };
   }
 
-  // ── LOG FREE TRAINING ─────────────────────────────────────────────────────────
-  // Manual activity log (not tied to a daily rite). Grants pillar XP only,
-  // no Fate XP — keeps LBE as primary Fate XP driver.
+  // ── LOG AN ACTIVITY ───────────────────────────────────────────────────────────
+  // The Legacy Development brief's bottom layer: an activity grants XP
+  // to MULTIPLE attributes (who you become); discipline XP is the sum
+  // of the attribute XP. No Fate XP — Legacy never buys combat power.
 
   async logTraining(rootId: string, dto: LogTrainingDto) {
     await this.ensureHeroExists(rootId);
 
-    // Pillar XP scaled by duration (max 30 min for full pillar XP)
-    const duration = dto.duration_min ?? 30;
-    const pillarXp = Math.round(Math.min(duration / 30, 1) * 50);
+    const def = activityById(dto.activity_type);
+    if (def && def.pillar !== dto.pillar) {
+      throw new BadRequestException('That practice belongs to another life.');
+    }
 
-    const { entry, pillarLevels } = await this.prisma.$transaction(async (tx) => {
+    // 'other' (and any unmapped legacy value): flat discipline XP,
+    // no attribute growth — the record keeps it, the radar doesn't.
+    const grants   = def ? scaledGrants(def, dto.duration_min) : {};
+    const pillarXp = def
+      ? Object.values(grants).reduce((s, n) => s + n, 0)
+      : 25;
+
+    const { entry, attributeXp } = await this.prisma.$transaction(async (tx) => {
       const e = await tx.trainingEntry.create({
         data: {
           rootId,
@@ -242,17 +272,23 @@ export class TrainingService {
           activityType: dto.activity_type,
           durationMin:  dto.duration_min ?? null,
           notes:        dto.notes ?? null,
-          xpGranted:    0, // No Fate XP for free logging
+          xpGranted:    pillarXp,
         },
       });
 
-      const levels = await this.updatePillarXp(tx, rootId, dto.pillar, pillarXp);
+      const attrs = def ? await this.upsertAttributeXp(tx, rootId, dto.pillar, grants) : {};
+      await this.updatePillarXp(tx, rootId, dto.pillar, pillarXp);
 
-      return { entry: e, pillarLevels: levels };
+      return { entry: e, attributeXp: attrs };
     });
 
     // Legacy milestone check (post-tx, non-critical)
-    await this.checkLegacyMilestone(rootId, pillarLevels.oldLevel, pillarLevels.newLevel);
+    await this.checkLegacyMilestone(rootId, pillarXp);
+
+    // Advance daily/weekly training quests (never throws)
+    const questUpdates = await this.questLog.recordEvent(rootId, {
+      type: 'training_log', pillar: dto.pillar, minutes: dto.duration_min ?? def?.baseMinutes ?? 30,
+    });
 
     await this.events.log({
       rootId,
@@ -263,13 +299,78 @@ export class TrainingService {
         activity_type: dto.activity_type,
         duration_min:  dto.duration_min,
         pillar_xp:     pillarXp,
+        attribute_xp:  attributeXp,
       },
     });
 
     return {
-      message:    this.buildLogMessage(dto.pillar, dto.activity_type),
-      entry_id:   entry.id,
-      pillar_xp:  pillarXp,
+      message:       this.buildLogMessage(dto.pillar, dto.activity_type),
+      entry_id:      entry.id,
+      pillar_xp:     pillarXp,
+      attribute_xp:  attributeXp,
+      quest_updates: questUpdates,
+    };
+  }
+
+  // ── THE LEGACY READOUT ────────────────────────────────────────────────────────
+  // One call for the whole hierarchy (brief: Legacy > Discipline >
+  // Attributes > Activities): legacy level from TOTAL discipline XP,
+  // per-discipline XP/level/streak, all 18 attributes, and the
+  // activity catalog the logger renders from.
+
+  async getLegacy(rootId: string) {
+    await this.ensureHeroExists(rootId);
+
+    const [pillars, attrs] = await Promise.all([
+      this.prisma.pillarProgress.findMany({ where: { rootId } }),
+      this.prisma.attributeProgress.findMany({ where: { rootId } }),
+    ]);
+
+    const attrMap = new Map(attrs.map(a => [a.attribute, a]));
+    const totalXp = pillars.reduce((s, p) => s + p.xp, 0);
+    const legacyLevel = levelFromXp(totalXp, LEGACY_LEVELS);
+    const nextAt = LEGACY_LEVELS[legacyLevel] ?? null;
+
+    const disciplines = (['forge', 'lore', 'veil'] as Pillar[]).map(pillar => {
+      const p = pillars.find(r => r.pillar === pillar);
+      return {
+        pillar,
+        xp:             p?.xp ?? 0,
+        level:          p?.level ?? 1,
+        streak:         p?.streak ?? 0,
+        longest_streak: p?.longestStreak ?? 0,
+        attributes: DISCIPLINE_ATTRIBUTES[pillar].map(def => {
+          const rec = attrMap.get(def.id);
+          const xp = rec?.xp ?? 0;
+          const level = levelFromXp(xp, ATTR_LEVELS);
+          const floor = ATTR_LEVELS[level - 1] ?? 0;
+          const ceil  = ATTR_LEVELS[level] ?? null;
+          return {
+            attribute:  def.id,
+            name:       def.name,
+            theme:      def.theme,
+            xp,
+            level,
+            max_level:  ATTR_LEVELS.length,
+            xp_in_level: xp - floor,
+            xp_to_next:  ceil === null ? 0 : ceil - xp,
+          };
+        }),
+      };
+    });
+
+    return {
+      legacy: {
+        level:      legacyLevel,
+        max_level:  LEGACY_LEVELS.length,
+        total_xp:   totalXp,
+        xp_to_next: nextAt === null || legacyLevel >= LEGACY_LEVELS.length ? 0 : nextAt - totalXp,
+      },
+      disciplines,
+      activities: ACTIVITY_CATALOG.map(a => ({
+        id: a.id, pillar: a.pillar, name: a.name,
+        base_minutes: a.baseMinutes, grants: a.grants,
+      })),
     };
   }
 
@@ -547,21 +648,48 @@ export class TrainingService {
     return { oldLevel, newLevel: level };
   }
 
-  // ── LEGACY MILESTONES ─────────────────────────────────────────────────────────
-  // Legacy level = floor(avg of the three pillar levels), min 1 — the server
-  // twin of computeLegacyLevel() in the native client (keep the two in sync).
-  // On a crossing: grant the legacy_<n> title (cosmetic-only, v4 rule 5 —
-  // Legacy never buys combat power) and write the IdentityEvent the Chronicle
-  // derives from. Runs post-tx; every failure is non-critical and swallowed.
+  // ── ATTRIBUTE XP ──────────────────────────────────────────────────────────────
+  // Layer 4: independent XP + levels per attribute. Runs inside the
+  // caller's transaction. Returns the granted map for the response.
 
-  private async checkLegacyMilestone(rootId: string, oldPillarLevel: number, newPillarLevel: number) {
-    if (newPillarLevel <= oldPillarLevel) return;
+  private async upsertAttributeXp(
+    tx: any, rootId: string, pillar: Pillar, grants: Record<string, number>,
+  ): Promise<Record<string, number>> {
+    const valid = new Set(DISCIPLINE_ATTRIBUTES[pillar].map(a => a.id));
+    const granted: Record<string, number> = {};
+    for (const [attribute, xp] of Object.entries(grants)) {
+      if (!valid.has(attribute) || xp <= 0) continue;
+      const existing = await tx.attributeProgress.findUnique({
+        where: { rootId_attribute: { rootId, attribute } },
+      });
+      const newXp = (existing?.xp ?? 0) + xp;
+      const level = levelFromXp(newXp, ATTR_LEVELS);
+      await tx.attributeProgress.upsert({
+        where:  { rootId_attribute: { rootId, attribute } },
+        update: { xp: newXp, level },
+        create: { rootId, discipline: pillar, attribute, xp: newXp, level },
+      });
+      granted[attribute] = xp;
+    }
+    return granted;
+  }
+
+  // ── LEGACY MILESTONES ─────────────────────────────────────────────────────────
+  // Legacy level derives from TOTAL discipline XP (the 2026-07-30 brief;
+  // permanent, never resets) — the server twin of computeLegacyLevel()
+  // in the native client (keep the two in sync). On a crossing: grant
+  // the legacy_<n> title (cosmetic-only, v4 rule 5 — Legacy never buys
+  // combat power) and write the IdentityEvent the Chronicle derives
+  // from. Runs post-tx; every failure is non-critical and swallowed.
+
+  private async checkLegacyMilestone(rootId: string, xpJustGranted: number) {
+    if (xpJustGranted <= 0) return;
     try {
       const pillars = await this.prisma.pillarProgress.findMany({ where: { rootId } });
       const levelOf = (p: string) => pillars.find(r => r.pillar === p)?.level ?? 1;
-      const sum = levelOf('forge') + levelOf('lore') + levelOf('veil');
-      const newLegacy = Math.max(1, Math.floor(sum / 3));
-      const oldLegacy = Math.max(1, Math.floor((sum - (newPillarLevel - oldPillarLevel)) / 3));
+      const totalXp = pillars.reduce((s, p) => s + p.xp, 0);
+      const newLegacy = levelFromXp(totalXp, LEGACY_LEVELS);
+      const oldLegacy = levelFromXp(Math.max(0, totalXp - xpJustGranted), LEGACY_LEVELS);
       if (newLegacy <= oldLegacy) return;
 
       for (let lv = oldLegacy + 1; lv <= newLegacy; lv++) {
