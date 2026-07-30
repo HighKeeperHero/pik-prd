@@ -340,10 +340,25 @@ export class WarbandService {
     };
   }
 
-  private _formatWarbandFull(w: any, requestingRootId?: string) {
+  private async _formatWarbandFull(w: any, requestingRootId?: string) {
     const myMembership = requestingRootId
       ? w.members?.find((m: any) => m.rootId === requestingRootId)
       : null;
+
+    // The Shared Flame (Hearth Warbands v1, 2026-07-30): each
+    // member's daily hearth-tend feeds a communal fire — the flame
+    // IS the community element. lastHearthClaim is 'YYYY-MM-DD' UTC.
+    const today = new Date().toISOString().slice(0, 10);
+    const memberIds: string[] = (w.members ?? []).map((m: any) => m.rootId);
+    const states = memberIds.length
+      ? await this.prisma.sanctumState.findMany({
+          where:  { rootId: { in: memberIds } },
+          select: { rootId: true, lastHearthClaim: true },
+        }).catch(() => [])
+      : [];
+    const tendedSet = new Set(
+      states.filter((s) => s.lastHearthClaim === today).map((s) => s.rootId),
+    );
 
     return {
       warband_id:  w.id,
@@ -355,13 +370,20 @@ export class WarbandService {
       my_rank:     myMembership?.rank ?? null,
       member_count: w.members?.length ?? 0,
       is_full:     (w.members?.length ?? 0) >= MAX_MEMBERS,
+      flame: {
+        tended_today: tendedSet.size,
+        member_count: w.members?.length ?? 0,
+      },
       members: (w.members ?? []).map((m: any) => ({
         root_id:         m.rootId,
         hero_name:       m.hero?.heroName ?? 'Unknown',
         alignment:       m.hero?.fateAlignment ?? 'NONE',
+        // Social surface: the client displays the RANK tier derived
+        // from this, never the raw level (personal-vs-social canon).
         fate_level:      m.hero?.fateLevel ?? 1,
         rank:            m.rank,
         alignment_bonus: m.alignmentBonus,
+        tended_today:    tendedSet.has(m.rootId),
         joined_at:       m.joinedAt?.toISOString?.() ?? m.joined_at,
       })).sort((a: any, b: any) => rankLevel(b.rank) - rankLevel(a.rank)),
     };

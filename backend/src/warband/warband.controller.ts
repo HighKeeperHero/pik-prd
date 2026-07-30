@@ -8,9 +8,15 @@
 
 import {
   Controller, Get, Post, Put, Delete,
-  Param, Body, Query,
+  Param, Body, Query, UseGuards, Req,
 } from '@nestjs/common';
 import { WarbandService } from './warband.service';
+import { AccountGuard } from '../auth/guards/account.guard';
+
+// B2-class hardening (2026-07-30): every mutating route used to
+// trust a body root_id — spoofable by anyone. AccountGuard + a
+// heroId match now gate them; reads stay open.
+type Authed = Request & { heroId: string };
 
 @Controller('api')
 export class WarbandController {
@@ -98,7 +104,9 @@ export class WarbandController {
 
   /** POST /api/warbands/join — Accept invite by code */
   @Post('warbands/join')
-  async acceptInvite(@Body() body: { root_id: string; invite_code: string }) {
+  @UseGuards(AccountGuard)
+  async acceptInvite(@Body() body: { root_id: string; invite_code: string }, @Req() req: Authed) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.acceptInvite(body.root_id, body.invite_code);
   }
 
@@ -112,7 +120,9 @@ export class WarbandController {
 
   /** POST /api/warbands — Create a new Warband */
   @Post('warbands')
-  async createWarband(@Body() body: { root_id: string; name: string; emblem?: string; alignment?: string }) {
+  @UseGuards(AccountGuard)
+  async createWarband(@Body() body: { root_id: string; name: string; emblem?: string; alignment?: string }, @Req() req: Authed) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.createWarband(body.root_id, {
       name:      body.name,
       emblem:    body.emblem,
@@ -142,55 +152,73 @@ export class WarbandController {
 
   /** PUT /api/warbands/:warband_id/name — Rename (Officer+) */
   @Put('warbands/:warband_id/name')
+  @UseGuards(AccountGuard)
   async renameWarband(
     @Param('warband_id') warbandId: string,
     @Body() body: { root_id: string; name: string },
+    @Req() req: Authed,
   ) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.renameWarband(warbandId, body.root_id, body.name);
   }
 
   /** DELETE /api/warbands/:warband_id — Disband (Founder only) */
   @Delete('warbands/:warband_id')
+  @UseGuards(AccountGuard)
   async disbandWarband(
     @Param('warband_id') warbandId: string,
     @Body() body: { root_id: string },
+    @Req() req: Authed,
   ) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.disbandWarband(warbandId, body.root_id);
   }
 
   /** POST /api/warbands/:warband_id/invite — Create invite code (Officer+) */
   @Post('warbands/:warband_id/invite')
+  @UseGuards(AccountGuard)
   async createInvite(
     @Param('warband_id') warbandId: string,
     @Body() body: { root_id: string },
+    @Req() req: Authed,
   ) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.createInvite(warbandId, body.root_id);
   }
 
   /** POST /api/warbands/:warband_id/leave — Leave Warband */
   @Post('warbands/:warband_id/leave')
+  @UseGuards(AccountGuard)
   async leaveWarband(
     @Param('warband_id') warbandId: string,
     @Body() body: { root_id: string },
+    @Req() req: Authed,
   ) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.leaveWarband(warbandId, body.root_id);
   }
 
   /** POST /api/warbands/:warband_id/kick — Kick member (Officer+) */
   @Post('warbands/:warband_id/kick')
+  @UseGuards(AccountGuard)
   async kickMember(
     @Param('warband_id') warbandId: string,
     @Body() body: { root_id: string; target_root_id: string },
+    @Req() req: Authed,
   ) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.kickMember(warbandId, body.root_id, body.target_root_id);
   }
 
   /** PUT /api/warbands/:warband_id/rank — Set member rank (Founder only) */
   @Put('warbands/:warband_id/rank')
+  @UseGuards(AccountGuard)
   async setRank(
     @Param('warband_id') warbandId: string,
     @Body() body: { root_id: string; target_root_id: string; rank: string },
+    @Req() req: Authed,
   ) {
+    if (req.heroId !== body.root_id) return { status: 'error', message: 'Unauthorized' };
     return this.warbands.setRank(warbandId, body.root_id, body.target_root_id, body.rank);
   }
 }
