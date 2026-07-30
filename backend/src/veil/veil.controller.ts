@@ -4,9 +4,11 @@ import {
   Param, Body, Query,
   ParseIntPipe, DefaultValuePipe,
   BadRequestException,
+  UseGuards, Req,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { VeilService, CombatStatsDto } from './veil.service';
+import { AccountGuard } from '../auth/guards/account.guard';
 
 interface RecordEncounterBody {
   root_id:        string;
@@ -30,10 +32,19 @@ export class VeilController {
   constructor(private readonly veilService: VeilService) {}
 
   // POST /api/veil/encounter
+  // B2 hardening (2026-07-30): grants XP/shards/caches and records
+  // combat stats — must not be callable with a bare root_id. The
+  // client has sent the bearer token since battle v2 shipped, so no
+  // client change is needed to turn the lock.
   @Post('encounter')
   @SkipThrottle()
-  async recordEncounter(@Body() body: RecordEncounterBody) {
+  @UseGuards(AccountGuard)
+  async recordEncounter(
+    @Body() body: RecordEncounterBody,
+    @Req() req: Request & { heroId: string },
+  ) {
     const { root_id, tear_type, tear_name, outcome, shards, lat, lon, world_tear_id } = body;
+    if (req.heroId !== root_id) throw new BadRequestException('Unauthorized: hero mismatch');
     if (!root_id)   throw new BadRequestException('root_id is required');
     if (!tear_type) throw new BadRequestException('tear_type is required');
     if (!tear_name) throw new BadRequestException('tear_name is required');

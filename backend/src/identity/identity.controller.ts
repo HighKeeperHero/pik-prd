@@ -244,10 +244,15 @@ export class IdentityController {
    * Errors: 400 if level < 40, class already set, or invalid class name
    */
   @Post(':root_id/class')
+  @UseGuards(AccountGuard)
   async selectClass(
     @Param('root_id') rootId: string,
     @Body() body: { hero_class: string },
+    @Req() req: Request & { heroId: string },
   ) {
+    // B2 hardening (2026-07-30): class selection is PERMANENT — it
+    // must never be settable by anyone who merely knows a root_id.
+    if (req.heroId !== rootId) return { status: 'error', message: 'Unauthorized' };
     return this.identityService.selectClass(rootId, body.hero_class);
   }
 
