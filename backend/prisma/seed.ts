@@ -314,6 +314,27 @@ async function main() {
     return { ...item, levelBand, itemPower, slotBudget };
   };
 
+  // ── Job rank titles (v4 tails, 2026-07-30) ────────────────
+  // One per Job × rank crossing (Adept and up; Initiate is the
+  // choice itself). Granted by LevelingService on JobRank crossings.
+  const JOB_RANK_TITLES: Array<{ id: string; displayName: string; category: string; description: string }> = [];
+  for (const job of ['aegis', 'scalesworn', 'dryadic', 'harvester']) {
+    const jobName = job.charAt(0).toUpperCase() + job.slice(1);
+    for (const rank of ['adept', 'veteran', 'elite', 'master', 'grandmaster']) {
+      const rankName = rank.charAt(0).toUpperCase() + rank.slice(1);
+      JOB_RANK_TITLES.push({
+        id: `job_${job}_${rank}`,
+        displayName: `${rankName.toUpperCase()} ${jobName.toUpperCase()}`,
+        category: 'job',
+        description: `Reached ${rankName} rank on the ${jobName} path`,
+      });
+    }
+  }
+  for (const t of JOB_RANK_TITLES) {
+    await prisma.title.upsert({ where: { id: t.id }, update: { ...t }, create: t });
+  }
+  console.log(`  ✓ ${JOB_RANK_TITLES.length} job rank titles`);
+
   for (const item of gearItems) {
     const enriched = enrichGearItem(item);
     await prisma.gearItem.upsert({

@@ -123,15 +123,48 @@ export class VocationService {
         : 'No gear equipped yet — the kit has not spoken.',
     });
 
-    // Performance (20) — NEUTRAL v1 (no per-job outcome telemetry).
+    // Performance (20) — LIVE (v4 tails, 2026-07-30): read from
+    // battle.completed events (per-fight combat stats reported by
+    // the client since this slice). The mapping reads what the
+    // hero is actually good at / reaches for:
+    //   ANCHOR reads (defends) → AEGIS      (the wall)
+    //   CHANNEL reads (counters) → SCALESWORN (the blade)
+    //   PERFECT-timing rate → DRYADIC        (harmony with the rhythm)
+    //   crit procs → HARVESTER               (the opportunist's edge)
+    const battles = await this.prisma.identityEvent.findMany({
+      where:   { rootId, eventType: 'battle.completed' },
+      orderBy: { createdAt: 'desc' },
+      take:    40,   // recent form, not lifetime averages
+      select:  { payload: true },
+    });
+    let perfDefends = 0, perfCounters = 0, perfPerfect = 0, perfCrits = 0;
+    for (const b of battles) {
+      const p = b.payload as Partial<Record<string, number>> | null;
+      perfDefends  += p?.defends  ?? 0;
+      perfCounters += p?.counters ?? 0;
+      perfPerfect  += p?.perfect  ?? 0;
+      perfCrits    += p?.crits    ?? 0;
+    }
+    const perfTotal = perfDefends + perfCounters + perfPerfect + perfCrits;
+    if (perfTotal > 0) {
+      shares.performance = normalize({
+        AEGIS: perfDefends, SCALESWORN: perfCounters,
+        DRYADIC: perfPerfect, HARVESTER: perfCrits,
+      } as Share);
+    }
     signals.push({
-      key: 'performance', weight: WEIGHTS.performance, active: false,
-      note: 'Combat mastery telemetry arrives with a later slice; weighed evenly for now.',
+      key: 'performance', weight: WEIGHTS.performance, active: perfTotal > 0,
+      note: perfTotal > 0
+        ? `Read from your last ${battles.length} fights — how you actually answer the seam.`
+        : 'No reported fights yet — weighed evenly for now.',
     });
 
     // Encounter preference (15) — rift seals vs fauna banishes.
+    // Rift seals come from the tear_encounters table — there is no
+    // veil_tear_sealed identity event (that string is hunt-tracker
+    // internal; counting it here always read zero — fixed 2026-07-30).
     const [riftCount, faunaCount] = await Promise.all([
-      this.events.countByType(rootId, 'veil_tear_sealed'),
+      this.prisma.tearEncounter.count({ where: { rootId, outcome: 'won' } }),
       this.prisma.faunaBanish.count({ where: { rootId } }),
     ]);
     const encTotal = riftCount + faunaCount;

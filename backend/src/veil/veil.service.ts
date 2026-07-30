@@ -110,6 +110,20 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+/** Per-fight combat stats (v4 tails, 2026-07-30). Reported by the
+ *  client battle engine; stored as a `battle.completed` identity
+ *  event and read by the Vocation Performance signal (§13.6). All
+ *  counts are per-encounter. */
+export interface CombatStatsDto {
+  tells:    number;   // telegraphs faced
+  perfect:  number;   // PERFECT-timing reads
+  defends:  number;   // correct ANCHOR reads
+  dodges:   number;   // correct SCATTER reads
+  counters: number;   // correct CHANNEL reads
+  misses:   number;   // wrong reads + window expiries
+  crits:    number;   // Onslaught crit procs
+}
+
 export interface RecordEncounterDto {
   tearType: string;   // minor | wander | dormant | double
   tearName: string;
@@ -122,6 +136,8 @@ export interface RecordEncounterDto {
    *  is spawned in the same region + tier. Omit for legacy /
    *  unmoored encounters that don't map to a server tear. */
   worldTearId?: string;
+  /** Optional per-fight combat stats (older clients omit). */
+  combat?: CombatStatsDto;
 }
 
 // ── Loot drop config per tier ─────────────────────────────────────────────────
@@ -216,6 +232,24 @@ export class VeilService {
     const encounter = await this.prisma.tearEncounter.create({
       data: { rootId, tearType, tearName, outcome, shards, lat, lon },
     });
+
+    // 2.1. Combat stats → battle.completed identity event (v4 tails).
+    // Feeds the Vocation Performance signal; sits behind the
+    // duplicate guard above so farmed re-posts never skew it.
+    if (dto.combat) {
+      await this.prisma.identityEvent.create({
+        data: {
+          rootId,
+          eventType: 'battle.completed',
+          payload: {
+            encounter_id: encounter.id,
+            tear_type:    tearType,
+            outcome,
+            ...dto.combat,
+          },
+        },
+      }).catch((err) => this.logger.warn(`battle.completed log failed: ${err}`));
+    }
 
     // 2.5. Sprint 29 Arc B — seal the world_tear row + spawn a
     // replacement when this encounter ties to a server tear and the

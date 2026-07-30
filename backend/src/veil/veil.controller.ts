@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { VeilService } from './veil.service';
+import { VeilService, CombatStatsDto } from './veil.service';
 
 interface RecordEncounterBody {
   root_id:        string;
@@ -21,6 +21,8 @@ interface RecordEncounterBody {
    *  replacement in the same region + tier. Optional for legacy
    *  / procedural encounters. */
   world_tear_id?: string;
+  /** v4 tails — per-fight combat stats for the Performance signal. */
+  combat?:        CombatStatsDto;
 }
 
 @Controller('api/veil')
@@ -46,6 +48,7 @@ export class VeilController {
       lat,
       lon,
       worldTearId: world_tear_id,
+      combat:      body.combat,
     });
   }
 

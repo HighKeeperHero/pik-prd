@@ -25,7 +25,17 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { jobXpToReach, MAX_JOB_LEVEL } from '../job/job.constants';
+import { jobXpToReach, jobLevelFromXp, jobRankForLevel, MAX_JOB_LEVEL } from '../job/job.constants';
+
+// v4 tails (2026-07-30) — the narrative beat each JobRank crossing
+// speaks. The title granted alongside is `job_<job>_<rank>` (seeded).
+const RANK_NARRATIVE: Record<string, string> = {
+  Adept:       'The path no longer needs your eyes to walk it.',
+  Veteran:     'Younger hands now steady themselves against your name.',
+  Elite:       'The Hall speaks of you when the doors are closed.',
+  Master:      'What you practice, others call technique. You call it breathing.',
+  Grandmaster: 'The path ends where you stand. Now the path is you.',
+};
 
 // ── The two-era curve (recalibrated 2026-07-10) ─────────────
 // v2 (07-09) anchored to ~500 XP/day but MISSED cache-open XP
@@ -157,6 +167,34 @@ export class LevelingService {
         ? { fateXp: newXp, fateLevel: newLevel, jobXp: newJobXp }
         : { fateXp: newXp, fateLevel: newLevel },
     });
+
+    // v4 tails — JobRank crossing grants (canon §13.4: cosmetics +
+    // narrative milestone per rank; the core unlock lands via the
+    // Doctrine tree, and Doctrine slots are the milestone branches).
+    // Initiate (rank at Lv1) is the choice itself — no grant.
+    if (hero.heroClass) {
+      const prevRank = jobRankForLevel(jobLevelFromXp(hero.jobXp ?? 0));
+      const newRank  = jobRankForLevel(jobLevelFromXp(newJobXp));
+      if (newRank !== prevRank && RANK_NARRATIVE[newRank]) {
+        const titleId = `job_${hero.heroClass.toLowerCase()}_${newRank.toLowerCase()}`;
+        try {
+          await this.prisma.userTitle.create({ data: { rootId, titleId } });
+        } catch { /* already granted or title row missing — non-critical */ }
+        await this.prisma.identityEvent.create({
+          data: {
+            rootId,
+            eventType: 'job.rank_up',
+            payload: {
+              job: hero.heroClass, rank: newRank,
+              job_level: jobLevelFromXp(newJobXp),
+              title_id: titleId,
+              narrative: RANK_NARRATIVE[newRank],
+            },
+          },
+        }).catch(() => { /* non-critical */ });
+        this.logger.log(`Hero ${rootId} reached JobRank ${newRank} (${hero.heroClass})`);
+      }
+    }
 
     if (leveledUp) {
       this.logger.log(`Hero ${rootId} reached Fate level ${newLevel} (xp=${newXp})`);
