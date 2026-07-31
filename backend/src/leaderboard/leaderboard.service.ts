@@ -19,15 +19,15 @@
 //                 Fate (canon §7).
 //
 // Supports: global, per-source, daily/weekly/all-time windows.
-// The arena/warband boards are seasonal (UTC month key) and
-// ignore the period param.
+// The arena/warband boards are seasonal (8-week seasons, Sunday-
+// aligned; see trials.service trialSeasonKey) and ignore `period`.
 //
 // Place at: src/leaderboard/leaderboard.service.ts
 // ============================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { TrialsService, trialSeasonKey } from '../trials/trials.service';
+import { TrialsService, trialSeasonKey, seasonStart } from '../trials/trials.service';
 
 export interface LeaderboardEntry {
   rank: number;
@@ -405,12 +405,12 @@ export class LeaderboardService {
 
   private async arenaBoard(limit = 25): Promise<LeaderboardResult> {
     const season = trialSeasonKey();
-    const seasonStart = new Date(`${season}-01T00:00:00.000Z`);
+    const start  = seasonStart(season);
 
     const [legacyGroups, trialPoints] = await Promise.all([
       this.prisma.trainingEntry.groupBy({
         by: ['rootId'],
-        where: { createdAt: { gte: seasonStart } },
+        where: { createdAt: { gte: start } },
         _count: true,
       }),
       this.trials.seasonTrialPoints(season),
@@ -469,7 +469,7 @@ export class LeaderboardService {
 
   private async warbandBoard(limit = 25): Promise<LeaderboardResult> {
     const season = trialSeasonKey();
-    const seasonStart = new Date(`${season}-01T00:00:00.000Z`);
+    const start  = seasonStart(season);
 
     const [memberships, legacyGroups, trialPoints] = await Promise.all([
       this.prisma.warbandMembership.findMany({
@@ -477,7 +477,7 @@ export class LeaderboardService {
       }),
       this.prisma.trainingEntry.groupBy({
         by: ['rootId'],
-        where: { createdAt: { gte: seasonStart } },
+        where: { createdAt: { gte: start } },
         _count: true,
       }),
       this.trials.seasonTrialPoints(season),

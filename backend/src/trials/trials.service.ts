@@ -49,13 +49,34 @@ const TRIAL_DEFS: TrialDef[] = [
 const POINTS_CORRECT = 100;
 const POINTS_PERFECT = 50; // on top of correct
 
+// ── Seasons: 8 weeks, Sunday-aligned (Tim, 2026-07-31) ──────
+// Monthly was too short — a season should be long enough to chase a
+// best, not just notice one. The grid is anchored to the Sunday on
+// or before 2026-01-01 so season boundaries always land on the same
+// weekday the weekly oath resets on.
+const SEASON_DAYS  = 56;                       // 8 weeks
+// Anchored to the closed-alpha launch week (Sunday 2026-07-26) so the
+// first season testers meet is a FULL eight weeks. Anchoring to a
+// January epoch would have dropped them into a season with 9 days
+// left and wiped their first bests almost immediately.
+const SEASON_EPOCH = Date.UTC(2026, 6, 26);    // Sunday 2026-07-26
+const DAY_MS       = 86_400_000;
+
+/** The season's FIRST DAY as an ISO date — self-describing and
+ *  parseable straight back to a Date (no `-01` string surgery). */
 export function trialSeasonKey(d = new Date()): string {
-  return d.toISOString().slice(0, 7); // "2026-08"
+  const idx = Math.floor((d.getTime() - SEASON_EPOCH) / (SEASON_DAYS * DAY_MS));
+  return new Date(SEASON_EPOCH + idx * SEASON_DAYS * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Start instant of the season a key names. Callers that need to
+ *  filter rows by "this season" MUST use this rather than parsing. */
+export function seasonStart(key = trialSeasonKey()): Date {
+  return new Date(`${key}T00:00:00.000Z`);
 }
 
 function seasonEndsAt(): string {
-  const n = new Date();
-  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth() + 1, 1)).toISOString();
+  return new Date(seasonStart().getTime() + SEASON_DAYS * DAY_MS).toISOString();
 }
 
 // FNV-1a → uint32. Mirrors the native constellation hash so both
