@@ -105,8 +105,13 @@ class HealthController {
 @Module({
   imports: [
     // ── Rate Limiting ──────────────────────────────────────────────────────────
+    // 120/min, raised from 60 for the closed alpha (2026-07-31).
+    // Opening the app fires several calls at once (hero, flags,
+    // quests, sanctum, pillars, trials) and a tester browsing wings
+    // quickly could cross 60 in a minute — a throttle that reads as
+    // a bug is worse than a slightly looser limit on 200 known users.
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60000, limit: 60 },
+      { name: 'default', ttl: 60000, limit: 120 },
     ]),
 
     // ── Static Dashboard ───────────────────────────────────────────────────────

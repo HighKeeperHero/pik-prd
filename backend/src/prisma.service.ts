@@ -32,8 +32,32 @@ export class PrismaService
           : ['query', 'error', 'warn'],
       // Prisma's built-in connection pool handles reconnection.
       // These datasource settings optimize for Railway's environment:
-      datasourceUrl: process.env.DATABASE_URL,
+      datasourceUrl: PrismaService.pooledUrl(),
     });
+  }
+
+  /** Pin the pool size (2026-07-31, pre-alpha capacity check).
+   *
+   *  Prisma defaults to `cpus * 2 + 1` connections and holds them
+   *  open regardless of traffic — measured at 42 of Postgres's 100
+   *  `max_connections` with only 7 heroes. That headroom is fine at
+   *  rest, but a deploy briefly double-runs the container, and each
+   *  instance opens its own pool. Staging hit exactly this on
+   *  2026-07-31 ("too many clients already") and refused every
+   *  external connection until it was restarted.
+   *
+   *  Pinning it here rather than in the env var is deliberate: the
+   *  production DATABASE_URL is an internal Railway host, and
+   *  hand-editing a connection string on launch day is the kind of
+   *  change that takes the whole alpha down if a character slips.
+   *  Override with DB_CONNECTION_LIMIT if a bigger box arrives. */
+  private static pooledUrl(): string | undefined {
+    const url = process.env.DATABASE_URL;
+    if (!url) return undefined;
+    if (/[?&]connection_limit=/.test(url)) return url;
+    const limit = Number(process.env.DB_CONNECTION_LIMIT ?? 15);
+    if (!Number.isFinite(limit) || limit <= 0) return url;
+    return `${url}${url.includes('?') ? '&' : '?'}connection_limit=${limit}`;
   }
 
   async onModuleInit(): Promise<void> {
