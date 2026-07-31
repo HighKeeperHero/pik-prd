@@ -147,6 +147,7 @@ model RootIdentity {
   runSeats                 RunParticipant[]            // HEP Phase 2 Slice 1 — venue experience runs
   trialBests               TrialBest[]                 // 2026-07-30 — Arena trials (seasonal score-attack)
   attributeProgress        AttributeProgress[]         // 2026-07-30 — Legacy Development attributes
+  feedback                 Feedback[]                  // 2026-07-31 — closed-alpha feedback + bug reports
 
   @@index([fateAccountId])
   @@map("root_identities")
@@ -1998,4 +1999,29 @@ model AttributeProgress {
   @@unique([rootId, attribute])
   @@index([rootId, discipline])
   @@map("attribute_progress")
+}
+
+// ============================================================
+// FEEDBACK — closed-alpha reports (2026-07-31)
+// A tester's own words plus the build context needed to act on
+// them. rootId is NULLABLE on purpose: a broken session is
+// exactly the thing worth reporting, so the form must work even
+// when auth does not.
+// ============================================================
+
+model Feedback {
+  id        String   @id @default(uuid()) @map("feedback_id")
+  rootId    String?  @map("root_id")
+  kind      String                          // bug | idea | praise | other
+  message   String
+  /// app + runtime version, channel, platform, OS, device, screen
+  context   Json     @default("{}")
+  status    String   @default("new")        // new | triaged | closed
+  createdAt DateTime @default(now()) @map("created_at")
+
+  root RootIdentity? @relation(fields: [rootId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([rootId])
+  @@map("feedback")
 }

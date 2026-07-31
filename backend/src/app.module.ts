@@ -55,6 +55,7 @@ import { LinksModule }      from './links/links.module';              // ← HEP
 import { CertificationModule } from './certification/certification.module'; // ← HEP Phase 2 Slice 9 (venue certification)
 import { MailModule }       from './mail/mail.module';                // ← HEP Phase 2 (venue staff password reset + invites)
 import { TrialsModule }     from './trials/trials.module';            // ← 2026-07-30 Arena trials (seasonal score-attack)
+import { FeedbackModule }   from './feedback/feedback.module';        // ← 2026-07-31 closed-alpha feedback + bug reports
 
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
@@ -169,6 +170,7 @@ class HealthController {
     LinksModule,          // ← HEP (/v/:id and /t/:token — what QRs encode)
     CertificationModule,  // ← HEP Phase 2 Slice 9 (certification gate)
     TrialsModule,         // ← 2026-07-30 Arena trials (seasonal score-attack)
+    FeedbackModule,       // ← 2026-07-31 closed-alpha feedback + bug reports
   ],
   controllers: [HealthController],
   providers: [
