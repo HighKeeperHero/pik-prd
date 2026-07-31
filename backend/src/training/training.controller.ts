@@ -47,6 +47,13 @@ export class TrainingController {
     return this.service.getChronicle(rootId, limit ? parseInt(limit) : 20);
   }
 
+  // Oath v2 (2026-07-31) — the vows on offer. Static route, so it
+  // MUST precede 'oath/:rootId' for the same reason as oaths/feed.
+  @Get('oaths/presets')
+  async getOathPresets() {
+    return this.service.getOathPresets();
+  }
+
   // NOTE: 'oaths/feed' MUST be declared before 'oath/:rootId' so NestJS
   // does not treat "oaths" as a rootId param value.
   @Get('oaths/feed')

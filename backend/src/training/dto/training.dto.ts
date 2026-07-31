@@ -52,13 +52,12 @@ export class CompleteRiteDto {
   notes?: string;
 }
 
+// Oath v2 (2026-07-31): presets only. Free text is retired — the
+// accountability feed is shared, and a preset bound to a real
+// mechanism is both safer and verifiable.
 export class DeclareOathDto {
   @IsString()
-  @IsIn(PILLARS)
-  pillar: Pillar;
-
-  @IsString()
-  declaration: string;
+  preset_id: string;
 }
 
 export class ResolveOathDto {

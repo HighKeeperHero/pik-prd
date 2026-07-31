@@ -25,6 +25,7 @@ import {
   DISCIPLINE_ATTRIBUTES, ACTIVITY_CATALOG, activityById, scaledGrants,
   RITE_ACTIVITY, ATTR_LEVELS, LEGACY_LEVELS, levelFromXp,
 } from './legacy';
+import { OATH_PRESETS, oathPresetById, type OathPreset } from './oaths';
 
 // ── XP Constants ──────────────────────────────────────────────────────────────
 const XP = {
@@ -34,7 +35,7 @@ const XP = {
   STREAK_3_PCT:       0.10,
   STREAK_7_PCT:       0.25,
   OATH_KEPT:          200,
-  OATH_BROKEN_DEBT:   -50,
+  OATH_BROKEN_DEBT:   0,     // Tim 2026-07-31: an unkept oath costs NOTHING
 } as const;
 
 // Pillar XP thresholds per level (cumulative)
@@ -406,9 +407,27 @@ export class TrainingService {
 
   // ── OATHS ─────────────────────────────────────────────────────────────────────
 
+  /** The vows on offer. Presets only (Tim, 2026-07-31). */
+  getOathPresets() {
+    return {
+      week_of: weekKey(),
+      presets: OATH_PRESETS.map(p => ({
+        preset_id:   p.id,
+        pillar:      p.pillar,
+        declaration: p.declaration,
+        measure:     p.measure,
+        target:      p.target,
+        metric:      p.metric,
+      })),
+    };
+  }
+
   async declareOath(rootId: string, dto: DeclareOathDto) {
     await this.ensureHeroExists(rootId);
     const week = weekKey();
+
+    const preset = oathPresetById(dto.preset_id);
+    if (!preset) throw new BadRequestException('No such vow stands on the altar.');
 
     const existing = await this.prisma.oath.findUnique({
       where: { rootId_weekOf: { rootId, weekOf: week } },
@@ -416,22 +435,58 @@ export class TrainingService {
     if (existing) throw new BadRequestException('An oath has already been declared this week');
 
     const oath = await this.prisma.oath.create({
-      data: { rootId, pillar: dto.pillar, declaration: dto.declaration, weekOf: week },
+      data: {
+        rootId,
+        pillar:      preset.pillar,
+        // The preset id is stored alongside the words so progress can
+        // be recomputed later without guessing which vow was taken.
+        declaration: `${preset.declaration}␟${preset.id}`,
+        weekOf:      week,
+      },
     });
 
     await this.events.log({
       rootId,
       sourceId: 'codex-platform',
       eventType: 'training.oath_declared',
-      payload: { pillar: dto.pillar, declaration: dto.declaration, week_of: week },
+      payload: { pillar: preset.pillar, preset_id: preset.id, week_of: week },
     });
 
     return {
-      oath_id:     oath.id,
-      message:     `"${dto.declaration}" — your word is entered into the Codex. The Veil watches.`,
-      week_of:     week,
-      pillar:      dto.pillar,
+      oath_id: oath.id,
+      message: `"${preset.declaration}" — your word is entered into the Codex. The Veil watches.`,
+      week_of: week,
+      pillar:  preset.pillar,
     };
+  }
+
+  // ── OATH PROGRESS + AUTO-RESOLUTION ───────────────────────────────────────────
+  // Every preset counts rows we already write, so the oath verifies
+  // itself. Hit the target and it resolves KEPT on the spot. Miss the
+  // week and nothing happens at all — no debt, no guilt (Tim's lock).
+
+  private splitDeclaration(stored: string): { text: string; presetId: string | null } {
+    const [text, presetId] = stored.split('\u241F');
+    return { text, presetId: presetId ?? null };
+  }
+
+  private async oathProgress(rootId: string, preset: OathPreset, weekOf: string): Promise<number> {
+    const start = new Date(`${weekOf}T00:00:00.000Z`);
+    if (preset.metric === 'rites') {
+      return this.prisma.dailyRite.count({
+        where: { rootId, pillar: preset.pillar, status: 'completed', dateKey: { gte: weekOf } },
+      });
+    }
+    if (preset.metric === 'activities') {
+      return this.prisma.trainingEntry.count({
+        where: { rootId, pillar: preset.pillar, createdAt: { gte: start } },
+      });
+    }
+    const agg = await this.prisma.trainingEntry.aggregate({
+      where: { rootId, pillar: preset.pillar, createdAt: { gte: start } },
+      _sum: { durationMin: true },
+    });
+    return agg._sum.durationMin ?? 0;
   }
 
   async getActiveOath(rootId: string) {
@@ -440,7 +495,44 @@ export class TrainingService {
       where: { rootId_weekOf: { rootId, weekOf: week } },
     });
     if (!oath) return null;
-    return this.formatOath(oath);
+
+    const { text, presetId } = this.splitDeclaration(oath.declaration);
+    const preset = presetId ? oathPresetById(presetId) : undefined;
+    if (!preset) return { ...this.formatOath(oath), declaration: text };
+
+    const progress = await this.oathProgress(rootId, preset, oath.weekOf);
+    let row = oath;
+
+    // Met it → resolve KEPT now, so the reward lands in the moment
+    // the hero earns it rather than at some unseen week boundary.
+    if (row.status === 'pending' && progress >= preset.target) {
+      row = await this.prisma.oath.update({
+        where: { id: oath.id },
+        data:  { status: 'kept', resolvedAt: new Date(), xpGranted: XP.OATH_KEPT },
+      });
+      await this.leveling.grantXp(rootId, XP.OATH_KEPT).catch(() => {});
+      await this.prisma.fateMarker
+        .create({ data: { rootId, marker: `Kept the ${preset.pillar} oath: "${preset.declaration}"` } })
+        .catch(() => {});
+      await this.events.log({
+        rootId,
+        sourceId: 'codex-platform',
+        eventType: 'training.oath_resolved',
+        payload: { oath_id: oath.id, status: 'kept', xp: XP.OATH_KEPT, preset_id: preset.id },
+      }).catch(() => {});
+      this.logger.log(`Oath kept: ${rootId} | ${preset.id}`);
+    }
+
+    return {
+      ...this.formatOath(row),
+      declaration: text,
+      preset_id:   preset.id,
+      measure:     preset.measure,
+      metric:      preset.metric,
+      target:      preset.target,
+      progress:    Math.min(progress, preset.target),
+      xp_kept:     XP.OATH_KEPT,
+    };
   }
 
   async resolveOath(rootId: string, oathId: string, dto: ResolveOathDto) {
@@ -469,22 +561,15 @@ export class TrainingService {
       await this.leveling.grantXp(rootId, xpGranted!);
       message = 'Your word held. The Chronicle grows. The Veil acknowledges your resolve.';
     } else {
-      // Apply Veil Debt — negative grant. LevelingService.grantXp ignores
-      // non-positive amounts by design, so apply the debt directly here.
-      await this.prisma.$transaction(async (tx) => {
-        await tx.oath.update({
-          where: { id: oathId },
-          data: { status: 'broken', resolvedAt: new Date(), xpGranted: XP.OATH_BROKEN_DEBT },
-        });
-        await tx.rootIdentity.update({
-          where: { id: rootId },
-          data: { fateXp: { increment: XP.OATH_BROKEN_DEBT } },
-        });
-        await tx.fateMarker.create({
-          data: { rootId, marker: `Failed the ${oath.pillar} oath: "${oath.declaration}" — a Veil Debt recorded.` },
-        });
+      // Oath v2: an unkept oath costs NOTHING (Tim, 2026-07-31). No
+      // Fate XP change, no debt marker — the week simply closes. The
+      // ethic is the Warband flame's: a hard week is carried, not
+      // punished.
+      await this.prisma.oath.update({
+        where: { id: oathId },
+        data: { status: 'broken', resolvedAt: new Date(), xpGranted: 0 },
       });
-      message = 'The Veil remembers what you do not. A debt is recorded. Three kept oaths will clear it.';
+      message = 'The week turned before the word was kept. Nothing is taken. Begin again.';
     }
 
     await this.events.log({
