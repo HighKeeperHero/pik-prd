@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EventsService } from '../events/events.service';
-import { LevelingService } from '../leveling/leveling.service';
+import { LevelingService, xpForLevel } from '../leveling/leveling.service';
 import { QuestLogService } from '../quest/quest-log.service';
 import {
   LogTrainingDto,
@@ -34,8 +34,9 @@ const XP = {
   ALIGNMENT_BONUS:    50,
   STREAK_3_PCT:       0.10,
   STREAK_7_PCT:       0.25,
-  OATH_KEPT:          200,
+  OATH_KEPT_FRACTION: 0.20,  // an oath is worth ~1/5 of the level you're on
   OATH_BROKEN_DEBT:   0,     // Tim 2026-07-31: an unkept oath costs NOTHING
+  OATH_MIN:           25,    // floor, so the earliest oaths still read as a reward
 } as const;
 
 // Pillar XP thresholds per level (cumulative)
@@ -55,6 +56,16 @@ const PILLAR_TITLES: Record<string, string[]> = {
   lore:  ['Lore Seeker',   'Lore Keeper', 'Lore Warden',    'Lore Sage',    'Veil Scholar'],
   veil:  ['Veil Touched',  'Veil Walker', 'Veil Warden',    'Veil Bound',   'The Still Point'],
 };
+
+/** Oath reward, SCALED to the curve rather than flat (Tim, 2026-07-31).
+ *  A flat 200 was ~194% of a level at L3 and 1.5% at L50 — it
+ *  double-levelled new heroes and meant nothing to veterans. Paying a
+ *  fixed FRACTION of the level you're on keeps it legible forever:
+ *  "keeping your word moves you about a fifth of the way", roughly
+ *  five weeks of oaths per level at every stage. */
+export function oathXpFor(fateLevel: number): number {
+  return Math.max(XP.OATH_MIN, Math.round(xpForLevel(fateLevel) * XP.OATH_KEPT_FRACTION));
+}
 
 // Date helpers
 function todayKey() {
@@ -506,11 +517,15 @@ export class TrainingService {
     // Met it → resolve KEPT now, so the reward lands in the moment
     // the hero earns it rather than at some unseen week boundary.
     if (row.status === 'pending' && progress >= preset.target) {
+      const hero = await this.prisma.rootIdentity.findUnique({
+        where: { id: rootId }, select: { fateLevel: true },
+      });
+      const reward = oathXpFor(hero?.fateLevel ?? 1);
       row = await this.prisma.oath.update({
         where: { id: oath.id },
-        data:  { status: 'kept', resolvedAt: new Date(), xpGranted: XP.OATH_KEPT },
+        data:  { status: 'kept', resolvedAt: new Date(), xpGranted: reward },
       });
-      await this.leveling.grantXp(rootId, XP.OATH_KEPT).catch(() => {});
+      await this.leveling.grantXp(rootId, reward).catch(() => {});
       await this.prisma.fateMarker
         .create({ data: { rootId, marker: `Kept the ${preset.pillar} oath: "${preset.declaration}"` } })
         .catch(() => {});
@@ -518,7 +533,7 @@ export class TrainingService {
         rootId,
         sourceId: 'codex-platform',
         eventType: 'training.oath_resolved',
-        payload: { oath_id: oath.id, status: 'kept', xp: XP.OATH_KEPT, preset_id: preset.id },
+        payload: { oath_id: oath.id, status: 'kept', xp: reward, preset_id: preset.id },
       }).catch(() => {});
       this.logger.log(`Oath kept: ${rootId} | ${preset.id}`);
     }
@@ -531,7 +546,9 @@ export class TrainingService {
       metric:      preset.metric,
       target:      preset.target,
       progress:    Math.min(progress, preset.target),
-      xp_kept:     XP.OATH_KEPT,
+      xp_kept:     oathXpFor(
+        (await this.prisma.rootIdentity.findUnique({ where: { id: rootId }, select: { fateLevel: true } }))?.fateLevel ?? 1,
+      ),
     };
   }
 
@@ -546,7 +563,7 @@ export class TrainingService {
     let message: string;
 
     if (dto.status === 'kept') {
-      xpGranted = XP.OATH_KEPT;
+      xpGranted = oathXpFor(oath.root?.fateLevel ?? 1);
       await this.prisma.$transaction(async (tx) => {
         await tx.oath.update({
           where: { id: oathId },
