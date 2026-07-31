@@ -42,6 +42,18 @@ const TRIAL_DEFS: TrialDef[] = [
     id: 'trial_proving', name: 'The Proving', tearType: 'dormant', tells: 24,
     flavor: 'Twenty-four tells at dormant pressure. Perfection is remembered here.',
   },
+  // Added 2026-07-31 for the 8-week season — three gauntlets plateau
+  // too early over two months. These extend the ladder on BOTH axes:
+  // endurance (more tells at the same pressure) and pressure (the
+  // double tier's 1.2s windows and full six-tell mix).
+  {
+    id: 'trial_crucible', name: 'The Crucible', tearType: 'dormant', tells: 32,
+    flavor: 'Thirty-two tells without relief. The ground stops asking whether you are tired.',
+  },
+  {
+    id: 'trial_reckoning', name: 'The Reckoning', tearType: 'double', tells: 28,
+    flavor: 'The narrowest windows the Veil offers. Few finish it clean; the board remembers those who do.',
+  },
 ];
 
 // Scoring — shared contract with the native trial engine
