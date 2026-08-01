@@ -46,6 +46,12 @@ async function main() {
     { key: 'veil.cell_deg', value: '0.05', description: 'Procedural grid cell size in degrees (~5.5 km). Must match the seeded pop_cell grid' },
     { key: 'veil.cooldown_hours', value: '6', description: 'Hours a sealed procedural tear stays gone before its slot regenerates' },
     { key: 'veil.rotation_hours', value: '24', description: 'Position-rotation window for procedural tears (id/tier stay fixed)' },
+    // Proximity gate (2026-08-01). Seeded because the config API
+    // refuses to CREATE keys — an unseeded tunable is a dial welded
+    // shut. Ships measuring, not refusing: gate_enforced stays false
+    // until we have real distance distributions from testers.
+    { key: 'veil.gate_radius_m', value: '80', description: 'How close (metres) a player must be to act on a tear' },
+    { key: 'veil.gate_enforced', value: 'false', description: 'Refuse out-of-range encounters. False = record the distance and allow' },
   ];
 
   for (const c of configs) {

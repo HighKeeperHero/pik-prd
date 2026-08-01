@@ -100,6 +100,46 @@ const PROC_DEFAULTS = {
   rotationHours: 24,  // position-rotation window
 };
 
+// ── Proximity gate (2026-08-01) ──────────────────────────────────
+// Rifts, fauna, convergences and partner LBE events are all going to
+// require the player to actually be somewhere. This is the authority
+// for that: the client draws a ring, but the client's lat/lon is a
+// claim, not evidence, so the distance that DECIDES anything is
+// recomputed here against the stored tear.
+//
+// Ships measuring, not refusing. `veil.gate_enforced` is seeded false:
+// every encounter records its distance and whether it would have
+// passed, and nothing is rejected until the row flips. That gives us
+// real distributions from real testers before we start telling people
+// they're standing in the wrong place.
+const GATE_DEFAULTS = {
+  /** Engagement radius in metres. Chosen against GPS reality rather
+   *  than game feel: consumer phones report ~5–15m under open sky and
+   *  30–50m in a street canyon, so a 40m gate would refuse players
+   *  standing on the target. */
+  radiusM:  80,
+  enforced: false,
+  /** Speed of sound, m/s. Generous enough that a bad fix mid-journey
+   *  isn't punished; tight enough that a spoofer hopping cities is. */
+  maxSpeedMps: 340,
+};
+
+export interface GateVerdict {
+  /** Metres from the claimed position to the stored tear, or null when
+   *  the client sent no position (older builds). */
+  distance_m: number | null;
+  radius_m:   number;
+  /** Would this have passed a live gate? Null when unknowable. */
+  in_range:   boolean | null;
+  /** Set when the move from the player's previous encounter would have
+   *  required implausible speed. Recorded even while unenforced —
+   *  it's the signal that tells us whether spoofing is happening. */
+  implausible: boolean;
+  /** True when the gate actually blocked. Always false while
+   *  veil.gate_enforced is off. */
+  enforced:   boolean;
+}
+
 /** Great-circle distance between two lat/lon points, km. */
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R    = 6371;
@@ -202,6 +242,21 @@ export class VeilService {
         xp_award:         null,
         lore_found:       null,
       };
+    }
+
+    // 0.5. Proximity. The client's lat/lon is a claim; this recomputes
+    // the distance against the stored tear and is the only version
+    // that decides anything. Runs BEFORE any grant so an enforced
+    // gate can't leave a half-written reward behind — and runs on
+    // every encounter, enforced or not, so we have real distance
+    // distributions from real testers before the gate goes live.
+    const proximity = await this.judgeGate(rootId, worldTearId, lat, lon);
+    if (proximity.enforced) {
+      throw new BadRequestException(
+        proximity.implausible
+          ? 'That journey was too fast to be real.'
+          : 'You are too far from the tear to seal it.',
+      );
     }
 
     // Sprint 28 — first-seal detection. We count prior wins BEFORE
@@ -403,6 +458,7 @@ export class VeilService {
       xp_award:          xpAward,
       lore_found:        loreFound,
       echo_found:        echoFound,
+      proximity,
     };
   }
 
@@ -809,6 +865,7 @@ export class VeilService {
 
     const band      = bandForFateLevel(fateLevel);
     const radius_km = radiusKmOverride ?? band.radius_km;
+    const { radiusM: gateRadiusM } = await this.gateConfig();
 
     // Bounding box → grid cell index ranges (same overshoot as the
     // stored path so the haversine filter doesn't clip edge tears).
@@ -893,6 +950,10 @@ export class VeilService {
       total:     selected.length,
       radius_km,
       band_mix:  band.mix,
+      // How close the player must stand to act on any of these. Sent
+      // with the tears so the client's rings and the server's check
+      // are the same number by construction, not by coincidence.
+      gate_radius_m: gateRadiusM,
     };
   }
 
@@ -908,6 +969,7 @@ export class VeilService {
   ) {
     const band      = bandForFateLevel(fateLevel);
     const radius_km = radiusKmOverride ?? band.radius_km;
+    const { radiusM: gateRadiusM } = await this.gateConfig();
 
     // Bounding-box prefilter. 1 deg lat ≈ 111 km; lon scales by cos(lat).
     // Slight overshoot via `* 1.05` so the haversine filter doesn't clip
@@ -982,6 +1044,10 @@ export class VeilService {
       total:     selected.length,
       radius_km,
       band_mix:  band.mix,
+      // How close the player must stand to act on any of these. Sent
+      // with the tears so the client's rings and the server's check
+      // are the same number by construction, not by coincidence.
+      gate_radius_m: gateRadiusM,
     };
   }
 
@@ -1023,6 +1089,85 @@ export class VeilService {
   /** True when the tear is currently sealed — procedural ids check
    *  tear_seal cooldown, legacy UUID rows check status. Unknown ids
    *  return false (legacy/unmoored encounters stay allowed). */
+  /** Live gate settings. Both keys are seeded (see prisma/seed.ts) —
+   *  the config API refuses to CREATE keys, so an unseeded tunable is
+   *  a dial welded shut. */
+  private async gateConfig(): Promise<{ radiusM: number; enforced: boolean }> {
+    const cfg = await this.config.getAll().catch(() => ({} as Record<string, unknown>));
+    const raw = cfg['veil.gate_radius_m'];
+    const enf = cfg['veil.gate_enforced'];
+    return {
+      radiusM:  typeof raw === 'number' && raw > 0 ? raw : GATE_DEFAULTS.radiusM,
+      enforced: enf === true || enf === 'true' || enf === 1,
+    };
+  }
+
+  /** Recompute the player's distance to the tear they claim to have
+   *  sealed, and judge it.
+   *
+   *  Two separate questions, both worth recording:
+   *    - are they close enough RIGHT NOW (the gate), and
+   *    - could they physically have got there from where they last
+   *      reported being (the spoofing signal)?
+   *
+   *  A tear id containing '#' is a procedural slot rather than a
+   *  stored row; those carry their coordinates in the id's cell, and
+   *  resolving them is follow-up work — until then they read as
+   *  unknowable rather than as a pass. */
+  private async judgeGate(
+    rootId: string,
+    worldTearId: string | undefined,
+    lat: number | undefined,
+    lon: number | undefined,
+  ): Promise<GateVerdict> {
+    const { radiusM, enforced } = await this.gateConfig();
+    const base: GateVerdict = {
+      distance_m: null, radius_m: radiusM, in_range: null,
+      implausible: false, enforced: false,
+    };
+    if (!worldTearId || lat == null || lon == null) return base;
+
+    const tear = worldTearId.includes('#')
+      ? null
+      : await this.prisma.worldTear.findUnique({ where: { id: worldTearId } });
+    if (!tear) return base;
+
+    const distanceM = haversineKm(lat, lon, tear.lat, tear.lon) * 1000;
+    const inRange   = distanceM <= radiusM;
+
+    // Implausible travel, measured against this hero's previous
+    // reported position. Crude by design: it needs no new table, and
+    // encounter-to-encounter is exactly the hop that matters when the
+    // reward is on the line.
+    let implausible = false;
+    const prev = await this.prisma.tearEncounter.findFirst({
+      where:   { rootId, lat: { not: null }, lon: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (prev?.lat != null && prev?.lon != null) {
+      const dtS = (Date.now() - prev.createdAt.getTime()) / 1000;
+      if (dtS > 1) {
+        const mps = (haversineKm(prev.lat, prev.lon, lat, lon) * 1000) / dtS;
+        implausible = mps > GATE_DEFAULTS.maxSpeedMps;
+      }
+    }
+
+    if (!inRange || implausible) {
+      this.logger.warn(
+        `gate ${enforced ? 'BLOCK' : 'observe'} root=${rootId} tear=${worldTearId} ` +
+        `d=${Math.round(distanceM)}m r=${radiusM}m implausible=${implausible}`,
+      );
+    }
+
+    return {
+      distance_m: Math.round(distanceM),
+      radius_m:   radiusM,
+      in_range:   inRange,
+      implausible,
+      enforced:   enforced && (!inRange || implausible),
+    };
+  }
+
   private async isTearSealed(tearId: string): Promise<boolean> {
     if (tearId.includes('#')) {
       const seal = await this.prisma.tearSeal.findUnique({ where: { tearId } });
