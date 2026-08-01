@@ -145,7 +145,20 @@ async function waterPolysFor(z: number, x: number, y: number, token: string): Pr
   return polys;
 }
 
-/** Rasterize one cell: test the CENTRE of each sub-cell. */
+/** Where inside a sub-cell we sample, as fractions of its width.
+ *  Centre plus the four corners, pulled a hair inward.
+ *
+ *  Centre-only rasterization left 5% of tears in water on the re-audit:
+ *  a 344 m sub-cell straddling a shoreline has a dry centre and a wet
+ *  half, and a tear can land anywhere in it. Blocking a sub-cell when
+ *  ANY sample is wet dilates water by up to one sub-cell, which costs
+ *  a little density along coastlines and buys not sending anyone to
+ *  stand in Elliott Bay. Err wet. */
+const SUB_SAMPLES: Array<[number, number]> = [
+  [0.5, 0.5], [0.08, 0.08], [0.92, 0.08], [0.08, 0.92], [0.92, 0.92],
+];
+
+/** Rasterize one cell. */
 async function maskForCell(cellKey: string, token: string): Promise<Uint8Array> {
   const { latIdx, lonIdx } = parseCellKey(cellKey);
   const min = cellMinCorner(latIdx, lonIdx, CELL_DEG);
@@ -153,11 +166,13 @@ async function maskForCell(cellKey: string, token: string): Promise<Uint8Array> 
   const mask = new Uint8Array(MASK_BYTES);
 
   for (let row = 0; row < MASK_DIM; row++) {
-    const lat = min.lat + (row + 0.5) * step;
     for (let col = 0; col < MASK_DIM; col++) {
-      const lon = min.lon + (col + 0.5) * step;
-      const polys = await waterPolysFor(TILE_Z, lon2tile(lon, TILE_Z), lat2tile(lat, TILE_Z), token);
-      if (polys.length && isWater(lon, lat, polys)) maskSet(mask, row, col);
+      for (const [fx, fy] of SUB_SAMPLES) {
+        const lat = min.lat + (row + fy) * step;
+        const lon = min.lon + (col + fx) * step;
+        const polys = await waterPolysFor(TILE_Z, lon2tile(lon, TILE_Z), lat2tile(lat, TILE_Z), token);
+        if (polys.length && isWater(lon, lat, polys)) { maskSet(mask, row, col); break; }
+      }
     }
   }
   return mask;
