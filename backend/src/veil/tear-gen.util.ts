@@ -79,6 +79,65 @@ export function cellMinCorner(
   return { lat: latIdx * cellDeg - 90, lon: lonIdx * cellDeg - 180 };
 }
 
+// ── Placement mask ───────────────────────────────────────────────
+// A cell is divided into MASK_DIM × MASK_DIM sub-cells; one bit each,
+// row-major from the cell's SOUTH-WEST corner (row = latitude index,
+// ascending north; col = longitude index, ascending east). A set bit
+// means "a tear must not be placed here" — water today, possibly
+// motorway corridors later.
+//
+// 16 × 16 over a 0.05° cell is ~344 m per sub-cell, which resolves the
+// water that actually caused the problem (bays, harbours, lakes and
+// the wider rivers) at 32 bytes per cell. Finer would resolve creeks
+// and cost proportionally more to build and store; coarser stops
+// seeing the East River.
+
+export const MASK_DIM = 16;
+export const MASK_BYTES = (MASK_DIM * MASK_DIM) / 8; // 32
+
+/** Bit index for a sub-cell. `col`/`row` are 0..MASK_DIM-1. */
+export function maskBitIndex(row: number, col: number): number {
+  return row * MASK_DIM + col;
+}
+
+export function maskGet(mask: Uint8Array, row: number, col: number): boolean {
+  const bit = maskBitIndex(row, col);
+  return (mask[bit >> 3] & (1 << (bit & 7))) !== 0;
+}
+
+export function maskSet(mask: Uint8Array, row: number, col: number): void {
+  const bit = maskBitIndex(row, col);
+  mask[bit >> 3] |= 1 << (bit & 7);
+}
+
+/** Is the position at fractional offsets (rx, ry) within a cell
+ *  blocked? `rx` runs west→east, `ry` south→north, both in [0,1).
+ *  A null/short mask means "we have no data here" — which must read
+ *  as ALLOWED, never as blocked, or an unmasked cell would stop
+ *  spawning entirely. */
+export function isBlocked(
+  mask: Uint8Array | null | undefined,
+  rx: number,
+  ry: number,
+): boolean {
+  if (!mask || mask.length < MASK_BYTES) return false;
+  const col = Math.min(MASK_DIM - 1, Math.max(0, Math.floor(rx * MASK_DIM)));
+  const row = Math.min(MASK_DIM - 1, Math.max(0, Math.floor(ry * MASK_DIM)));
+  return maskGet(mask, row, col);
+}
+
+/** Fraction of a cell that is blocked, 0..1. Used to report coverage
+ *  and to explain a cell that legitimately spawns nothing. */
+export function maskBlockedFraction(mask: Uint8Array | null | undefined): number {
+  if (!mask || mask.length < MASK_BYTES) return 0;
+  let bits = 0;
+  for (let i = 0; i < MASK_BYTES; i++) {
+    let b = mask[i];
+    while (b) { bits += b & 1; b >>= 1; }
+  }
+  return bits / (MASK_DIM * MASK_DIM);
+}
+
 /** Geographic center of a cell, in degrees. */
 export function cellCenter(
   latIdx: number,

@@ -904,7 +904,13 @@ export class VeilService {
       const idx = idxByKey.get(pc.cellKey);
       if (!idx) continue;
       generated = generated.concat(
-        this.tearGen.genCellTears(idx.latIdx, idx.lonIdx, pc.weight, pc.regionLabel, params, nowMs),
+        this.tearGen.genCellTears(
+          idx.latIdx, idx.lonIdx, pc.weight, pc.regionLabel, params, nowMs,
+          // Placement mask — null until this cell has been through
+          // scripts/seed-water-mask.ts, in which case the generator
+          // places exactly as it always did.
+          pc.blockMask ? new Uint8Array(pc.blockMask) : null,
+        ),
       );
     }
     const seals = await this.prisma.tearSeal.findMany({

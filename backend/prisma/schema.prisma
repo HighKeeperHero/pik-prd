@@ -1480,6 +1480,20 @@ model PopCell {
   centerLat   Float   @map("center_lat")          // cell center, for debugging / map overlays
   centerLon   Float   @map("center_lon")
 
+  // Where a tear must NOT be placed inside this cell. A 16×16 bitmap
+  // (32 bytes, row-major from the cell's SW corner) at ~344 m per
+  // sub-cell; a set bit means "don't spawn here". Written by
+  // scripts/seed-water-mask.ts.
+  //
+  // NULLABLE ON PURPOSE. 988k cells cover most of the inhabited
+  // planet and the mask is built incrementally, so an unmasked cell
+  // must keep generating exactly as it did before — degraded, never
+  // broken. Coverage is a number we watch, not a precondition.
+  blockMask   Bytes?  @map("block_mask")
+  // What built the mask, e.g. 'water@z11'. Lets a later pass widen
+  // the rule (motorway corridors) and re-mask only the stale cells.
+  blockMaskSrc String? @map("block_mask_src")
+
   @@map("pop_cell")
 }
 
