@@ -372,10 +372,14 @@ export class TrialsService {
         achieved_at: best.achievedAt.toISOString(),
       },
       // The permanent half — what this run added to the Arena itself.
+      // `tier` is what the hero HOLDS after the run, not what this run
+      // happened to grade: a sloppy re-run of a trial you already took
+      // gold on must not report back 'unproven'.
       mastery: {
-        tier:       earned,
-        tier_name:  MASTERY_NAME[earned],
+        tier:       raised ? earned : heldTier,
+        tier_name:  MASTERY_NAME[raised ? earned : heldTier],
         raised,
+        run_tier:   earned,
         held_tier:  heldTier,
         ratio:      Math.round(ratio * 1000) / 1000,
       },
