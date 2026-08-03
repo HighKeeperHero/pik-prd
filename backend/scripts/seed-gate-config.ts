@@ -30,6 +30,11 @@ const ROWS = [
     value: 'false',
     description: 'Refuse out-of-range encounters. False = record the distance and allow',
   },
+  {
+    key: 'veil.sight_radius_m',
+    value: '1200',
+    description: 'How far the Veil parts — tears and fauna beyond this are hidden by fog',
+  },
 ];
 
 async function main() {
@@ -52,7 +57,7 @@ async function main() {
   }
 
   const all = await prisma.config.findMany({
-    where:   { key: { startsWith: 'veil.gate_' } },
+    where:   { key: { in: ROWS.map((r) => r.key) } },
     orderBy: { key: 'asc' },
   });
   console.log('\nnow live:');
