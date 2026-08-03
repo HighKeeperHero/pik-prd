@@ -84,6 +84,15 @@ async function main() {
     { id: 'convergence_survived', displayName: 'CONVERGENCE SURVIVED', category: 'veil', description: 'Survived a double (T4) convergence tear' },
     // Chapter campaign titles (Quest_Chpt1-5, 2026-07-10).
     { id: 'title_awakened', displayName: 'AWAKENED', category: 'story', description: 'Completed the Remembering — Chapter I' },
+    // Arena Renown milestones (2026-08-03). Cosmetic-only — Renown
+    // buys titles, gauntlet access and the wing's art state, never
+    // combat power. An unseeded id silently grants nothing, which is
+    // exactly how the legacy_<n> titles were nearly missed.
+    { id: 'arena_proven', displayName: 'PROVEN', category: 'arena', description: 'Arena Renown 3 — the ground knows your name' },
+    { id: 'arena_contender', displayName: 'CONTENDER', category: 'arena', description: 'Arena Renown 6 — you return, and you improve' },
+    { id: 'arena_champion', displayName: 'CHAMPION', category: 'arena', description: 'Arena Renown 9 — the proving ground answers to you' },
+    { id: 'arena_undefeated', displayName: 'UNDEFEATED', category: 'arena', description: 'Arena Renown 12 — few gauntlets are left to teach you' },
+    { id: 'arena_flawless', displayName: 'FLAWLESS', category: 'arena', description: 'Arena Renown 15 — gold on every trial the Arena offers' },
     { id: 'title_tearwarden', displayName: 'TEARWARDEN', category: 'story', description: 'Weathered the Gathering Storm — Chapter II' },
   ];
 

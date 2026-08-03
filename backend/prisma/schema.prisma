@@ -21,7 +21,7 @@ datasource db {
 
 model FateAccount {
   id           String    @id @default(uuid()) @map("account_id")
-  email        String?   @unique                          
+  email        String?   @unique
   provider     String    @default("email")
   providerId   String?   @map("provider_id")
   passwordHash String?   @map("password_hash")
@@ -30,24 +30,24 @@ model FateAccount {
   createdAt    DateTime  @default(now()) @map("created_at")
   lastLoginAt  DateTime? @map("last_login_at")
 
-  heroes       RootIdentity[]
-  sessions     AccountSession[]
+  heroes   RootIdentity[]
+  sessions AccountSession[]
 
+  @@unique([provider, providerId])
   @@index([email])
-  @@unique([provider, providerId])                        
   @@map("fate_accounts")
 }
 
 model AccountSession {
-  id              String    @id @default(uuid()) @map("session_id")
-  accountId       String    @map("account_id")
-  tokenHash       String    @unique @map("token_hash")     // SHA-256 of raw token
-  selectedHeroId  String?   @map("selected_hero_id")       // null = at hero select, set after hero chosen
-  expiresAt       DateTime  @map("expires_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
+  id             String   @id @default(uuid()) @map("session_id")
+  accountId      String   @map("account_id")
+  tokenHash      String   @unique @map("token_hash") // SHA-256 of raw token
+  selectedHeroId String?  @map("selected_hero_id") // null = at hero select, set after hero chosen
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  account         FateAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  hero            RootIdentity? @relation(fields: [selectedHeroId], references: [id], onDelete: SetNull)
+  account FateAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  hero    RootIdentity? @relation(fields: [selectedHeroId], references: [id], onDelete: SetNull)
 
   @@index([tokenHash])
   @@index([accountId])
@@ -60,108 +60,109 @@ model AccountSession {
 // ============================================================
 
 model RootIdentity {
-  id            String    @id @default(uuid()) @map("root_id")
-  fateAccountId String?   @map("fate_account_id")   // FK to FateAccount (nullable for legacy)
-  heroName      String    @unique @map("hero_name")
-  fateAlignment String    @default("NONE") @map("fate_alignment")
+  id            String  @id @default(uuid()) @map("root_id")
+  fateAccountId String? @map("fate_account_id") // FK to FateAccount (nullable for legacy)
+  heroName      String  @unique @map("hero_name")
+  fateAlignment String  @default("NONE") @map("fate_alignment")
   origin        String?
   // Sprint 28 — single Fate XP per docs/canon/progression.md.
   // Drives Adventurer Rank and all content gates; combat power is
   // Resonance (gear-derived, computed, see § 3 of the canon).
-  fateXp        Int       @default(0) @map("fate_xp")
-  fateLevel     Int       @default(1) @map("fate_level")
+  fateXp        Int     @default(0) @map("fate_xp")
+  fateLevel     Int     @default(1) @map("fate_level")
   // Sprint 22.C — Job Class (selected at level 40, null until then)
-  heroClass     String?   @map("hero_class")
+  heroClass     String? @map("hero_class")
   // Phase 3a — Job progression: a JobXP track independent of Fate
   // (canon §13.4). Job Level + JobRank are DERIVED from jobXp; only
   // accrues once a Job is chosen (heroClass set at L40).
-  jobXp         Int       @default(0) @map("job_xp")
+  jobXp         Int     @default(0) @map("job_xp")
   // Phase 4 — Doctrine branch selections (canon §13.5): an array of
   // chosen branch node ids. Core nodes are implicit from Job Level;
   // definitions live in code (doctrine.catalog), so new doctrines
   // need no migration. Null/[] = nothing chosen.
-  doctrines     Json?     @map("doctrines")
+  doctrines     Json?   @map("doctrines")
 
-  echoFragments PlayerEchoFragment[]
-  enrolledBy    String    @default("self") @map("enrolled_by")
-  enrolledAt    DateTime  @default(now()) @map("enrolled_at")
-  status        String    @default("active")
-  equippedTitle String?   @map("equipped_title")
+  echoFragments        PlayerEchoFragment[]
+  enrolledBy           String               @default("self") @map("enrolled_by")
+  enrolledAt           DateTime             @default(now()) @map("enrolled_at")
+  status               String               @default("active")
+  equippedTitle        String?              @map("equipped_title")
   // Sprint 31 — Reliquary Mark (Tier 2 cosmetic evolution). The
   // Reliquary is canon-universal (every hero wears one — economy.md
   // § 2). Mark is the player's first cosmetic-as-identity hook on
   // it. NULL = unmarked (default "plain-bound" silver). Validated
   // server-side against a known-Mark allowlist.
-  relicMark     String?   @map("relic_mark")
+  relicMark            String?              @map("relic_mark")
   // Sprint 28 — Awakening narrative profile
-  region                String?
-  wound                 String?
-  calling               String?
-  virtue                String?
-  vice                  String?
+  region               String?
+  wound                String?
+  calling              String?
+  virtue               String?
+  vice                 String?
   // Sprint 33 — Character Creation appearance (streamed-scene selection:
   // { gender, ancestry, region, kit, hairstyle }). Drives the Profile portrait.
-  appearance            Json?
-  awakeningCompletedAt  DateTime? @map("awakening_completed_at")
+  appearance           Json?
+  awakeningCompletedAt DateTime?            @map("awakening_completed_at")
   // Sprint 28 — Expo push token (single token per hero in v1.0;
   // multi-device support is a separate push_devices table later).
-  pushToken             String?   @map("push_token")
-  pushUpdatedAt         DateTime? @map("push_updated_at")
+  pushToken            String?              @map("push_token")
+  pushUpdatedAt        DateTime?            @map("push_updated_at")
 
   // Relations
-  fateAccount   FateAccount?    @relation(fields: [fateAccountId], references: [id], onDelete: Cascade)
-  activeSessions AccountSession[]
-  personas      Persona[]
-  keys          AuthKey[]
-  sourceLinks   SourceLink[]
-  events        IdentityEvent[]
-  titles        UserTitle[]
-  fateMarkers   FateMarker[]
-  fateCaches    FateCache[]
-  inventory     PlayerInventory[]
-  equipment     PlayerEquipment[]
-  challenges    WebAuthnChallenge[]
-  sessions      PlayerSession[]
-  wearables     IdentityToken[]
-  quests        PlayerQuest[]
-  dailyRites    DailyRite[]
-  trainingEntries TrainingEntry[]
-  pillarProgress  PillarProgress[]
-  oaths           Oath[]
-  nexus           PlayerNexus?
-  components      PlayerComponents[]
-  veilShards      VeilShard?
-  tearEncounters  TearEncounter[]
-  pityCounters      PityCounter[]
-  warbandMemberships WarbandMembership[]
-  sentInvites        WarbandInvite[]     @relation("InviteSender")
-  foundedWarbands    Warband[]
+  fateAccount              FateAccount?              @relation(fields: [fateAccountId], references: [id], onDelete: Cascade)
+  activeSessions           AccountSession[]
+  personas                 Persona[]
+  keys                     AuthKey[]
+  sourceLinks              SourceLink[]
+  events                   IdentityEvent[]
+  titles                   UserTitle[]
+  fateMarkers              FateMarker[]
+  fateCaches               FateCache[]
+  inventory                PlayerInventory[]
+  equipment                PlayerEquipment[]
+  challenges               WebAuthnChallenge[]
+  sessions                 PlayerSession[]
+  wearables                IdentityToken[]
+  quests                   PlayerQuest[]
+  dailyRites               DailyRite[]
+  trainingEntries          TrainingEntry[]
+  pillarProgress           PillarProgress[]
+  oaths                    Oath[]
+  nexus                    PlayerNexus?
+  components               PlayerComponents[]
+  veilShards               VeilShard?
+  tearEncounters           TearEncounter[]
+  pityCounters             PityCounter[]
+  warbandMemberships       WarbandMembership[]
+  sentInvites              WarbandInvite[]           @relation("InviteSender")
+  foundedWarbands          Warband[]
   convergenceContributions ConvergenceContribution[]
-  landmarkDiscoveries      LandmarkDiscovery[]         // Sprint 25
-  sanctumState             SanctumState?               // Sprint 28 — iOS daily ritual
-  iapPurchases             IapPurchase[]               // Sprint 28 — iOS IAP transactions
-  fateFox                  FateFox?                    // Sprint 31 — Fate Fox companion (one per hero)
-  memoria                  PlayerMemoria[]             // Sprint 32 — Memoria identity-collection
-  sealedTears              WorldTear[]                 // Sprint 29 — Arc B geo-aware rifts
-  loreFinds                HeroLore[]                  // 2026-07-06 — Lore Archive collection
-  runSeats                 RunParticipant[]            // HEP Phase 2 Slice 1 — venue experience runs
-  trialBests               TrialBest[]                 // 2026-07-30 — Arena trials (seasonal score-attack)
-  attributeProgress        AttributeProgress[]         // 2026-07-30 — Legacy Development attributes
-  feedback                 Feedback[]                  // 2026-07-31 — closed-alpha feedback + bug reports
+  landmarkDiscoveries      LandmarkDiscovery[] // Sprint 25
+  sanctumState             SanctumState? // Sprint 28 — iOS daily ritual
+  iapPurchases             IapPurchase[] // Sprint 28 — iOS IAP transactions
+  fateFox                  FateFox? // Sprint 31 — Fate Fox companion (one per hero)
+  memoria                  PlayerMemoria[] // Sprint 32 — Memoria identity-collection
+  sealedTears              WorldTear[] // Sprint 29 — Arc B geo-aware rifts
+  loreFinds                HeroLore[] // 2026-07-06 — Lore Archive collection
+  runSeats                 RunParticipant[] // HEP Phase 2 Slice 1 — venue experience runs
+  trialBests               TrialBest[] // 2026-07-30 — Arena trials (seasonal score-attack)
+  trialMastery             TrialMastery[]
+  attributeProgress        AttributeProgress[] // 2026-07-30 — Legacy Development attributes
+  feedback                 Feedback[] // 2026-07-31 — closed-alpha feedback + bug reports
 
   @@index([fateAccountId])
   @@map("root_identities")
 }
 
 model Persona {
-  id            String    @id @default(uuid()) @map("persona_id")
-  rootId        String    @map("root_id")
-  displayName   String    @map("display_name")
-  metadata      Json?
-  status        String    @default("active")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @map("persona_id")
+  rootId      String   @map("root_id")
+  displayName String   @map("display_name")
+  metadata    Json?
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  root          RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId])
   @@map("personas")
@@ -172,36 +173,36 @@ model Persona {
 // ============================================================
 
 model AuthKey {
-  id              String    @id @default(uuid()) @map("key_id")
-  rootId          String    @map("root_id")
-  credentialId    String    @unique @map("credential_id")
-  publicKey       Bytes     @map("public_key")
-  counter         BigInt    @default(0)
-  deviceType      String?   @map("device_type")
-  backedUp        Boolean   @default(false)
-  transports      String[]  @default([])
-  friendlyName    String?   @map("friendly_name")
-  status          String    @default("active")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  revokedAt       DateTime? @map("revoked_at")
-  lastUsedAt      DateTime? @map("last_used_at")
+  id           String    @id @default(uuid()) @map("key_id")
+  rootId       String    @map("root_id")
+  credentialId String    @unique @map("credential_id")
+  publicKey    Bytes     @map("public_key")
+  counter      BigInt    @default(0)
+  deviceType   String?   @map("device_type")
+  backedUp     Boolean   @default(false)
+  transports   String[]  @default([])
+  friendlyName String?   @map("friendly_name")
+  status       String    @default("active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  revokedAt    DateTime? @map("revoked_at")
+  lastUsedAt   DateTime? @map("last_used_at")
 
-  root            RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId, status])
   @@map("auth_keys")
 }
 
 model WebAuthnChallenge {
-  id          String    @id @default(uuid())
-  rootId      String?   @map("root_id")
-  challenge   String    @unique
-  type        String
-  metadata    Json?
-  expiresAt   DateTime  @map("expires_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  rootId    String?  @map("root_id")
+  challenge String   @unique
+  type      String
+  metadata  Json?
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  root        RootIdentity? @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity? @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([challenge])
   @@index([expiresAt])
@@ -210,11 +211,11 @@ model WebAuthnChallenge {
 
 // Legacy session tokens — kept for operator impersonation compatibility
 model SessionToken {
-  id          String    @id @default(uuid()) @map("token_id")
-  rootId      String    @map("root_id")
-  tokenHash   String    @unique @map("token_hash")
-  expiresAt   DateTime  @map("expires_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid()) @map("token_id")
+  rootId    String   @map("root_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([tokenHash])
   @@index([expiresAt])
@@ -226,19 +227,19 @@ model SessionToken {
 // ============================================================
 
 model IdentityToken {
-  id          String    @id @default(uuid()) @map("token_id")
-  rootId      String    @map("root_id")
-  tokenType   String    @map("token_type")
-  tokenUid    String    @unique @map("token_uid")
-  friendlyName String?  @map("friendly_name")
-  status      String    @default("active")
-  issuedAt    DateTime  @default(now()) @map("issued_at")
-  expiresAt   DateTime? @map("expires_at")
-  lastTapAt   DateTime? @map("last_tap_at")
-  tapCount    Int       @default(0) @map("tap_count")
-  metadata    Json?
+  id           String    @id @default(uuid()) @map("token_id")
+  rootId       String    @map("root_id")
+  tokenType    String    @map("token_type")
+  tokenUid     String    @unique @map("token_uid")
+  friendlyName String?   @map("friendly_name")
+  status       String    @default("active")
+  issuedAt     DateTime  @default(now()) @map("issued_at")
+  expiresAt    DateTime? @map("expires_at")
+  lastTapAt    DateTime? @map("last_tap_at")
+  tapCount     Int       @default(0) @map("tap_count")
+  metadata     Json?
 
-  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId])
   @@index([status])
@@ -250,29 +251,29 @@ model IdentityToken {
 // ============================================================
 
 model Source {
-  id          String    @id @map("source_id")
-  name        String    @map("source_name")
-  apiKeyHash  String    @map("api_key_hash")
-  status      String    @default("active")
-  sourceType  String    @default("venue") @map("source_type")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id         String   @id @map("source_id")
+  name       String   @map("source_name")
+  apiKeyHash String   @map("api_key_hash")
+  status     String   @default("active")
+  sourceType String   @default("venue") @map("source_type")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   /// Partner-level capability ceiling (space-delimited, same vocabulary as
   /// SourceLink.scope). A partner can never write outside these, even if a
   /// player's consent grant is broader — the effective scope is the
   /// intersection of the two. Defaults to the full progression set so
   /// existing venues keep working after the Phase 2 Slice 0 migration.
-  scopes      String    @default("xp fate_markers titles")
+  scopes String @default("xp fate_markers titles")
 
   /// Venue-editable descriptive fields (contact, address, hours, timezone,
   /// geo). Deliberately separate from `scopes` and `status`, which are the
   /// commercial terms of the partnership and belong to Heroes — a venue
   /// editing its own scopes would be self-granting.
-  profile     Json      @default("{}")
+  profile Json @default("{}")
 
-  sourceLinks SourceLink[]
-  fateCaches  FateCache[]
-  ingestReceipts IngestReceipt[]
+  sourceLinks      SourceLink[]
+  fateCaches       FateCache[]
+  ingestReceipts   IngestReceipt[]
   venueExperiences VenueExperience[]
   experienceRuns   ExperienceRun[]
   staff            VenueStaff[]
@@ -295,20 +296,20 @@ model Source {
 
 /// A person at one venue.
 model VenueStaff {
-  id           String    @id @default(uuid()) @map("staff_id")
-  sourceId     String    @map("source_id")
-  email        String
+  id            String    @id @default(uuid()) @map("staff_id")
+  sourceId      String    @map("source_id")
+  email         String
   /// Null while status = 'invited' — set when the invite is accepted.
-  passwordHash String?   @map("password_hash")
-  displayName  String?   @map("display_name")
+  passwordHash  String?   @map("password_hash")
+  displayName   String?   @map("display_name")
   /// owner | manager | operator | viewer — see src/portal/roles.ts
-  role         String    @default("viewer")
+  role          String    @default("viewer")
   /// active | invited | suspended
-  status       String    @default("invited")
+  status        String    @default("invited")
   /// "staff:<id>" of the inviter, or "platform" for the founding owner.
-  invitedBy    String?   @map("invited_by")
+  invitedBy     String?   @map("invited_by")
   /// Single-use invite credential, hashed. Cleared once accepted.
-  inviteHash   String?   @unique @map("invite_hash")
+  inviteHash    String?   @unique @map("invite_hash")
   inviteExpires DateTime? @map("invite_expires")
 
   /// Single-use password-reset credential, hashed. Cleared once used.
@@ -319,13 +320,13 @@ model VenueStaff {
   /// thing standing between an unaccepted invite token and a password
   /// reset on a live account. Two columns cost one additive migration and
   /// remove the question.
-  resetHash    String?   @unique @map("reset_hash")
-  resetExpires DateTime? @map("reset_expires")
+  resetHash        String?   @unique @map("reset_hash")
+  resetExpires     DateTime? @map("reset_expires")
   /// Throttles resend, so /auth/forgot cannot be used to mailbomb a member.
   resetRequestedAt DateTime? @map("reset_requested_at")
 
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   source   Source              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   sessions VenueStaffSession[]
@@ -386,19 +387,19 @@ model VenueAuditEntry {
 /// A canonical, Heroes-authored experience. Partners configure which of these
 /// they may run; they never author one (Phase 2 brief: "Canonical Experiences").
 model Experience {
-  id                String   @id @default(uuid()) @map("experience_id")
-  slug              String   @unique
+  id                String  @id @default(uuid()) @map("experience_id")
+  slug              String  @unique
   name              String
   description       String?
   /// Bumped when the reward bundle or content changes. Copied onto each run so
   /// analytics stay attributable after a revision.
-  version           Int      @default(1)
-  minPlayers        Int      @default(1) @map("min_players")
-  maxPlayers        Int      @default(6) @map("max_players")
-  targetDurationSec Int      @default(1200) @map("target_duration_sec")
+  version           Int     @default(1)
+  minPlayers        Int     @default(1) @map("min_players")
+  maxPlayers        Int     @default(6) @map("max_players")
+  targetDurationSec Int     @default(1200) @map("target_duration_sec")
   /// Reward bundle AND its scaling constants. Deliberately data, not code:
   /// retuning payouts is a DB edit, never a deploy. See docs/hep/slice-1-scope.md §3/§4.
-  rewards           Json     @default("{}")
+  rewards           Json    @default("{}")
 
   /// Spatial requirements — what this experience needs from a room
   /// (Workstream 4): requiredAnchors, requiredZones, clearance, player
@@ -407,7 +408,7 @@ model Experience {
   ///
   /// Data, not code, exactly as `rewards` is: a partner revising a
   /// placement must not need a deploy.
-  manifest          Json     @default("{}")
+  manifest              Json @default("{}")
   /// Schema version of `manifest` itself, NOT of the experience.
   ///
   /// The spec versions the experience but not the schema an external team
@@ -416,9 +417,9 @@ model Experience {
   /// evolve the manifest without breaking a client we do not control.
   manifestSchemaVersion Int  @default(1) @map("manifest_schema_version")
 
-  status            String   @default("active")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   venueAssignments VenueExperience[]
   runs             ExperienceRun[]
@@ -450,28 +451,28 @@ model VenueExperience {
 /// against (completion rate, session duration, technical failures). A party
 /// completes or fails together; rewards land per participant.
 model ExperienceRun {
-  id                String   @id @default(uuid()) @map("run_id")
-  sourceId          String   @map("source_id")
-  experienceId      String   @map("experience_id")
-  experienceVersion Int      @map("experience_version")
+  id                String    @id @default(uuid()) @map("run_id")
+  sourceId          String    @map("source_id")
+  experienceId      String    @map("experience_id")
+  experienceVersion Int       @map("experience_version")
   /// Partner-supplied idempotency key for the run (their own session id).
-  partnerRunKey     String   @map("partner_run_key")
+  partnerRunKey     String    @map("partner_run_key")
   /// active | completed | failed | abandoned
-  status            String   @default("active")
-  startedAt         DateTime @default(now()) @map("started_at")
-  lastHeartbeat     DateTime @default(now()) @map("last_heartbeat")
+  status            String    @default("active")
+  startedAt         DateTime  @default(now()) @map("started_at")
+  lastHeartbeat     DateTime  @default(now()) @map("last_heartbeat")
   endedAt           DateTime? @map("ended_at")
-  durationSec       Int?     @map("duration_sec")
+  durationSec       Int?      @map("duration_sec")
   /// Milestone timestamps the venue runtime reports; drives the payout bonus.
-  milestonesHit     Int      @default(0) @map("milestones_hit")
+  milestonesHit     Int       @default(0) @map("milestones_hit")
   /// Computed payout multiplier, persisted so a retune cannot rewrite history.
-  payoutMultiplier  Float?   @map("payout_multiplier")
-  failureReason     String?  @map("failure_reason")
+  payoutMultiplier  Float?    @map("payout_multiplier")
+  failureReason     String?   @map("failure_reason")
   outcome           Json?
 
-  source       Source           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  experience   Experience       @relation(fields: [experienceId], references: [id])
-  participants RunParticipant[]
+  source         Source           @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  experience     Experience       @relation(fields: [experienceId], references: [id])
+  participants   RunParticipant[]
   spatialMetrics SpatialMetric[]
 
   @@unique([sourceId, partnerRunKey])
@@ -487,21 +488,21 @@ model ExperienceRun {
 /// walk-ins, and it is what lets all three arrival paths (existing player,
 /// guest, on-site enrollment) share one mechanism.
 model RunParticipant {
-  id          String   @id @default(uuid()) @map("participant_id")
-  runId       String   @map("run_id")
+  id          String    @id @default(uuid()) @map("participant_id")
+  runId       String    @map("run_id")
   /// Null for a guest seat until (and unless) a claim binds it to a hero.
-  rootId      String?  @map("root_id")
+  rootId      String?   @map("root_id")
   /// Venue-facing label for an unidentified seat ("Player 3", a wristband id).
-  guestLabel  String?  @map("guest_label")
-  sessionId   String?  @map("session_id")
+  guestLabel  String?   @map("guest_label")
+  sessionId   String?   @map("session_id")
   role        String?
   /// The computed bundle for this seat. Held here while pending so a guest's
   /// rewards survive until they create an account.
-  rewards     Json     @default("{}")
+  rewards     Json      @default("{}")
   /// applied | pending | expired | skipped
-  rewardState String   @default("pending") @map("reward_state")
+  rewardState String    @default("pending") @map("reward_state")
   appliedAt   DateTime? @map("applied_at")
-  joinedAt    DateTime @default(now()) @map("joined_at")
+  joinedAt    DateTime  @default(now()) @map("joined_at")
 
   run   ExperienceRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   root  RootIdentity? @relation(fields: [rootId], references: [id], onDelete: Cascade)
@@ -551,21 +552,21 @@ model GuestClaim {
 ///
 /// Mirrors the IAP transactionId dedup pattern (src/iap/iap.service.ts).
 model IngestReceipt {
-  id         String   @id @default(uuid()) @map("receipt_id")
-  sourceId   String   @map("source_id")
+  id        String   @id @default(uuid()) @map("receipt_id")
+  sourceId  String   @map("source_id")
   /// Partner-supplied idempotency key, unique within that partner.
-  eventKey   String   @map("event_key")
-  rootId     String   @map("root_id")
-  eventType  String   @map("event_type")
+  eventKey  String   @map("event_key")
+  rootId    String   @map("root_id")
+  eventType String   @map("event_type")
   /// "processing" while the first request is still applying rewards,
   /// "completed" once the response is stored. A retry that arrives during
   /// "processing" is rejected with 409 rather than racing the original.
-  status     String   @default("processing")
+  status    String   @default("processing")
   /// The full response body returned the first time, replayed on retry.
-  response   Json     @default("{}")
-  createdAt  DateTime @default(now()) @map("created_at")
+  response  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  source     Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@unique([sourceId, eventKey])
   @@index([rootId, createdAt])
@@ -573,18 +574,18 @@ model IngestReceipt {
 }
 
 model SourceLink {
-  id          String    @id @default(uuid()) @map("link_id")
-  rootId      String    @map("root_id")
-  sourceId    String    @map("source_id")
-  scope       String    @default("xp fate_markers titles")
-  grantedBy   String    @map("granted_by")
-  grantedAt   DateTime  @default(now()) @map("granted_at")
-  revokedAt   DateTime? @map("revoked_at")
-  revokedBy   String?   @map("revoked_by")
-  status      String    @default("active")
+  id        String    @id @default(uuid()) @map("link_id")
+  rootId    String    @map("root_id")
+  sourceId  String    @map("source_id")
+  scope     String    @default("xp fate_markers titles")
+  grantedBy String    @map("granted_by")
+  grantedAt DateTime  @default(now()) @map("granted_at")
+  revokedAt DateTime? @map("revoked_at")
+  revokedBy String?   @map("revoked_by")
+  status    String    @default("active")
 
-  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  source      Source       @relation(fields: [sourceId], references: [id])
+  root   RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  source Source       @relation(fields: [sourceId], references: [id])
 
   @@index([rootId, sourceId, status])
   @@map("source_links")
@@ -595,15 +596,15 @@ model SourceLink {
 // ============================================================
 
 model IdentityEvent {
-  id          String    @id @default(uuid()) @map("event_id")
-  rootId      String    @map("root_id")
-  eventType   String    @map("event_type")
-  sourceId    String?   @map("source_id")
-  payload     Json      @default("{}")
-  changes     Json?     @map("changes_applied")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid()) @map("event_id")
+  rootId    String   @map("root_id")
+  eventType String   @map("event_type")
+  sourceId  String?  @map("source_id")
+  payload   Json     @default("{}")
+  changes   Json?    @map("changes_applied")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId, createdAt])
   @@index([eventType])
@@ -616,38 +617,38 @@ model IdentityEvent {
 // ============================================================
 
 model Title {
-  id            String    @id @map("title_id")
-  displayName   String    @map("display_name")
-  description   String?
-  category      String?
+  id          String  @id @map("title_id")
+  displayName String  @map("display_name")
+  description String?
+  category    String?
 
-  userTitles    UserTitle[]
+  userTitles UserTitle[]
 
   @@map("titles")
 }
 
 model UserTitle {
-  id          String    @id @default(uuid())
-  rootId      String    @map("root_id")
-  titleId     String    @map("title_id")
-  grantedAt   DateTime  @default(now()) @map("granted_at")
-  sourceId    String?   @map("source_id")
+  id        String   @id @default(uuid())
+  rootId    String   @map("root_id")
+  titleId   String   @map("title_id")
+  grantedAt DateTime @default(now()) @map("granted_at")
+  sourceId  String?  @map("source_id")
 
-  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  title       Title        @relation(fields: [titleId], references: [id])
+  root  RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  title Title        @relation(fields: [titleId], references: [id])
 
   @@unique([rootId, titleId])
   @@map("user_titles")
 }
 
 model FateMarker {
-  id          String    @id @default(uuid())
-  rootId      String    @map("root_id")
-  marker      String
-  sourceId    String?   @map("source_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  rootId    String   @map("root_id")
+  marker    String
+  sourceId  String?  @map("source_id")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  root        RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId])
   @@map("fate_markers")
@@ -658,14 +659,14 @@ model FateMarker {
 // ============================================================
 
 model LootTable {
-  id          String  @id @default(uuid()) @map("loot_table_id")
-  cacheType   String  @map("cache_type")
-  rewardType  String  @map("reward_type")
-  rewardValue String  @map("reward_value")
-  displayName String  @map("display_name")
-  weight      Int     @default(100)
-  rarityTier  String  @default("common") @map("rarity_tier")
-  minLevel    Int     @default(1) @map("min_level")
+  id          String @id @default(uuid()) @map("loot_table_id")
+  cacheType   String @map("cache_type")
+  rewardType  String @map("reward_type")
+  rewardValue String @map("reward_value")
+  displayName String @map("display_name")
+  weight      Int    @default(100)
+  rarityTier  String @default("common") @map("rarity_tier")
+  minLevel    Int    @default(1) @map("min_level")
 
   @@index([cacheType])
   @@map("loot_table")
@@ -717,7 +718,7 @@ model GearItem {
   slotBudget  Int?     @map("slot_budget")
   baseItemId  String?  @map("base_item_id")
 
-  inventory   PlayerInventory[]
+  inventory PlayerInventory[]
 
   @@index([slot])
   @@index([rarityTier])
@@ -727,29 +728,29 @@ model GearItem {
 }
 
 model PlayerInventory {
-  id          String    @id @default(uuid()) @map("inventory_id")
-  rootId      String    @map("root_id")
-  itemId      String    @map("item_id")
-  acquiredVia String    @default("cache") @map("acquired_via")
-  acquiredAt  DateTime  @default(now()) @map("acquired_at")
+  id          String   @id @default(uuid()) @map("inventory_id")
+  rootId      String   @map("root_id")
+  itemId      String   @map("item_id")
+  acquiredVia String   @default("cache") @map("acquired_via")
+  acquiredAt  DateTime @default(now()) @map("acquired_at")
 
-  root        RootIdentity   @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  item        GearItem       @relation(fields: [itemId], references: [id])
-  equipment   PlayerEquipment?
+  root      RootIdentity     @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  item      GearItem         @relation(fields: [itemId], references: [id])
+  equipment PlayerEquipment?
 
   @@index([rootId])
   @@map("player_inventory")
 }
 
 model PlayerEquipment {
-  id          String    @id @default(uuid()) @map("equipment_id")
-  rootId      String    @map("root_id")
+  id          String   @id @default(uuid()) @map("equipment_id")
+  rootId      String   @map("root_id")
   slot        String
-  inventoryId String    @unique @map("inventory_id")
-  equippedAt  DateTime  @default(now()) @map("equipped_at")
+  inventoryId String   @unique @map("inventory_id")
+  equippedAt  DateTime @default(now()) @map("equipped_at")
 
-  root        RootIdentity    @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  inventory   PlayerInventory @relation(fields: [inventoryId], references: [id])
+  root      RootIdentity    @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  inventory PlayerInventory @relation(fields: [inventoryId], references: [id])
 
   @@unique([rootId, slot])
   @@map("player_equipment")
@@ -771,7 +772,7 @@ model PlayerSession {
   durationSec   Int?      @map("duration_sec")
   summary       Json?
 
-  root   RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId])
   @@index([status])
@@ -785,27 +786,27 @@ model PlayerSession {
 // ============================================================
 
 model QuestTemplate {
-  id          String    @id @default(uuid()) @map("quest_id")
-  slug        String?   @unique
+  id          String   @id @default(uuid()) @map("quest_id")
+  slug        String?  @unique
   name        String
   description String?
-  questType   String    @map("quest_type")
+  questType   String   @map("quest_type")
   // cadence: 'venue' (legacy Sprint 7.3 board) | 'daily' | 'weekly' | 'story'
-  cadence     String    @default("venue")
+  cadence     String   @default("venue")
   // story chains: chainKey groups steps, chainStep orders them;
   // step n+1 materializes when step n is claimed
-  chainKey    String?   @map("chain_key")
-  chainStep   Int?      @map("chain_step")
+  chainKey    String?  @map("chain_key")
+  chainStep   Int?     @map("chain_step")
   // tag feeds external counters (e.g. 'forge_work' → Forge restoration points)
   tag         String?
   objectives  Json
   rewards     Json
-  minLevel    Int       @default(1) @map("min_level")
-  maxLevel    Int?      @map("max_level")
-  sourceId    String?   @map("source_id")
-  sortOrder   Int       @default(0) @map("sort_order")
-  status      String    @default("active")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  minLevel    Int      @default(1) @map("min_level")
+  maxLevel    Int?     @map("max_level")
+  sourceId    String?  @map("source_id")
+  sortOrder   Int      @default(0) @map("sort_order")
+  status      String   @default("active")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   playerQuests PlayerQuest[]
 
@@ -829,8 +830,8 @@ model PlayerQuest {
   completedAt DateTime? @map("completed_at")
   claimedAt   DateTime? @map("claimed_at")
 
-  root     RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  quest    QuestTemplate @relation(fields: [questId], references: [id], onDelete: Cascade)
+  root  RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  quest QuestTemplate @relation(fields: [questId], references: [id], onDelete: Cascade)
 
   @@unique([rootId, questId, periodKey])
   @@index([rootId, status])
@@ -844,10 +845,10 @@ model PlayerQuest {
 // ============================================================
 
 model Config {
-  key         String    @id @map("config_key")
-  value       String    @map("config_value")
+  key         String   @id @map("config_key")
+  value       String   @map("config_value")
   description String?
-  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("config")
 }
@@ -859,15 +860,15 @@ model Config {
 // Seeded once — operator can add more over time.
 model RiteTemplate {
   id          String  @id @default(uuid()) @map("rite_template_id")
-  pillar      String                        // forge | lore | veil
-  title       String                        // "Complete 20 min of cardio"
-  description String?                       // Flavour text
-  loreText    String? @map("lore_text")     // In-world framing
+  pillar      String // forge | lore | veil
+  title       String // "Complete 20 min of cardio"
+  description String? // Flavour text
+  loreText    String? @map("lore_text") // In-world framing
   xpBase      Int     @default(50) @map("xp_base")
-  difficulty  String  @default("standard")  // easy | standard | hard
-  status      String  @default("active")    // active | retired
+  difficulty  String  @default("standard") // easy | standard | hard
+  status      String  @default("active") // active | retired
 
-  dailyRites  DailyRite[]
+  dailyRites DailyRite[]
 
   @@index([pillar, status])
   @@map("rite_templates")
@@ -876,36 +877,36 @@ model RiteTemplate {
 // A hero's generated daily rites for a specific date.
 // Created on first GET /api/training/daily/:rootId for that day.
 model DailyRite {
-  id           String    @id @default(uuid()) @map("daily_rite_id")
-  rootId       String    @map("root_id")
-  templateId   String    @map("template_id")
-  dateKey      String    @map("date_key")      // "2026-03-08" UTC date string
-  pillar       String                           // forge | lore | veil (denorm for query speed)
-  status       String    @default("pending")   // pending | completed | skipped
-  completedAt  DateTime? @map("completed_at")
-  xpGranted    Int?      @map("xp_granted")    // Set on completion
+  id          String    @id @default(uuid()) @map("daily_rite_id")
+  rootId      String    @map("root_id")
+  templateId  String    @map("template_id")
+  dateKey     String    @map("date_key") // "2026-03-08" UTC date string
+  pillar      String // forge | lore | veil (denorm for query speed)
+  status      String    @default("pending") // pending | completed | skipped
+  completedAt DateTime? @map("completed_at")
+  xpGranted   Int?      @map("xp_granted") // Set on completion
 
-  root         RootIdentity  @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  template     RiteTemplate  @relation(fields: [templateId], references: [id])
+  root     RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  template RiteTemplate @relation(fields: [templateId], references: [id])
 
-  @@unique([rootId, dateKey, pillar])           // One rite per pillar per day
+  @@unique([rootId, dateKey, pillar]) // One rite per pillar per day
   @@index([rootId, dateKey])
   @@map("daily_rites")
 }
 
 // Individual training log entries (the Chronicle).
 model TrainingEntry {
-  id           String    @id @default(uuid()) @map("entry_id")
-  rootId       String    @map("root_id")
-  pillar       String                           // forge | lore | veil
-  activityType String    @map("activity_type")  // workout | cardio | sport | reading | writing | meditation | prayer | service | other
-  durationMin  Int?      @map("duration_min")
+  id           String   @id @default(uuid()) @map("entry_id")
+  rootId       String   @map("root_id")
+  pillar       String // forge | lore | veil
+  activityType String   @map("activity_type") // workout | cardio | sport | reading | writing | meditation | prayer | service | other
+  durationMin  Int?     @map("duration_min")
   notes        String?
-  xpGranted    Int       @default(0) @map("xp_granted")
-  dailyRiteId  String?   @map("daily_rite_id")  // Linked rite if this was a rite completion
-  createdAt    DateTime  @default(now()) @map("created_at")
+  xpGranted    Int      @default(0) @map("xp_granted")
+  dailyRiteId  String?  @map("daily_rite_id") // Linked rite if this was a rite completion
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@index([rootId, createdAt])
   @@index([rootId, pillar])
@@ -914,16 +915,16 @@ model TrainingEntry {
 
 // Per-hero pillar XP tracking (separate from fate_xp).
 model PillarProgress {
-  id           String    @id @default(uuid()) @map("pillar_progress_id")
-  rootId       String    @map("root_id")
-  pillar       String                           // forge | lore | veil
-  xp           Int       @default(0)
-  level        Int       @default(1)
-  streak       Int       @default(0)            // Current day streak
-  longestStreak Int      @default(0) @map("longest_streak")
+  id             String    @id @default(uuid()) @map("pillar_progress_id")
+  rootId         String    @map("root_id")
+  pillar         String // forge | lore | veil
+  xp             Int       @default(0)
+  level          Int       @default(1)
+  streak         Int       @default(0) // Current day streak
+  longestStreak  Int       @default(0) @map("longest_streak")
   lastActivityAt DateTime? @map("last_activity_at")
 
-  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@unique([rootId, pillar])
   @@index([rootId])
@@ -932,18 +933,18 @@ model PillarProgress {
 
 // Weekly oath declarations.
 model Oath {
-  id           String    @id @default(uuid()) @map("oath_id")
-  rootId       String    @map("root_id")
-  pillar       String                           // forge | lore | veil
-  declaration  String                           // Free text — what they commit to
-  weekOf       String    @map("week_of")        // ISO week start "2026-03-04"
-  status       String    @default("pending")   // pending | kept | broken
-  resolvedAt   DateTime? @map("resolved_at")
-  xpGranted    Int?      @map("xp_granted")
+  id          String    @id @default(uuid()) @map("oath_id")
+  rootId      String    @map("root_id")
+  pillar      String // forge | lore | veil
+  declaration String // Free text — what they commit to
+  weekOf      String    @map("week_of") // ISO week start "2026-03-04"
+  status      String    @default("pending") // pending | kept | broken
+  resolvedAt  DateTime? @map("resolved_at")
+  xpGranted   Int?      @map("xp_granted")
 
-  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
-  @@unique([rootId, weekOf])                    // One oath per hero per week
+  @@unique([rootId, weekOf]) // One oath per hero per week
   @@index([rootId, status])
   @@map("oaths")
 }
@@ -955,21 +956,21 @@ model Oath {
 // cadence, different resource economy). Rolls over by UTC date.
 // ============================================================
 model SanctumState {
-  rootId             String    @id @map("root_id")
-  veilEssence        Int       @default(0) @map("veil_essence")
-  lastHearthClaim    String?   @map("last_hearth_claim")    // 'YYYY-MM-DD' UTC
-  oathTodayDate      String?   @map("oath_today_date")       // 'YYYY-MM-DD' UTC
-  oathTodayOption    String?   @map("oath_today_option")     // 'forge' | 'lore' | 'veil'
-  totalHearthClaims  Int       @default(0) @map("total_hearth_claims")
-  totalOathsSworn    Int       @default(0) @map("total_oaths_sworn")
+  rootId            String   @id @map("root_id")
+  veilEssence       Int      @default(0) @map("veil_essence")
+  lastHearthClaim   String?  @map("last_hearth_claim") // 'YYYY-MM-DD' UTC
+  oathTodayDate     String?  @map("oath_today_date") // 'YYYY-MM-DD' UTC
+  oathTodayOption   String?  @map("oath_today_option") // 'forge' | 'lore' | 'veil'
+  totalHearthClaims Int      @default(0) @map("total_hearth_claims")
+  totalOathsSworn   Int      @default(0) @map("total_oaths_sworn")
   // Sprint 30 — daily Veil Trial (snackable 60s minigame).
   // last_trial_complete gates one-per-day, mirroring Hearth's pattern.
-  lastTrialComplete  String?   @map("last_trial_complete")   // 'YYYY-MM-DD' UTC
-  totalTrials        Int       @default(0) @map("total_trials")
-  bestTrialScore     Int       @default(0) @map("best_trial_score")
+  lastTrialComplete String?  @map("last_trial_complete") // 'YYYY-MM-DD' UTC
+  totalTrials       Int      @default(0) @map("total_trials")
+  bestTrialScore    Int      @default(0) @map("best_trial_score")
   // Sprint 30 Slice 5.2 — daily Augury Draw (3-card weighted reveal).
-  lastAuguryDate     String?   @map("last_augury_date")      // 'YYYY-MM-DD' UTC
-  totalAuguries      Int       @default(0) @map("total_auguries")
+  lastAuguryDate    String?  @map("last_augury_date") // 'YYYY-MM-DD' UTC
+  totalAuguries     Int      @default(0) @map("total_auguries")
   // 2026-07-06 — committed restoration levels. Progress POINTS are
   // computed from lifetime counters (never stored); committing a
   // level is an explicit player action (the UPGRADE button),
@@ -977,14 +978,14 @@ model SanctumState {
   // points thresholds + wing-level prerequisites. Hearth/Altar
   // columns are reserved — their progression tracks ship with
   // their interiors.
-  sanctumLevel       Int       @default(1) @map("sanctum_level")
-  libraryLevel       Int       @default(1) @map("library_level")
-  forgeLevel         Int       @default(1) @map("forge_level")
-  hearthLevel        Int       @default(1) @map("hearth_level")
-  altarLevel         Int       @default(1) @map("altar_level")
-  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+  sanctumLevel      Int      @default(1) @map("sanctum_level")
+  libraryLevel      Int      @default(1) @map("library_level")
+  forgeLevel        Int      @default(1) @map("forge_level")
+  hearthLevel       Int      @default(1) @map("hearth_level")
+  altarLevel        Int      @default(1) @map("altar_level")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
-  root         RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@map("sanctum_state")
 }
@@ -1001,26 +1002,26 @@ model SanctumState {
 // rootId is @unique because each hero bonds exactly one Fox for life.
 // ============================================================
 model FateFox {
-  id        String   @id @default(uuid()) @map("fox_id")
-  rootId    String   @unique @map("root_id")
-  name      String
-  bondedAt  DateTime @default(now()) @map("bonded_at")
+  id       String   @id @default(uuid()) @map("fox_id")
+  rootId   String   @unique @map("root_id")
+  name     String
+  bondedAt DateTime @default(now()) @map("bonded_at")
 
   // ── The Calling (2026-07-09) — the fox is REVEALED, not built.
   // Virtue scoring assigns the archetype; the archetype fixes the
   // immutable physical traits; the player customizes expression
   // only (canon: the game chooses the soul, the player chooses
   // the expression, the journey shapes the legend).
-  archetype         String?   // guardian|seeker|sage|ember|hearth|warden
+  archetype         String? // guardian|seeker|sage|ember|hearth|warden
   virtueProfile     Json?     @map("virtue_profile")
   immutableTraits   Json?     @map("immutable_traits")
-  customization     Json?     // furPrimary/furSecondary/eyeColor/collar/pendant/auraColor
+  customization     Json? // furPrimary/furSecondary/eyeColor/collar/pendant/auraColor
   bondLevel         Int       @default(1) @map("bond_level")
   personalitySeed   String?   @map("personality_seed")
   unlockedCosmetics Json      @default("[]") @map("unlocked_cosmetics")
   revealedAt        DateTime? @map("revealed_at")
 
-  root      RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@map("fate_foxes")
 }
@@ -1062,16 +1063,16 @@ model PlayerEchoFragment {
 }
 
 model Memoria {
-  id           String   @id @map("memoria_id")     // slug, e.g. 'first_breath'
-  name         String                                // 'THE FIRST BREATH'
-  lore         String                                // one-or-two-line narrative, mythic register
-  glyph        String                                // single char rendered on the collection grid
-  accent       String                                // hex color for ring + Chronicle entry
-  triggerKey   String   @map("trigger_key")         // matches a resolver in MemoriaService
+  id           String   @id @map("memoria_id") // slug, e.g. 'first_breath'
+  name         String // 'THE FIRST BREATH'
+  lore         String // one-or-two-line narrative, mythic register
+  glyph        String // single char rendered on the collection grid
+  accent       String // hex color for ring + Chronicle entry
+  triggerKey   String   @map("trigger_key") // matches a resolver in MemoriaService
   displayOrder Int      @default(0) @map("display_order")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  grants       PlayerMemoria[]
+  grants PlayerMemoria[]
 
   @@map("memoria_defs")
 }
@@ -1086,8 +1087,8 @@ model PlayerMemoria {
   // BECAUSE…" without re-deriving from the ledger every time.
   sourceEventId String?  @map("source_event_id")
 
-  root          RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  memoria       Memoria      @relation(fields: [memoriaId], references: [id], onDelete: Cascade)
+  root    RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  memoria Memoria      @relation(fields: [memoriaId], references: [id], onDelete: Cascade)
 
   @@unique([rootId, memoriaId])
   @@index([rootId])
@@ -1105,17 +1106,17 @@ model PlayerMemoria {
 // Parallel to — not replacing — the future Hero Echo system.
 // ============================================================
 model LoreEntry {
-  id           String   @id @map("lore_id")       // slug 'veil_first_tear'
-  title        String                               // 'THE FIRST TEAR'
-  category     String                               // 'veil'|'regions'|'rites'|'bestiary'|'orders'
-  rarity       String   @default("common")          // common|uncommon|rare|epic|legendary
-  body         String                               // entry text, mythic register
-  glyph        String   @default("◈")               // grid glyph
+  id           String   @id @map("lore_id") // slug 'veil_first_tear'
+  title        String // 'THE FIRST TEAR'
+  category     String // 'veil'|'regions'|'rites'|'bestiary'|'orders'
+  rarity       String   @default("common") // common|uncommon|rare|epic|legendary
+  body         String // entry text, mythic register
+  glyph        String   @default("◈") // grid glyph
   displayOrder Int      @default(0) @map("display_order")
-  active       Boolean  @default(true)              // disable without deleting
+  active       Boolean  @default(true) // disable without deleting
   createdAt    DateTime @default(now()) @map("created_at")
 
-  finds        HeroLore[]
+  finds HeroLore[]
 
   @@map("lore_entries")
 }
@@ -1125,10 +1126,10 @@ model HeroLore {
   rootId  String   @map("root_id")
   loreId  String   @map("lore_id")
   foundAt DateTime @default(now()) @map("found_at")
-  source  String?                                    // 'tear_seal' | future hooks
+  source  String? // 'tear_seal' | future hooks
 
-  root    RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
-  entry   LoreEntry    @relation(fields: [loreId], references: [id], onDelete: Cascade)
+  root  RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  entry LoreEntry    @relation(fields: [loreId], references: [id], onDelete: Cascade)
 
   @@unique([rootId, loreId])
   @@index([rootId])
@@ -1145,19 +1146,19 @@ model HeroLore {
 // quest-of-the-week / event-of-the-month content.
 // ============================================================
 model AuguryCard {
-  id          String   @id @map("card_id")    // 'wisp-fragment' — stable slug
-  name        String                            // 'WISP FRAGMENT' (display)
-  flavor      String                            // 'A pale wisp drifts past your fingers.'
-  rarity      String                            // 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-  weight      Int                               // weighted-random pick weight
-  rewards     Json                              // { essence?, fate_xp?, cache? }
-  active      Boolean  @default(true)           // disable without deleting
+  id        String   @id @map("card_id") // 'wisp-fragment' — stable slug
+  name      String // 'WISP FRAGMENT' (display)
+  flavor    String // 'A pale wisp drifts past your fingers.'
+  rarity    String // 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
+  weight    Int // weighted-random pick weight
+  rewards   Json // { essence?, fate_xp?, cache? }
+  active    Boolean  @default(true) // disable without deleting
   // Seasonal flag — cards with season != null are only eligible
   // for draws during their named season (e.g. 'hallow'). NULL =
   // permanent deck. Adds zero overhead to base draws (NULL is the
   // default match).
-  season      String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  season    String?
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([active])
   @@index([season])
@@ -1174,17 +1175,17 @@ model AuguryCard {
 model IapPurchase {
   id                  String    @id @default(uuid()) @map("iap_id")
   rootId              String    @map("root_id")
-  sku                 String                                  // 'essence_small' | 'essence_pack' | 'essence_hoard'
+  sku                 String // 'essence_small' | 'essence_pack' | 'essence_hoard'
   essenceGranted      Int       @map("essence_granted")
-  platform            String    @default("ios")               // 'ios' | 'android'
+  platform            String    @default("ios") // 'ios' | 'android'
   // Apple (StoreKit 2) — null for Android rows.
-  appleTransactionId  String?   @unique @map("apple_transaction_id")  // Apple's canonical transactionId
-  appleEnvironment    String?   @map("apple_environment")     // 'Sandbox' | 'Production'
+  appleTransactionId  String?   @unique @map("apple_transaction_id") // Apple's canonical transactionId
+  appleEnvironment    String?   @map("apple_environment") // 'Sandbox' | 'Production'
   appleBundleId       String?   @map("apple_bundle_id")
   // Google Play — null for iOS rows. orderId is the dedup key.
   googleOrderId       String?   @unique @map("google_order_id")
   googlePurchaseToken String?   @map("google_purchase_token")
-  status              String    @default("granted")            // granted | refunded | revoked
+  status              String    @default("granted") // granted | refunded | revoked
   refundedAt          DateTime? @map("refunded_at")
   createdAt           DateTime  @default(now()) @map("created_at")
 
@@ -1230,10 +1231,10 @@ model PlayerComponents {
 // Per-hero Veil Shard currency balance.
 // One row per hero, upserted on each victory.
 model VeilShard {
-  id        String       @id @default(uuid()) @map("shard_id")
-  rootId    String       @unique @map("root_id")
-  balance   Int          @default(0)
-  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at")
+  id        String   @id @default(uuid()) @map("shard_id")
+  rootId    String   @unique @map("root_id")
+  balance   Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
@@ -1242,15 +1243,15 @@ model VeilShard {
 
 // Individual battle record — one row per encounter outcome.
 model TearEncounter {
-  id        String    @id @default(uuid()) @map("encounter_id")
-  rootId    String    @map("root_id")
-  tearType  String    @map("tear_type")   // minor | wander | dormant | double
-  tearName  String    @map("tear_name")
-  outcome   String                        // won | fled
-  shards    Int       @default(0)
-  lat       Float?                        // GPS coords for future map features
+  id        String   @id @default(uuid()) @map("encounter_id")
+  rootId    String   @map("root_id")
+  tearType  String   @map("tear_type") // minor | wander | dormant | double
+  tearName  String   @map("tear_name")
+  outcome   String // won | fled
+  shards    Int      @default(0)
+  lat       Float? // GPS coords for future map features
   lon       Float?
-  createdAt DateTime  @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
@@ -1266,37 +1267,37 @@ model TearEncounter {
 // Active time-limited world events that boost rewards or alter spawns.
 // Checked on every encounter — applied automatically by veil.service.
 model ConvergenceEvent {
-  id                  String   @id @default(uuid()) @map("event_id")
-  name                String
-  description         String?
-  flavorText          String?  @map("flavor_text")
-  affectedTiers       String[] @map("affected_tiers")
-  shardMultiplier     Float    @default(1.0) @map("shard_multiplier")
-  cacheBonus          Boolean  @default(false) @map("cache_bonus")
-  startsAt            DateTime @map("starts_at")
-  endsAt              DateTime @map("ends_at")
-  status              String   @default("active")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id                String   @id @default(uuid()) @map("event_id")
+  name              String
+  description       String?
+  flavorText        String?  @map("flavor_text")
+  affectedTiers     String[] @map("affected_tiers")
+  shardMultiplier   Float    @default(1.0) @map("shard_multiplier")
+  cacheBonus        Boolean  @default(false) @map("cache_bonus")
+  startsAt          DateTime @map("starts_at")
+  endsAt            DateTime @map("ends_at")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
   // Sprint 24 — global contribution tracking
-  contributionCount   Int      @default(0) @map("contribution_count")
-  targetCount         Int      @default(10000) @map("target_count")
+  contributionCount Int      @default(0) @map("contribution_count")
+  targetCount       Int      @default(10000) @map("target_count")
 
-  contributions       ConvergenceContribution[]
+  contributions ConvergenceContribution[]
 
   @@index([status, endsAt])
   @@map("convergence_events")
 }
 
 model ConvergenceContribution {
-  id          String   @id @default(uuid())
-  eventId     String   @map("event_id")
-  rootId      String   @map("root_id")
-  warbandId   String?  @map("warband_id")
-  count       Int      @default(0)
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  eventId   String   @map("event_id")
+  rootId    String   @map("root_id")
+  warbandId String?  @map("warband_id")
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  event       ConvergenceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  hero        RootIdentity     @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  event ConvergenceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  hero  RootIdentity     @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, rootId])
   @@index([eventId])
@@ -1330,7 +1331,7 @@ model PityCounter {
   counter   Int      @default(0)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  root      RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@unique([rootId, pityType])
   @@index([rootId])
@@ -1338,17 +1339,17 @@ model PityCounter {
 }
 
 model Warband {
-  id           String   @id @default(uuid())
-  name         String
-  emblem       String   @default("⚔")
-  alignment    String   @default("NONE")      // PRIMARY alignment — open to others
-  reputation   Int      @default(0)
-  foundedAt    DateTime @default(now()) @map("founded_at")
-  founderRootId String  @map("founder_root_id")
+  id            String   @id @default(uuid())
+  name          String
+  emblem        String   @default("⚔")
+  alignment     String   @default("NONE") // PRIMARY alignment — open to others
+  reputation    Int      @default(0)
+  foundedAt     DateTime @default(now()) @map("founded_at")
+  founderRootId String   @map("founder_root_id")
 
-  members      WarbandMembership[]
-  invites      WarbandInvite[]
-  founder      RootIdentity @relation(fields: [founderRootId], references: [id], onDelete: Cascade)
+  members WarbandMembership[]
+  invites WarbandInvite[]
+  founder RootIdentity        @relation(fields: [founderRootId], references: [id], onDelete: Cascade)
 
   @@index([alignment])
   @@index([reputation])
@@ -1356,15 +1357,15 @@ model Warband {
 }
 
 model WarbandMembership {
-  id              String   @id @default(uuid())
-  warbandId       String   @map("warband_id")
-  rootId          String   @map("root_id")
-  rank            String   @default("MEMBER")  // FOUNDER | OFFICER | MEMBER
-  alignmentBonus  Boolean  @default(false) @map("alignment_bonus")
-  joinedAt        DateTime @default(now()) @map("joined_at")
+  id             String   @id @default(uuid())
+  warbandId      String   @map("warband_id")
+  rootId         String   @map("root_id")
+  rank           String   @default("MEMBER") // FOUNDER | OFFICER | MEMBER
+  alignmentBonus Boolean  @default(false) @map("alignment_bonus")
+  joinedAt       DateTime @default(now()) @map("joined_at")
 
-  warband         Warband      @relation(fields: [warbandId], references: [id], onDelete: Cascade)
-  hero            RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+  warband Warband      @relation(fields: [warbandId], references: [id], onDelete: Cascade)
+  hero    RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
 
   @@unique([warbandId, rootId])
   @@index([rootId])
@@ -1377,12 +1378,12 @@ model WarbandInvite {
   warbandId       String   @map("warband_id")
   invitedByRootId String   @map("invited_by_root_id")
   inviteCode      String   @unique @map("invite_code")
-  status          String   @default("pending")  // pending | accepted | expired
+  status          String   @default("pending") // pending | accepted | expired
   expiresAt       DateTime @map("expires_at")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  warband         Warband      @relation(fields: [warbandId], references: [id], onDelete: Cascade)
-  invitedBy       RootIdentity @relation("InviteSender", fields: [invitedByRootId], references: [id], onDelete: Cascade)
+  warband   Warband      @relation(fields: [warbandId], references: [id], onDelete: Cascade)
+  invitedBy RootIdentity @relation("InviteSender", fields: [invitedByRootId], references: [id], onDelete: Cascade)
 
   @@index([inviteCode])
   @@index([warbandId])
@@ -1400,14 +1401,14 @@ model Landmark {
   name             String
   region           String
   tier             Int      @default(1)
-  type             String   @default("public")   // hv_venue | public | operator
+  type             String   @default("public") // hv_venue | public | operator
   lat              Float
   lon              Float
   radiusMeters     Int      @default(100) @map("radius_meters")
   isAutoRegistered Boolean  @default(false) @map("is_auto_registered")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  discoveries      LandmarkDiscovery[]
+  discoveries LandmarkDiscovery[]
 
   @@index([region])
   @@map("landmarks")
@@ -1417,11 +1418,11 @@ model LandmarkDiscovery {
   id            String   @id @default(uuid()) @map("discovery_id")
   heroId        String   @map("hero_id")
   landmarkId    String   @map("landmark_id")
-  fragmentIndex Int      @map("fragment_index")   // 1 | 2 | 3
+  fragmentIndex Int      @map("fragment_index") // 1 | 2 | 3
   discoveredAt  DateTime @default(now()) @map("discovered_at")
 
-  hero          RootIdentity @relation(fields: [heroId], references: [id], onDelete: Cascade)
-  landmark      Landmark     @relation(fields: [landmarkId], references: [id], onDelete: Cascade)
+  hero     RootIdentity @relation(fields: [heroId], references: [id], onDelete: Cascade)
+  landmark Landmark     @relation(fields: [landmarkId], references: [id], onDelete: Cascade)
 
   @@unique([heroId, landmarkId, fragmentIndex])
   @@index([heroId])
@@ -1443,18 +1444,18 @@ model LandmarkDiscovery {
 // gist for proper great-circle distance queries.
 // ============================================================
 model WorldTear {
-  id              String    @id @default(uuid()) @map("tear_id")
-  lat             Float
-  lon             Float
-  tier            String                                  // 'T1' | 'T2' | 'T3' | 'T4'
-  status          String    @default("active")            // 'active' | 'sealed' | 'expired'
-  spawnedAt       DateTime  @default(now()) @map("spawned_at")
-  expiresAt       DateTime? @map("expires_at")
-  sealedAt        DateTime? @map("sealed_at")
-  sealedByRootId  String?   @map("sealed_by_root_id")
-  regionLabel     String?   @map("region_label")          // e.g. 'folsom-ca', 'london-uk' — for analytics, not auth
+  id             String    @id @default(uuid()) @map("tear_id")
+  lat            Float
+  lon            Float
+  tier           String // 'T1' | 'T2' | 'T3' | 'T4'
+  status         String    @default("active") // 'active' | 'sealed' | 'expired'
+  spawnedAt      DateTime  @default(now()) @map("spawned_at")
+  expiresAt      DateTime? @map("expires_at")
+  sealedAt       DateTime? @map("sealed_at")
+  sealedByRootId String?   @map("sealed_by_root_id")
+  regionLabel    String?   @map("region_label") // e.g. 'folsom-ca', 'london-uk' — for analytics, not auth
 
-  sealedBy        RootIdentity? @relation(fields: [sealedByRootId], references: [id], onDelete: SetNull)
+  sealedBy RootIdentity? @relation(fields: [sealedByRootId], references: [id], onDelete: SetNull)
 
   @@index([status, lat, lon])
   @@index([sealedByRootId])
@@ -1474,10 +1475,10 @@ model WorldTear {
 // large for `migrate deploy`). Read-only at request time: a single
 // PK `IN (...)` lookup per /tears/nearby call.
 model PopCell {
-  cellKey     String  @id @map("cell_key")        // "{latIdx}:{lonIdx}" at CELL_DEG resolution
-  weight      Float                               // population-derived density multiplier
-  regionLabel String? @map("region_label")        // nearest-city slug, e.g. 'folsom-ca' — analytics only
-  centerLat   Float   @map("center_lat")          // cell center, for debugging / map overlays
+  cellKey     String  @id @map("cell_key") // "{latIdx}:{lonIdx}" at CELL_DEG resolution
+  weight      Float // population-derived density multiplier
+  regionLabel String? @map("region_label") // nearest-city slug, e.g. 'folsom-ca' — analytics only
+  centerLat   Float   @map("center_lat") // cell center, for debugging / map overlays
   centerLon   Float   @map("center_lon")
 
   // Where a tear must NOT be placed inside this cell. A 16×16 bitmap
@@ -1489,7 +1490,7 @@ model PopCell {
   // planet and the mask is built incrementally, so an unmasked cell
   // must keep generating exactly as it did before — degraded, never
   // broken. Coverage is a number we watch, not a precondition.
-  blockMask   Bytes?  @map("block_mask")
+  blockMask    Bytes?  @map("block_mask")
   // What built the mask, e.g. 'water@z11'. Lets a later pass widen
   // the rule (motorway corridors) and re-mask only the stale cells.
   blockMaskSrc String? @map("block_mask_src")
@@ -1506,7 +1507,7 @@ model PopCell {
 // to preserve the existing soft-fail intent — a missing root must
 // never block a seal.
 model TearSeal {
-  tearId         String   @id @map("tear_id")     // "{cellKey}#{slot}"
+  tearId         String   @id @map("tear_id") // "{cellKey}#{slot}"
   cellKey        String   @map("cell_key")
   sealedAt       DateTime @default(now()) @map("sealed_at")
   sealedByRootId String?  @map("sealed_by_root_id")
@@ -1529,7 +1530,7 @@ model SanctumBuild {
   rootId      String    @map("root_id")
   track       String
   toLevel     Int       @map("to_level")
-  essence     Int       // cost snapshot at start
+  essence     Int // cost snapshot at start
   materials   Json      @default("{}")
   startedAt   DateTime  @default(now()) @map("started_at")
   readyAt     DateTime  @map("ready_at")
@@ -1582,7 +1583,7 @@ model HeroFauna {
 model FeatureFlag {
   id        String   @id @default(uuid())
   key       String
-  channel   String   @default("")   // '' = all channels
+  channel   String   @default("") // '' = all channels
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1629,7 +1630,7 @@ model VenueRoom {
   /// furniture. Workstream 8.2 wants one canonical reference room
   /// recorded in this much detail; deliberately Json because a partner
   /// will want fields we have not thought of.
-  profile  Json   @default("{}")
+  profile Json @default("{}")
 
   /// Which published config is live. Null until first publish.
   /// Rollback is repointing this, never mutating a config.
@@ -1639,9 +1640,9 @@ model VenueRoom {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  source       Source      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  configs      RoomConfig[] @relation("RoomConfigs")
-  activeConfig RoomConfig?  @relation("ActiveConfig", fields: [activeConfigId], references: [id])
+  source         Source               @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  configs        RoomConfig[]         @relation("RoomConfigs")
+  activeConfig   RoomConfig?          @relation("ActiveConfig", fields: [activeConfigId], references: [id])
   certifications VenueCertification[]
 
   @@unique([sourceId, slug])
@@ -1664,7 +1665,7 @@ model RoomConfig {
 
   /// draft | published | archived.
   /// Only a draft may be mutated; publishing freezes it.
-  status  String @default("draft")
+  status String @default("draft")
 
   /// Which experience + version this calibration was laid out for.
   /// A room is calibrated FOR content — placements are meaningless
@@ -1698,11 +1699,11 @@ model RoomConfig {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  room        VenueRoom          @relation("RoomConfigs", fields: [roomId], references: [id], onDelete: Cascade)
-  activeFor   VenueRoom?         @relation("ActiveConfig")
-  anchors     AnchorRecord[]
-  placements  ContentPlacement[]
-  zones       SpatialZone[]
+  room       VenueRoom          @relation("RoomConfigs", fields: [roomId], references: [id], onDelete: Cascade)
+  activeFor  VenueRoom?         @relation("ActiveConfig")
+  anchors    AnchorRecord[]
+  placements ContentPlacement[]
+  zones      SpatialZone[]
 
   @@unique([roomId, version])
   @@index([roomId, status])
@@ -1727,7 +1728,7 @@ model AnchorRecord {
   role String @default("content")
 
   /// arcore | meta | local_marker | editor_sim | androidxr
-  provider        String
+  provider         String
   /// Opaque to us. Cloud-anchor ids are billable and TTL'd, which is why
   /// deletion is tracked rather than the row being hard-deleted.
   providerAnchorId String? @map("provider_anchor_id")
@@ -1742,9 +1743,9 @@ model AnchorRecord {
   localRotation Float[] @map("local_rotation")
 
   /// Provider-reported confidence at capture, 0..1 when available.
-  trackingConfidence Float?  @map("tracking_confidence")
+  trackingConfidence Float?   @map("tracking_confidence")
   /// Device that captured it — drift is device-dependent.
-  capturedByDevice   String? @map("captured_by_device")
+  capturedByDevice   String?  @map("captured_by_device")
   capturedAt         DateTime @default(now()) @map("captured_at")
 
   /// Set when released at the provider. Soft so an orphaned billable
@@ -1793,9 +1794,9 @@ model SpatialZone {
   id           String @id @default(uuid()) @map("zone_id")
   roomConfigId String @map("room_config_id")
 
-  name String
+  name  String
   /// player_start | interaction | safety | clearance
-  kind String
+  kind  String
   /// circle | box | polygon
   shape String
 
@@ -1867,10 +1868,10 @@ model DeviceCapabilityProfile {
 /// is the entire reason RoomConfig is immutable. A drift figure means
 /// nothing without knowing which calibration it drifted from.
 model SpatialMetric {
-  id       String @id @default(uuid()) @map("metric_id")
-  sourceId String @map("source_id")
+  id           String  @id @default(uuid()) @map("metric_id")
+  sourceId     String  @map("source_id")
   /// Null for measurements taken outside a run (calibration, warm-up).
-  runId    String? @map("run_id")
+  runId        String? @map("run_id")
   /// Null when the client reports before resolving a room.
   roomConfigId String? @map("room_config_id")
 
@@ -1896,7 +1897,7 @@ model SpatialMetric {
   capturedAt DateTime @map("captured_at")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  source Source        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source Source         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   run    ExperienceRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
 
   @@index([sourceId, metric, capturedAt])
@@ -1950,10 +1951,10 @@ model VenueCertification {
   /// Override only. A permanent override is just a disabled gate.
   expiresAt DateTime? @map("expires_at")
 
-  certifiedAt DateTime  @default(now()) @map("certified_at")
+  certifiedAt DateTime @default(now()) @map("certified_at")
   /// VenueStaff.id, or 'platform' for a Heroes operator.
-  certifiedBy String?   @map("certified_by")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  certifiedBy String?  @map("certified_by")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   source     Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   experience Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
@@ -1971,16 +1972,45 @@ model VenueCertification {
 // UTC month key ("2026-08") — resets are implicit in the key.
 // ============================================================
 
+/// Permanent proof of what a hero has done in the Arena.
+///
+/// TrialBest is SEASONAL — it resets every 8 weeks, which is right for
+/// a leaderboard and wrong for a progression system: before this, the
+/// only trace of clearing a gauntlet was a score that vanished with the
+/// season. Mastery is the part that keeps: the highest tier ever earned
+/// on a trial, never reset, and the thing Arena Renown is summed from.
+///
+/// Cosmetic-only by construction (v4 rule 5) — mastery buys titles,
+/// gauntlet access and the wing's own art state, never combat power.
+model TrialMastery {
+  id         String   @id @default(uuid()) @map("trial_mastery_id")
+  rootId     String   @map("root_id")
+  trialId    String   @map("trial_id")
+  /// 1 bronze · 2 silver · 3 gold. Monotonic — only ever raised.
+  tier       Int
+  /// The run that earned the current tier.
+  bestScore  Int      @map("best_score")
+  bestRatio  Float    @map("best_ratio") // score / max_score
+  achievedAt DateTime @default(now()) @map("achieved_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)
+
+  @@unique([rootId, trialId])
+  @@index([rootId])
+  @@map("trial_mastery")
+}
+
 model TrialBest {
   id         String   @id @default(uuid()) @map("trial_best_id")
   rootId     String   @map("root_id")
   trialId    String   @map("trial_id")
-  seasonKey  String   @map("season_key")   // "2026-08" UTC month
+  seasonKey  String   @map("season_key") // "2026-08" UTC month
   score      Int
-  tells      Int                            // sequence length of the scoring run
-  perfect    Int                            // perfect reads in the scoring run
-  misses     Int                            // misses in the scoring run
-  runs       Int      @default(1)           // total submissions this season
+  tells      Int // sequence length of the scoring run
+  perfect    Int // perfect reads in the scoring run
+  misses     Int // misses in the scoring run
+  runs       Int      @default(1) // total submissions this season
   achievedAt DateTime @default(now()) @map("achieved_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -2002,8 +2032,8 @@ model TrialBest {
 model AttributeProgress {
   id         String   @id @default(uuid()) @map("attribute_progress_id")
   rootId     String   @map("root_id")
-  discipline String                          // forge | lore | veil
-  attribute  String                          // e.g. 'strength', 'faith'
+  discipline String // forge | lore | veil
+  attribute  String // e.g. 'strength', 'faith'
   xp         Int      @default(0)
   level      Int      @default(1)
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -2026,11 +2056,11 @@ model AttributeProgress {
 model Feedback {
   id        String   @id @default(uuid()) @map("feedback_id")
   rootId    String?  @map("root_id")
-  kind      String                          // bug | idea | praise | other
+  kind      String // bug | idea | praise | other
   message   String
   /// app + runtime version, channel, platform, OS, device, screen
   context   Json     @default("{}")
-  status    String   @default("new")        // new | triaged | closed
+  status    String   @default("new") // new | triaged | closed
   createdAt DateTime @default(now()) @map("created_at")
 
   root RootIdentity? @relation(fields: [rootId], references: [id], onDelete: SetNull)
