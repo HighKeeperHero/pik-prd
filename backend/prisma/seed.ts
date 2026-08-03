@@ -52,6 +52,7 @@ async function main() {
     // until we have real distance distributions from testers.
     { key: 'veil.gate_radius_m', value: '80', description: 'How close (metres) a player must be to act on a tear' },
     { key: 'veil.gate_enforced', value: 'false', description: 'Refuse out-of-range encounters. False = record the distance and allow' },
+    { key: 'veil.sight_radius_m', value: '1200', description: 'How far the Veil parts — tears and fauna beyond this are hidden by fog' },
   ];
 
   for (const c of configs) {

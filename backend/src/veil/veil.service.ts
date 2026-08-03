@@ -119,6 +119,12 @@ const GATE_DEFAULTS = {
    *  standing on the target. */
   radiusM:  80,
   enforced: false,
+  /** How far the player can SEE, in metres. Distinct from the gate:
+   *  the gate is how close you must be to act, sight is how far the
+   *  Veil parts. Tears and fauna beyond it are fogged out client-side
+   *  — still fetched (so the map can say how far the nearest one is),
+   *  just not drawn. */
+  sightRadiusM: 1200,
   /** Speed of sound, m/s. Generous enough that a bad fix mid-journey
    *  isn't punished; tight enough that a spoofer hopping cities is. */
   maxSpeedMps: 340,
@@ -865,7 +871,7 @@ export class VeilService {
 
     const band      = bandForFateLevel(fateLevel);
     const radius_km = radiusKmOverride ?? band.radius_km;
-    const { radiusM: gateRadiusM } = await this.gateConfig();
+    const { radiusM: gateRadiusM, sightRadiusM } = await this.gateConfig();
 
     // Bounding box → grid cell index ranges (same overshoot as the
     // stored path so the haversine filter doesn't clip edge tears).
@@ -960,6 +966,9 @@ export class VeilService {
       // with the tears so the client's rings and the server's check
       // are the same number by construction, not by coincidence.
       gate_radius_m: gateRadiusM,
+      // How far the Veil parts. Beyond this the client fogs the world
+      // out; the tears are still SENT so the map can point the way.
+      sight_radius_m: sightRadiusM,
     };
   }
 
@@ -975,7 +984,7 @@ export class VeilService {
   ) {
     const band      = bandForFateLevel(fateLevel);
     const radius_km = radiusKmOverride ?? band.radius_km;
-    const { radiusM: gateRadiusM } = await this.gateConfig();
+    const { radiusM: gateRadiusM, sightRadiusM } = await this.gateConfig();
 
     // Bounding-box prefilter. 1 deg lat ≈ 111 km; lon scales by cos(lat).
     // Slight overshoot via `* 1.05` so the haversine filter doesn't clip
@@ -1054,6 +1063,9 @@ export class VeilService {
       // with the tears so the client's rings and the server's check
       // are the same number by construction, not by coincidence.
       gate_radius_m: gateRadiusM,
+      // How far the Veil parts. Beyond this the client fogs the world
+      // out; the tears are still SENT so the map can point the way.
+      sight_radius_m: sightRadiusM,
     };
   }
 
@@ -1098,13 +1110,15 @@ export class VeilService {
   /** Live gate settings. Both keys are seeded (see prisma/seed.ts) —
    *  the config API refuses to CREATE keys, so an unseeded tunable is
    *  a dial welded shut. */
-  private async gateConfig(): Promise<{ radiusM: number; enforced: boolean }> {
+  private async gateConfig(): Promise<{ radiusM: number; enforced: boolean; sightRadiusM: number }> {
     const cfg = await this.config.getAll().catch(() => ({} as Record<string, unknown>));
     const raw = cfg['veil.gate_radius_m'];
     const enf = cfg['veil.gate_enforced'];
+    const sig = cfg['veil.sight_radius_m'];
     return {
       radiusM:  typeof raw === 'number' && raw > 0 ? raw : GATE_DEFAULTS.radiusM,
       enforced: enf === true || enf === 'true' || enf === 1,
+      sightRadiusM: typeof sig === 'number' && sig > 0 ? sig : GATE_DEFAULTS.sightRadiusM,
     };
   }
 
