@@ -30,6 +30,19 @@ if (!CENSUS_URL) {
   process.exit(1);
 }
 
+// Railway's DATABASE_URL points at *.railway.internal, which resolves
+// only from inside their private network. This script runs on a laptop,
+// so it needs DATABASE_PUBLIC_URL. Say that plainly rather than letting
+// it surface as a bare DNS failure.
+if (CENSUS_URL.includes('.railway.internal')) {
+  console.error(
+    'That is Railway\'s INTERNAL database URL — it resolves only from inside\n' +
+    'their network, never from this machine. Use the public one instead:\n' +
+    '  railway variables --environment production | grep DATABASE_PUBLIC_URL',
+  );
+  process.exit(1);
+}
+
 const prisma = new PrismaClient({ datasources: { db: { url: CENSUS_URL } } });
 
 const q = (sql: string) =>
