@@ -12,7 +12,16 @@ import { PrismaClient } from '@prisma/client';
 
 const CENSUS_URL = process.env.CENSUS_DATABASE_URL ?? '';
 if (!CENSUS_URL) {
-  console.error("CENSUS_DATABASE_URL is not set. Refusing to fall back to DATABASE_URL.");
+  console.error(
+    'CENSUS_DATABASE_URL is not set, and this refuses to fall back to\n' +
+    'DATABASE_URL — verifying dev while believing you verified production is\n' +
+    'the exact failure it exists to catch.\n\n' +
+    'Against the local dev database (run from backend/):\n' +
+    '  CENSUS_DATABASE_URL="$(grep -m1 \'^DATABASE_URL=\' .env | cut -d= -f2-)" \\\n' +
+    '    npm run verify:auth-identity\n\n' +
+    'Against staging or production, paste that environment\'s PUBLIC url:\n' +
+    '  CENSUS_DATABASE_URL=\'postgresql://…\' npm run verify:auth-identity',
+  );
   process.exit(1);
 }
 if (CENSUS_URL.includes('.railway.internal')) {
@@ -21,6 +30,33 @@ if (CENSUS_URL.includes('.railway.internal')) {
 }
 
 const prisma = new PrismaClient({ datasources: { db: { url: CENSUS_URL } } });
+
+/** Turn the three failures that actually happen into sentences instead
+ *  of a wall of Prisma stack trace. */
+function explain(err: any): string {
+  const msg = String(err?.message ?? err);
+  if (/auth_identities.*does not exist|relation "auth_identities"/i.test(msg)) {
+    return (
+      'The auth_identities table does not exist in THIS database.\n' +
+      'The migration has not been applied here yet:\n' +
+      '  DATABASE_URL=<this same url> npx prisma migrate deploy\n' +
+      'Each environment migrates separately — dev, staging and production\n' +
+      'are three databases, and running it on one does nothing for the others.'
+    );
+  }
+  if (/ENOTFOUND|ECONNREFUSED|getaddrinfo|Can't reach database/i.test(msg)) {
+    return (
+      'Could not reach that database. If the host ends in .railway.internal it\n' +
+      'is only reachable from inside Railway — use DATABASE_PUBLIC_URL instead.\n' +
+      `Underlying error: ${msg.slice(0, 200)}`
+    );
+  }
+  if (/authentication failed|password/i.test(msg)) {
+    return `Credentials rejected by that database.\nUnderlying error: ${msg.slice(0, 200)}`;
+  }
+  return msg.slice(0, 500);
+}
+
 const q = (sql: string) => prisma.$queryRawUnsafe<any[]>(sql);
 
 async function main() {
@@ -96,4 +132,9 @@ async function main() {
   console.log('\n✓ all invariants hold');
 }
 
-main().finally(() => prisma.$disconnect());
+main()
+  .catch((err) => {
+    console.error(`\n✗ ${explain(err)}`);
+    process.exitCode = 1;
+  })
+  .finally(() => prisma.$disconnect());
