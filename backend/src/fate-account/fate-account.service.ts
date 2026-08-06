@@ -122,6 +122,9 @@ export class FateAccountService {
         provider:   'email',
         providerId: account.id,
         email:      account.email,
+        // They are signing in right now — a healed row that claims
+        // "never used" would be wrong on the settings screen.
+        lastUsedAt: new Date(),
       },
     });
 
@@ -631,6 +634,7 @@ export class FateAccountService {
         providerId,
         email: lowered,
         emailVerified,
+        lastUsedAt: new Date(),
       },
     });
 
