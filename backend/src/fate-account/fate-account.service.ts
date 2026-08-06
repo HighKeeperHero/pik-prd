@@ -109,6 +109,22 @@ export class FateAccountService {
       data: { lastLoginAt: new Date() },
     });
 
+    // Heal the identity row if it is absent. An account registered
+    // between the backfill and this code deploying has none — the old
+    // register() knew nothing about the table — and nothing else would
+    // ever notice, since login() authenticates on email + hash. Same
+    // self-healing shape as the OAuth path.
+    await this.prisma.authIdentity.upsert({
+      where:  { provider_providerId: { provider: 'email', providerId: account.id } },
+      update: { lastUsedAt: new Date() },
+      create: {
+        accountId:  account.id,
+        provider:   'email',
+        providerId: account.id,
+        email:      account.email,
+      },
+    });
+
     this.logger.log(`Login: ${account.email} (${account.id})`);
     const session = await this.issueSession(account.id);
     return this.buildAuthResponse(account.id, account.email, session);
