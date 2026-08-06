@@ -104,7 +104,7 @@ export class FateAccountService {
   // ── GOOGLE OAUTH ─────────────────────────────────────────────────────────────
 
   async googleAuth(dto: GoogleAuthDto) {
-    let payload: { sub: string; email: string; name?: string };
+    let payload: { sub: string; email: string; emailVerified: boolean; name?: string };
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: dto.id_token,
@@ -112,7 +112,15 @@ export class FateAccountService {
       });
       const p = ticket.getPayload();
       if (!p?.sub || !p?.email) throw new Error('Missing sub or email');
-      payload = { sub: p.sub, email: p.email, name: p.name };
+      // email_verified is a separate claim from the signature. A token
+      // can be perfectly valid and still carry an address Google has
+      // never confirmed the holder owns — see findOrCreateOAuthAccount.
+      payload = {
+        sub: p.sub,
+        email: p.email,
+        emailVerified: p.email_verified === true,
+        name: p.name,
+      };
     } catch (err: any) {
       this.logger.warn(`Google token verification failed: ${err.message}`);
       throw new UnauthorizedException('Invalid Google token');
@@ -122,6 +130,7 @@ export class FateAccountService {
       'google',
       payload.sub,
       payload.email,
+      payload.emailVerified,
       payload.name,
     );
 
@@ -132,7 +141,7 @@ export class FateAccountService {
   // ── APPLE OAUTH ──────────────────────────────────────────────────────────────
 
   async appleAuth(dto: AppleAuthDto) {
-    let payload: { sub: string; email?: string };
+    let payload: { sub: string; email?: string; emailVerified: boolean };
     try {
       const decoded = jwt.decode(dto.identity_token, { complete: true });
       if (!decoded?.header?.kid) throw new Error('No kid in Apple token');
@@ -144,21 +153,33 @@ export class FateAccountService {
         algorithms: ['RS256'],
         issuer: APPLE_ISSUER,
         audience: process.env.APPLE_CLIENT_ID,
-      }) as { sub: string; email?: string };
+        // Apple sends email_verified as a boolean OR the string 'true'
+        // depending on the flow; normalize below rather than trusting
+        // either shape.
+      }) as { sub: string; email?: string; email_verified?: boolean | string };
 
-      payload = { sub: verified.sub, email: verified.email };
+      payload = {
+        sub:           verified.sub,
+        email:         verified.email,
+        emailVerified: verified.email_verified === true || verified.email_verified === 'true',
+      };
     } catch (err: any) {
       this.logger.warn(`Apple token verification failed: ${err.message}`);
       throw new UnauthorizedException('Invalid Apple token');
     }
 
-    // Apple only provides email on first sign-in
+    // Apple only provides email on first sign-in; afterwards the token
+    // carries the sub alone. The synthesized relay address is derived
+    // from that sub, so it is exactly as trustworthy as the sub itself
+    // — unforgeable, and unique to this user/app pair.
+    const synthesized = !payload.email;
     const email = payload.email ?? `apple.${payload.sub}@privaterelay.appleid.com`;
 
     const account = await this.findOrCreateOAuthAccount(
       'apple',
       payload.sub,
       email,
+      synthesized || payload.emailVerified,
       dto.full_name ?? null,
     );
 
@@ -362,26 +383,56 @@ export class FateAccountService {
     };
   }
 
+  /** Resolve the account behind an OAuth sign-in.
+   *
+   *  `emailVerified` is the provider's own assertion that this user
+   *  controls this address — a claim entirely separate from the token
+   *  signature, and the caller must pass it honestly.
+   *
+   *  This function is interim. The real fix is an AuthIdentity child
+   *  table (docs/google-launch-plan.md § 1) — `FateAccount.provider` is
+   *  a single scalar column, so one account cannot hold both an Apple
+   *  and a Google identity, and everything awkward below follows from
+   *  that.
+   */
   private async findOrCreateOAuthAccount(
     provider: 'google' | 'apple',
     providerId: string,
     email: string,
+    emailVerified: boolean,
     displayName?: string | null,
   ) {
-    // First try to find by provider + providerId (most reliable)
+    // The only claim that actually proves identity.
     let account = await this.prisma.fateAccount.findFirst({
       where: { provider, providerId },
     });
 
-    // Fall back to email match (handles edge cases)
+    // Email fallback — how an existing email/password player reaches
+    // their heroes the first time they sign in with a provider. It
+    // cannot be deleted until linking exists, but it MUST NOT run on an
+    // address the provider has not confirmed: a validly-signed token
+    // asserting someone else's address would otherwise hand over
+    // whatever account happens to hold it, heroes and all.
     if (!account) {
-      account = await this.prisma.fateAccount.findUnique({
-        where: { email: email.toLowerCase() },
-      });
+      if (emailVerified) {
+        account = await this.prisma.fateAccount.findUnique({
+          where: { email: email.toLowerCase() },
+        });
+      } else {
+        this.logger.warn(
+          `${provider} sign-in with unverified email — creating a separate ` +
+          `account rather than matching ${email.toLowerCase()}`,
+        );
+      }
     }
 
     if (account) {
-      // Update providerId if missing (email-matched account being upgraded to OAuth)
+      // Promote an email-matched account so the NEXT sign-in resolves on
+      // provider + sub above instead of leaning on the address again.
+      // `provider` is rewritten alongside it, which mislabels an account
+      // that also has a passwordHash — tolerable only because login()
+      // keys on email + hash and never reads this column. The label
+      // stops being a lie once AuthIdentity lands.
       if (!account.providerId) {
         account = await this.prisma.fateAccount.update({
           where: { id: account.id },
