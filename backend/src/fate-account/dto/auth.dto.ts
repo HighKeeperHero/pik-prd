@@ -37,6 +37,18 @@ export class AppleAuthDto {
   full_name?: string; // Apple only sends this on first sign-in
 }
 
+/** Attach a provider to the account you are ALREADY signed in as.
+ *  Exactly one token field is required; which one names the provider. */
+export class LinkIdentityDto {
+  @IsOptional()
+  @IsString()
+  google_id_token?: string;
+
+  @IsOptional()
+  @IsString()
+  apple_identity_token?: string;
+}
+
 export class CreateHeroDto {
   @IsString()
   @MinLength(2)

@@ -30,12 +30,47 @@ model FateAccount {
   createdAt    DateTime  @default(now()) @map("created_at")
   lastLoginAt  DateTime? @map("last_login_at")
 
-  heroes   RootIdentity[]
-  sessions AccountSession[]
+  heroes     RootIdentity[]
+  sessions   AccountSession[]
+  identities AuthIdentity[]
 
   @@unique([provider, providerId])
   @@index([email])
   @@map("fate_accounts")
+}
+
+// One row per way into an account. `provider`/`providerId` on
+// FateAccount are scalars, so that row can describe exactly one
+// identity — which meant an account could be Apple or Google but never
+// both, and "link my account" had nowhere to write. This table is where
+// it writes.
+//
+// Resolution is by (provider, providerId) ONLY. Matching on an email
+// address is what let a validly-signed token asserting someone else's
+// address select their account; an address is a label, not a key.
+//
+// For 'email' identities providerId is the account's own id — password
+// auth has no external subject, and the column is NOT NULL so that the
+// unique constraint actually constrains (Postgres lets NULLs collide).
+model AuthIdentity {
+  id            String    @id @default(uuid()) @map("identity_id")
+  accountId     String    @map("account_id")
+  provider      String // 'email' | 'google' | 'apple'
+  providerId    String    @map("provider_id")
+  // The address the provider asserted when this identity was linked,
+  // kept for display and support. Never used to resolve a sign-in.
+  email         String?
+  // Whether the PROVIDER vouched for that address. False for every
+  // 'email' identity: register() has never proved an address.
+  emailVerified Boolean   @default(false) @map("email_verified")
+  linkedAt      DateTime  @default(now()) @map("linked_at")
+  lastUsedAt    DateTime? @map("last_used_at")
+
+  account FateAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([accountId])
+  @@map("auth_identities")
 }
 
 model AccountSession {

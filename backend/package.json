@@ -30,7 +30,8 @@
     "verify:slice1": "ts-node scripts/verify-slice1.ts",
     "verify:slice2": "ts-node scripts/verify-slice2.ts",
     "provision:venue": "ts-node scripts/provision-venue.ts",
-    "census:identity": "ts-node scripts/census-identity.ts"
+    "census:identity": "ts-node scripts/census-identity.ts",
+    "verify:auth-identity": "ts-node scripts/verify-auth-identity.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",

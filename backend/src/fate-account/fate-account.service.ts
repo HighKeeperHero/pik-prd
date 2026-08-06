@@ -24,6 +24,7 @@ import {
   LoginDto,
   GoogleAuthDto,
   AppleAuthDto,
+  LinkIdentityDto,
   CreateHeroDto,
   UpdateHeroAlignmentDto,
 } from './dto/auth.dto';
@@ -69,6 +70,18 @@ export class FateAccountService {
       },
     });
 
+    // Password auth has no external subject, so the account's own id is
+    // the key. emailVerified stays false — nothing here proves the
+    // person registering owns the address they typed.
+    await this.prisma.authIdentity.create({
+      data: {
+        accountId:  account.id,
+        provider:   'email',
+        providerId: account.id,
+        email:      account.email,
+      },
+    });
+
     this.logger.log(`Registered: ${account.email} (${account.id})`);
     const session = await this.issueSession(account.id);
     return this.buildAuthResponse(account.id, account.email, session);
@@ -103,11 +116,12 @@ export class FateAccountService {
 
   // ── GOOGLE OAUTH ─────────────────────────────────────────────────────────────
 
-  async googleAuth(dto: GoogleAuthDto) {
-    let payload: { sub: string; email: string; emailVerified: boolean; name?: string };
+  /** Verify a Google ID token. Shared by sign-in and linking, so the
+   *  two can never drift into checking different things. */
+  private async verifyGoogleToken(idToken: string) {
     try {
       const ticket = await this.googleClient.verifyIdToken({
-        idToken: dto.id_token,
+        idToken,
         audience: process.env.GOOGLE_CLIENT_ID,
       });
       const p = ticket.getPayload();
@@ -115,16 +129,20 @@ export class FateAccountService {
       // email_verified is a separate claim from the signature. A token
       // can be perfectly valid and still carry an address Google has
       // never confirmed the holder owns — see findOrCreateOAuthAccount.
-      payload = {
+      return {
         sub: p.sub,
         email: p.email,
         emailVerified: p.email_verified === true,
-        name: p.name,
+        name: p.name as string | undefined,
       };
     } catch (err: any) {
       this.logger.warn(`Google token verification failed: ${err.message}`);
       throw new UnauthorizedException('Invalid Google token');
     }
+  }
+
+  async googleAuth(dto: GoogleAuthDto) {
+    const payload = await this.verifyGoogleToken(dto.id_token);
 
     const account = await this.findOrCreateOAuthAccount(
       'google',
@@ -140,16 +158,17 @@ export class FateAccountService {
 
   // ── APPLE OAUTH ──────────────────────────────────────────────────────────────
 
-  async appleAuth(dto: AppleAuthDto) {
+  /** Verify an Apple identity token. Shared by sign-in and linking. */
+  private async verifyAppleToken(identityToken: string) {
     let payload: { sub: string; email?: string; emailVerified: boolean };
     try {
-      const decoded = jwt.decode(dto.identity_token, { complete: true });
+      const decoded = jwt.decode(identityToken, { complete: true });
       if (!decoded?.header?.kid) throw new Error('No kid in Apple token');
 
       const key = await this.appleJwks.getSigningKey(decoded.header.kid);
       const publicKey = key.getPublicKey();
 
-      const verified = jwt.verify(dto.identity_token, publicKey, {
+      const verified = jwt.verify(identityToken, publicKey, {
         algorithms: ['RS256'],
         issuer: APPLE_ISSUER,
         audience: process.env.APPLE_CLIENT_ID,
@@ -173,18 +192,138 @@ export class FateAccountService {
     // from that sub, so it is exactly as trustworthy as the sub itself
     // — unforgeable, and unique to this user/app pair.
     const synthesized = !payload.email;
-    const email = payload.email ?? `apple.${payload.sub}@privaterelay.appleid.com`;
+    return {
+      sub:           payload.sub,
+      email:         payload.email ?? `apple.${payload.sub}@privaterelay.appleid.com`,
+      emailVerified: synthesized || payload.emailVerified,
+    };
+  }
+
+  async appleAuth(dto: AppleAuthDto) {
+    const payload = await this.verifyAppleToken(dto.identity_token);
 
     const account = await this.findOrCreateOAuthAccount(
       'apple',
       payload.sub,
-      email,
-      synthesized || payload.emailVerified,
+      payload.email,
+      payload.emailVerified,
       dto.full_name ?? null,
     );
 
     const session = await this.issueSession(account.id);
     return this.buildAuthResponse(account.id, account.email, session);
+  }
+
+  // ── IDENTITY LINKING ─────────────────────────────────────────────────────────
+  //
+  // The safe half of what the email fallback was doing badly. You are
+  // already signed in; you present a provider token; it is attached to
+  // the account you are signed in as. No address is consulted, so there
+  // is no address to forge.
+
+  async listIdentities(accountId: string) {
+    const identities = await this.prisma.authIdentity.findMany({
+      where:   { accountId },
+      orderBy: { linkedAt: 'asc' },
+    });
+    return {
+      identities: identities.map((i) => ({
+        identity_id:    i.id,
+        provider:       i.provider,
+        email:          i.email,
+        email_verified: i.emailVerified,
+        linked_at:      i.linkedAt.toISOString(),
+        last_used_at:   i.lastUsedAt?.toISOString() ?? null,
+        // The email identity is the password, and v1 has no flow for
+        // surrendering a password, so the client hides its unlink control.
+        can_unlink:     i.provider !== 'email' && identities.length > 1,
+      })),
+    };
+  }
+
+  async linkIdentity(accountId: string, dto: LinkIdentityDto) {
+    const wants = [dto.google_id_token && 'google', dto.apple_identity_token && 'apple']
+      .filter(Boolean) as Array<'google' | 'apple'>;
+    if (wants.length !== 1) {
+      throw new BadRequestException('Provide exactly one provider token');
+    }
+    const provider = wants[0];
+
+    const payload = provider === 'google'
+      ? await this.verifyGoogleToken(dto.google_id_token!)
+      : await this.verifyAppleToken(dto.apple_identity_token!);
+
+    // Already attached somewhere? Attaching one subject to two accounts
+    // would make the sign-in ambiguous, and silently moving it would
+    // strand whichever account lost it.
+    const existing = await this.prisma.authIdentity.findUnique({
+      where: { provider_providerId: { provider, providerId: payload.sub } },
+    });
+    if (existing) {
+      if (existing.accountId === accountId) {
+        return { linked: true, provider, already: true };
+      }
+      throw new ConflictException(
+        `That ${provider} account is already linked to a different Heroes account`,
+      );
+    }
+
+    // Same question against the legacy columns, for any account that has
+    // not yet been through the backfill.
+    const legacy = await this.prisma.fateAccount.findFirst({
+      where: { provider, providerId: payload.sub, NOT: { id: accountId } },
+    });
+    if (legacy) {
+      throw new ConflictException(
+        `That ${provider} account is already linked to a different Heroes account`,
+      );
+    }
+
+    await this.prisma.authIdentity.create({
+      data: {
+        accountId,
+        provider,
+        providerId:    payload.sub,
+        email:         payload.email.toLowerCase(),
+        emailVerified: payload.emailVerified,
+      },
+    });
+    this.logger.log(`Identity linked: ${provider} → account ${accountId}`);
+    return { linked: true, provider, already: false };
+  }
+
+  async unlinkIdentity(accountId: string, identityId: string) {
+    const identity = await this.prisma.authIdentity.findUnique({ where: { id: identityId } });
+    if (!identity || identity.accountId !== accountId) {
+      throw new NotFoundException('No such identity on this account');
+    }
+
+    // Never remove the last way in. An account with no identities is
+    // unreachable forever and nothing else in the system would notice.
+    const count = await this.prisma.authIdentity.count({ where: { accountId } });
+    if (count <= 1) {
+      throw new BadRequestException('That is the only way into this account');
+    }
+
+    // The 'email' identity IS the password. Removing the row without
+    // clearing passwordHash would leave login() working against an
+    // identity that no longer exists — so v1 simply refuses, rather than
+    // quietly destroying a credential.
+    if (identity.provider === 'email') {
+      throw new BadRequestException('Email sign-in cannot be unlinked yet');
+    }
+
+    await this.prisma.authIdentity.delete({ where: { id: identityId } });
+
+    // Keep the legacy columns honest while they still exist: if they
+    // described the identity just removed, they now describe nothing.
+    await this.prisma.fateAccount.updateMany({
+      where: { id: accountId, provider: identity.provider, providerId: identity.providerId },
+      data:  { provider: 'email', providerId: null },
+    });
+
+    this.logger.log(`Identity unlinked: ${identity.provider} from account ${accountId}`);
+    return { unlinked: true, provider: identity.provider };
   }
 
   // ── HERO MANAGEMENT ──────────────────────────────────────────────────────────
@@ -387,13 +526,17 @@ export class FateAccountService {
    *
    *  `emailVerified` is the provider's own assertion that this user
    *  controls this address — a claim entirely separate from the token
-   *  signature, and the caller must pass it honestly.
+   *  signature, and callers must pass it honestly.
    *
-   *  This function is interim. The real fix is an AuthIdentity child
-   *  table (docs/google-launch-plan.md § 1) — `FateAccount.provider` is
-   *  a single scalar column, so one account cannot hold both an Apple
-   *  and a Google identity, and everything awkward below follows from
-   *  that.
+   *  Resolution order is deliberate:
+   *    1. auth_identities on (provider, providerId) — the real key
+   *    2. the legacy fate_accounts columns, healing the missing row
+   *    3. a VERIFIED email match, healing the missing row
+   *    4. create
+   *
+   *  Step 2 exists so this code is safe to deploy before, during, or
+   *  after the backfill migration — the app never has to know which. It
+   *  goes away with the legacy columns.
    */
   private async findOrCreateOAuthAccount(
     provider: 'google' | 'apple',
@@ -402,65 +545,102 @@ export class FateAccountService {
     emailVerified: boolean,
     displayName?: string | null,
   ) {
-    // The only claim that actually proves identity.
+    const lowered = email.toLowerCase();
+
+    // 1. The identity table — the only lookup that actually proves who
+    //    is signing in.
+    const identity = await this.prisma.authIdentity.findUnique({
+      where: { provider_providerId: { provider, providerId } },
+      include: { account: true },
+    });
+    if (identity) {
+      // Check before writing: a suspended account should not have its
+      // sign-in timestamps updated by an attempt that gets refused.
+      this.assertActive(identity.account);
+      await this.touchIdentity(identity.id, identity.accountId);
+      return identity.account;
+    }
+
+    // 2. Legacy columns. An account that predates the backfill — or one
+    //    created between deploy and migration — still signs in, and
+    //    gains its identity row on the way through.
     let account = await this.prisma.fateAccount.findFirst({
       where: { provider, providerId },
     });
 
-    // Email fallback — how an existing email/password player reaches
-    // their heroes the first time they sign in with a provider. It
-    // cannot be deleted until linking exists, but it MUST NOT run on an
-    // address the provider has not confirmed: a validly-signed token
-    // asserting someone else's address would otherwise hand over
-    // whatever account happens to hold it, heroes and all.
+    // 3. Email fallback. This is how an existing email/password player
+    //    reaches their heroes the first time they use a provider, and it
+    //    is the reason linking exists — once linking ships this whole
+    //    branch goes (see docs/google-launch-plan.md § 0). It MUST NOT
+    //    run on an address the provider has not confirmed: a
+    //    validly-signed token asserting someone else's address would
+    //    otherwise hand over whatever account holds it, heroes and all.
     if (!account) {
       if (emailVerified) {
-        account = await this.prisma.fateAccount.findUnique({
-          where: { email: email.toLowerCase() },
-        });
+        account = await this.prisma.fateAccount.findUnique({ where: { email: lowered } });
       } else {
         this.logger.warn(
           `${provider} sign-in with unverified email — creating a separate ` +
-          `account rather than matching ${email.toLowerCase()}`,
+          `account rather than matching ${lowered}`,
         );
       }
     }
 
-    if (account) {
-      // Promote an email-matched account so the NEXT sign-in resolves on
-      // provider + sub above instead of leaning on the address again.
-      // `provider` is rewritten alongside it, which mislabels an account
-      // that also has a passwordHash — tolerable only because login()
-      // keys on email + hash and never reads this column. The label
-      // stops being a lie once AuthIdentity lands.
-      if (!account.providerId) {
-        account = await this.prisma.fateAccount.update({
-          where: { id: account.id },
-          data: { providerId, provider, lastLoginAt: new Date() },
-        });
-      } else {
-        await this.prisma.fateAccount.update({
-          where: { id: account.id },
-          data: { lastLoginAt: new Date() },
-        });
-      }
-    } else {
+    // 4. Nobody matched: a genuinely new player.
+    if (!account) {
       account = await this.prisma.fateAccount.create({
-        data: {
-          email: email.toLowerCase(),
-          provider,
-          providerId,
-          displayName: displayName ?? null,
-        },
+        data: { email: lowered, provider, providerId, displayName: displayName ?? null },
       });
-      this.logger.log(`OAuth account created: ${email} via ${provider} (${account.id})`);
+      this.logger.log(`OAuth account created: ${lowered} via ${provider} (${account.id})`);
+    } else {
+      await this.prisma.fateAccount.update({
+        where: { id: account.id },
+        data: { lastLoginAt: new Date() },
+      });
     }
 
+    this.assertActive(account);
+
+    // Record the identity however we got here, so the next sign-in
+    // resolves at step 1 and never consults an address again. This also
+    // retires the old `provider`-column promotion: the identity row does
+    // that job properly, so an email/password account matched at step 3
+    // keeps its honest `provider = 'email'` label.
+    await this.prisma.authIdentity.upsert({
+      where:  { provider_providerId: { provider, providerId } },
+      update: { lastUsedAt: new Date() },
+      create: {
+        accountId: account.id,
+        provider,
+        providerId,
+        email: lowered,
+        emailVerified,
+      },
+    });
+
+    return account;
+  }
+
+  /** A suspended account must not receive a session by any route. */
+  private assertActive<T extends { status: string }>(account: T): T {
     if (account.status !== 'active') {
       throw new UnauthorizedException('Account is suspended');
     }
-
     return account;
+  }
+
+  private async touchIdentity(identityId: string, accountId: string) {
+    const now = new Date();
+    await Promise.all([
+      this.prisma.authIdentity.update({
+        where: { id: identityId },
+        data: { lastUsedAt: now },
+      }),
+      this.prisma.fateAccount.update({
+        where: { id: accountId },
+        data: { lastLoginAt: now },
+      }),
+    ]);
   }
 
   private formatHero(hero: any) {

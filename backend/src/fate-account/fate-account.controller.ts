@@ -6,6 +6,9 @@
 //   POST /api/account/auth/google     — Google ID token
 //   POST /api/account/auth/apple      — Apple identity token
 //   POST /api/account/logout          — revoke session
+//   GET  /api/account/identities      — list linked sign-in methods
+//   POST /api/account/identities      — link a provider to THIS account
+//   DELETE /api/account/identities/:id — unlink (never the last one)
 //   GET  /api/account/heroes          — list heroes (auth required)
 //   POST /api/account/heroes          — create hero (auth required)
 //   POST /api/account/heroes/:id/select    — select active hero
@@ -32,6 +35,7 @@ import {
   LoginDto,
   GoogleAuthDto,
   AppleAuthDto,
+  LinkIdentityDto,
   CreateHeroDto,
   UpdateHeroAlignmentDto,
 } from './dto/auth.dto';
@@ -74,6 +78,40 @@ export class FateAccountController {
   async logout(@Req() req: Request & { headers: { authorization?: string } }) {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (token) await this.service.revokeSession(token);
+  }
+
+  // ── Identity linking (AccountGuard required) ───────────────────────────────
+  //
+  // Linking is an AUTHENTICATED action by design: you are already signed
+  // in, and the provider token is attached to the account you are signed
+  // in as. Nothing is matched on an email address, so there is no
+  // address for an attacker to assert.
+
+  @Get('identities')
+  @UseGuards(AccountGuard)
+  async listIdentities(@Req() req: Request & { accountId: string }) {
+    return this.service.listIdentities(req.accountId);
+  }
+
+  @Post('identities')
+  @UseGuards(AccountGuard)
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  async linkIdentity(
+    @Req() req: Request & { accountId: string },
+    @Body() dto: LinkIdentityDto,
+  ) {
+    return this.service.linkIdentity(req.accountId, dto);
+  }
+
+  @Delete('identities/:id')
+  @UseGuards(AccountGuard)
+  @HttpCode(200)
+  async unlinkIdentity(
+    @Req() req: Request & { accountId: string },
+    @Param('id') identityId: string,
+  ) {
+    return this.service.unlinkIdentity(req.accountId, identityId);
   }
 
   // ── Hero management (AccountGuard required) ────────────────────────────────
