@@ -131,7 +131,7 @@ function todayUtc(): string {
 // mirror the client's src/screens/Sanctum/restoration.ts (kept
 // local by convention — same pattern as Memoria's RANK_TIERS).
 
-export type UpgradeTrack = 'sanctum' | 'library' | 'forge' | 'altar' | 'hearth';
+export type UpgradeTrack = 'sanctum' | 'library' | 'forge' | 'altar' | 'hearth' | 'arena';
 
 const SANCTUM_MAX_LEVEL = 20;
 const WING_MAX_LEVEL    = 10;
@@ -169,24 +169,50 @@ const HEARTH_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
 /** Wing-level prerequisites to REACH each sanctum level — the keep
  *  cannot outgrow its wings (Kingshot-style main-building gating).
  *  Hearth/Altar join the table once their tracks exist. */
-const SANCTUM_PREREQS: Record<number, { library?: number; forge?: number; hearth?: number; altar?: number }> = {
-  5:  { library: 2 },
-  6:  { library: 2 },
-  7:  { library: 3 },
-  8:  { library: 3, forge: 2 },
-  9:  { library: 4, forge: 2 },
-  10: { library: 4, forge: 3 },
-  11: { library: 5, forge: 3 },
-  12: { library: 5, forge: 4 },
-  13: { library: 6, forge: 4 },
-  14: { library: 6, forge: 5 },
-  15: { library: 7, forge: 5 },
-  16: { library: 7, forge: 6 },
-  17: { library: 8, forge: 6 },
-  18: { library: 8, forge: 7 },
-  19: { library: 9, forge: 8 },
-  20: { library: 10, forge: 9 },
+// ── Restoration gates (2026-08-04, Tim's calibration) ────────
+// The keep cannot outgrow its wings, AND the Sanctum cannot outrun the
+// hero. Every level past the opening now asks for Fate as well as
+// wings, so restoration paces against the whole system rather than
+// against one grindable counter. Anchor supplied by Tim: Sanctum 6
+// requires Fate 20 · Library 4 · Altar 4 · Forge 2 · Arena 2.
+//
+// MUST mirror native src/screens/Sanctum/restoration.ts.
+const SANCTUM_PREREQS: Record<number, {
+  fate?: number; library?: number; forge?: number; hearth?: number; altar?: number; arena?: number;
+}> = {
+  3:  { fate: 3 },
+  4:  { fate: 8,  library: 2 },
+  5:  { fate: 14, library: 3, hearth: 2 },
+  6:  { fate: 20, library: 4, altar: 4, forge: 2, arena: 2 },
+  7:  { fate: 23, library: 5, altar: 4, forge: 3, arena: 3, hearth: 3 },
+  8:  { fate: 26, library: 5, altar: 5, forge: 3, arena: 3, hearth: 4 },
+  9:  { fate: 29, library: 6, altar: 5, forge: 4, arena: 4, hearth: 4 },
+  10: { fate: 32, library: 6, altar: 6, forge: 4, arena: 4, hearth: 5 },
+  11: { fate: 35, library: 7, altar: 6, forge: 5, arena: 5, hearth: 5 },
+  12: { fate: 37, library: 7, altar: 7, forge: 5, arena: 5, hearth: 6 },
+  13: { fate: 39, library: 8, altar: 7, forge: 6, arena: 6, hearth: 6 },
+  14: { fate: 41, library: 8, altar: 8, forge: 6, arena: 6, hearth: 7 },
+  15: { fate: 43, library: 9, altar: 8, forge: 7, arena: 7, hearth: 7 },
+  16: { fate: 45, library: 9, altar: 9, forge: 7, arena: 7, hearth: 8 },
+  17: { fate: 46, library: 10, altar: 9, forge: 8, arena: 8, hearth: 8 },
+  18: { fate: 47, library: 10, altar: 10, forge: 8, arena: 8, hearth: 9 },
+  19: { fate: 48, library: 10, altar: 10, forge: 9, arena: 9, hearth: 9 },
+  20: { fate: 50, library: 10, altar: 10, forge: 10, arena: 10, hearth: 10 },
 };
+
+/** Fate floors on the WINGS themselves, so none can be rushed ahead of
+ *  the hero. Uniform across wings; the Forge stacks its own Resonance
+ *  floors on top (its whole purpose is gear). */
+const WING_FATE_FLOORS: Record<number, number> = { 4: 6, 6: 12, 8: 22, 10: 35 };
+
+/** Cumulative works to REACH an arena level. Same curve as the other
+ *  wings — the Arena is a wing, not a bespoke track. */
+const ARENA_CUM_COSTS = [0, 0, 1, 3, 6, 9, 13, 18, 23, 29, 36];
+
+/** Renown tier → arena works. A mastery tier is worth three logged
+ *  practices: proving a gauntlet should move the ground faster than
+ *  showing up, without making the daily habit pointless. */
+const ARENA_WORKS_PER_TIER = 3;
 
 // ── Restoration economy (2026-07-10, Tim's spec) ────────────
 // Upgrades keep their progress-point gates and ADD: a Veil
@@ -250,9 +276,10 @@ function awakeningFlags(
   return { veilfire: true, library, altar, forge, veilfront };
 }
 
-const TRACKS: UpgradeTrack[] = ['sanctum', 'library', 'forge', 'altar', 'hearth'];
-const LEVEL_COL: Record<UpgradeTrack, 'sanctumLevel' | 'libraryLevel' | 'forgeLevel' | 'altarLevel' | 'hearthLevel'> = {
-  sanctum: 'sanctumLevel', library: 'libraryLevel', forge: 'forgeLevel', altar: 'altarLevel', hearth: 'hearthLevel',
+const TRACKS: UpgradeTrack[] = ['sanctum', 'library', 'forge', 'altar', 'hearth', 'arena'];
+const LEVEL_COL: Record<UpgradeTrack, 'sanctumLevel' | 'libraryLevel' | 'forgeLevel' | 'altarLevel' | 'hearthLevel' | 'arenaLevel'> = {
+  sanctum: 'sanctumLevel', library: 'libraryLevel', forge: 'forgeLevel', altar: 'altarLevel',
+  hearth: 'hearthLevel', arena: 'arenaLevel',
 };
 
 @Injectable()
@@ -314,18 +341,28 @@ export class SanctumService {
     const s = state as unknown as {
       totalTrials: number; totalAuguries: number; totalOathsSworn: number;
       sanctumLevel: number; libraryLevel: number; forgeLevel: number; altarLevel: number;
-      hearthLevel: number;
+      hearthLevel: number; arenaLevel: number;
     };
-    const [materials, activeBuilds] = await Promise.all([
+    const [materials, activeBuilds, physicalEntries, spiritualEntries, mastery] = await Promise.all([
       this.materialStocks(rootId),
       this.prisma.sanctumBuild.findMany({
         where: { rootId, completedAt: null },
         select: { track: true, toLevel: true, startedAt: true, readyAt: true },
       }),
+      // Works for the two tracks whose points aren't stored counters.
+      // Sent with the state so the client's bars and the server's gate
+      // read the same number instead of the client guessing.
+      this.prisma.trainingEntry.count({ where: { rootId, pillar: 'forge' } }),
+      this.prisma.trainingEntry.count({ where: { rootId, pillar: 'veil' } }),
+      this.prisma.trialMastery.findMany({ where: { rootId }, select: { tier: true } }),
     ]);
+    const arenaWorks = physicalEntries
+      + ARENA_WORKS_PER_TIER * mastery.reduce((a, m) => a + m.tier, 0);
+    const altarWorks = spiritualEntries;
     const levelOf: Record<UpgradeTrack, number> = {
       sanctum: s.sanctumLevel, library: s.libraryLevel,
       forge: s.forgeLevel, altar: s.altarLevel, hearth: s.hearthLevel,
+      arena: s.arenaLevel,
     };
     const nextBuilds = Object.fromEntries(TRACKS.map(t => {
       const max = t === 'sanctum' ? SANCTUM_MAX_LEVEL : WING_MAX_LEVEL;
@@ -336,6 +373,8 @@ export class SanctumService {
       ...state,
       awakening:   awakeningFlags(s, fateLevel),
       materials,
+      arena_works: arenaWorks,
+      altar_works: altarWorks,
       builds:      activeBuilds,
       next_builds: nextBuilds,
       fateLevel,
@@ -353,6 +392,12 @@ export class SanctumService {
     raw: Awaited<ReturnType<typeof this.prisma.sanctumState.create>>,
     track: UpgradeTrack,
   ): Promise<number> {
+    // Fate now gates restoration on every track — the Sanctum cannot
+    // outrun the hero who lives in it.
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId }, select: { fateLevel: true },
+    });
+    const fate = hero?.fateLevel ?? 1;
     if (track === 'sanctum') {
       const next = raw.sanctumLevel + 1;
       if (next > SANCTUM_MAX_LEVEL) throw new ConflictException('The Sanctum is fully restored.');
@@ -367,10 +412,12 @@ export class SanctumService {
       const prereq = SANCTUM_PREREQS[next];
       if (prereq) {
         const unmet: string[] = [];
-        if (prereq.library && raw.libraryLevel < prereq.library) unmet.push(`Library level ${prereq.library}`);
-        if (prereq.forge   && raw.forgeLevel   < prereq.forge)   unmet.push(`Forge level ${prereq.forge}`);
-        if (prereq.hearth  && raw.hearthLevel  < prereq.hearth)  unmet.push(`Hearth level ${prereq.hearth}`);
-        if (prereq.altar   && raw.altarLevel   < prereq.altar)   unmet.push(`Altar level ${prereq.altar}`);
+        if (prereq.fate    && fate              < prereq.fate)    unmet.push(`Fate level ${prereq.fate}`);
+        if (prereq.library && raw.libraryLevel  < prereq.library) unmet.push(`Library level ${prereq.library}`);
+        if (prereq.forge   && raw.forgeLevel    < prereq.forge)   unmet.push(`Forge level ${prereq.forge}`);
+        if (prereq.hearth  && raw.hearthLevel   < prereq.hearth)  unmet.push(`Hearth level ${prereq.hearth}`);
+        if (prereq.altar   && raw.altarLevel    < prereq.altar)   unmet.push(`Altar level ${prereq.altar}`);
+        if (prereq.arena   && raw.arenaLevel    < prereq.arena)   unmet.push(`Arena level ${prereq.arena}`);
         if (unmet.length > 0) {
           throw new ConflictException(`The keep cannot outgrow its wings. Requires ${unmet.join(' · ')}.`);
         }
@@ -384,15 +431,24 @@ export class SanctumService {
       if (finds < (LIBRARY_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('Not enough of the Archive has been recovered.');
       }
+      this.requireWingFate(fate, next, 'Library');
       return next;
     }
     if (track === 'altar') {
       const next = raw.altarLevel + 1;
       if (next > WING_MAX_LEVEL) throw new ConflictException('The Altar is fully restored.');
-      const altarWorks = 0;   // Reliquary + Hero Echo completions (TBG)
+      // Devotions. Tim's call (2026-08-04): the Altar's sources are
+      // Hero Echoes, Spiritual practice and the Reliquary. Only
+      // Spiritual exists today, so it carries the track alone and the
+      // other two add to it as they land — the hardcoded 0 that stood
+      // here had left the Altar unlevellable since it shipped.
+      const altarWorks = await this.prisma.trainingEntry.count({
+        where: { rootId, pillar: 'veil' },
+      });
       if (altarWorks < (ALTAR_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The altar is silent — no devotions have been offered.');
       }
+      this.requireWingFate(fate, next, 'Altar');
       return next;
     }
     if (track === 'forge') {
@@ -402,6 +458,23 @@ export class SanctumService {
       if (forgeWorks < (FORGE_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The forge is cold — no works have been completed.');
       }
+      this.requireWingFate(fate, next, 'Forge');
+      return next;
+    }
+    if (track === 'arena') {
+      const next = raw.arenaLevel + 1;
+      if (next > WING_MAX_LEVEL) throw new ConflictException('The Arena is fully restored.');
+      // Physical practice + trial mastery — Tim: link the ground to
+      // the body's work AND the gauntlets, not to trials alone.
+      const [practices, mastery] = await Promise.all([
+        this.prisma.trainingEntry.count({ where: { rootId, pillar: 'forge' } }),
+        this.prisma.trialMastery.findMany({ where: { rootId }, select: { tier: true } }),
+      ]);
+      const works = practices + ARENA_WORKS_PER_TIER * mastery.reduce((s2, m) => s2 + m.tier, 0);
+      if (works < (ARENA_CUM_COSTS[next] ?? Infinity)) {
+        throw new ConflictException('The ground is unproven — train the body, or take a gauntlet.');
+      }
+      this.requireWingFate(fate, next, 'Arena');
       return next;
     }
     if (track === 'hearth') {
@@ -410,9 +483,19 @@ export class SanctumService {
       if (raw.totalHearthClaims < (HEARTH_CUM_COSTS[next] ?? Infinity)) {
         throw new ConflictException('The embers remember too few tendings.');
       }
+      this.requireWingFate(fate, next, 'Hearth');
       return next;
     }
     throw new BadRequestException(`Unknown upgrade track: ${track}`);
+  }
+
+  /** Fate floor on a wing level. Uniform across the wings so none can
+   *  be rushed ahead of the hero who lives in the Sanctum. */
+  private requireWingFate(fate: number, nextLevel: number, wing: string): void {
+    const floor = WING_FATE_FLOORS[nextLevel];
+    if (floor && fate < floor) {
+      throw new ConflictException(`The ${wing} answers a proven hero. Requires Fate level ${floor}.`);
+    }
   }
 
   /** START a restoration build (2026-07-10 economy): the progress

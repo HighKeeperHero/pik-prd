@@ -983,6 +983,9 @@ model SanctumState {
   forgeLevel        Int      @default(1) @map("forge_level")
   hearthLevel       Int      @default(1) @map("hearth_level")
   altarLevel        Int      @default(1) @map("altar_level")
+  /// The Arena joined the restoration tracks 2026-08-04. Its works are
+  /// physical practice + trial mastery — the wing is proven, not built.
+  arenaLevel        Int      @default(1) @map("arena_level")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
   root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)

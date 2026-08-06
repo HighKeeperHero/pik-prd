@@ -106,6 +106,39 @@ const QUESTS: QuestSeed[] = [
     rewards: { xp: 50, cache_rarity: 'uncommon' },
   },
 
+  // ── FORGE WORKS (2026-08-04) ──────────────────────────────
+  // The Forge restoration track counts CLAIMS of quests tagged
+  // `forge_work` (sanctum.service validateNext). That plumbing has
+  // existed since the track shipped and nothing ever fed it — no
+  // tagged quest was ever written — so the Forge has been stuck at
+  // level 1 for every hero since day one.
+  //
+  // ⚠ These are built on cache-opening, not crafting. The engine
+  // knows a `craft_works` objective, but NOTHING emits a 'craft'
+  // event yet, so a chain built on it would be just as dead. Caches
+  // are the forge's raw stock (they drop veilglass/leywood/ore, which
+  // restoration builds consume), so "prep the forge" is honest work
+  // until the crafting mechanic lands. When it does, retarget these
+  // to craft_works/smelt_works and keep the tag — the tag is the seam.
+  //
+  // Cadence sets the pace: a daily + a weekly is ~8 works a week, so
+  // Forge 10 (36 works) lands in ~5 weeks, in step with the Library
+  // and the Hearth rather than lagging them.
+  {
+    slug: 'daily_forge_work', name: 'Stock the Forge',
+    description: 'The forge eats what the Veil gives up. Break open what you have carried home.',
+    cadence: 'daily', sortOrder: 60, tag: 'forge_work',
+    objectives: [{ id: 'o1', type: 'open_caches', label: 'Open 2 Fate Caches', target: 2 }],
+    rewards: { xp: 40 },
+  },
+  {
+    slug: 'weekly_forge_works', name: 'The Forge Remembers Work',
+    description: 'A week of stock is what turns a cold forge warm.',
+    cadence: 'weekly', sortOrder: 60, tag: 'forge_work',
+    objectives: [{ id: 'o1', type: 'open_caches', label: 'Open 12 Fate Caches', target: 12 }],
+    rewards: { xp: 220, materials: { ore: 1 } },
+  },
+
   // ── WEEKLY ────────────────────────────────────────────────
   {
     slug: 'weekly_seals', name: 'Warden of the Weave',
