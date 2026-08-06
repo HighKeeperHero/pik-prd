@@ -92,8 +92,8 @@ export class SanctumController {
   @Post('upgrade')
   async upgrade(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
     const track = body?.track as UpgradeTrack;
-    if (!['sanctum', 'library', 'forge', 'altar', 'hearth'].includes(track)) {
-      throw new BadRequestException('track must be sanctum | library | forge | altar | hearth');
+    if (!['sanctum', 'library', 'forge', 'altar', 'hearth', 'arena'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge | altar | hearth | arena');
     }
     return this.sanctum.upgrade(requireHeroId(req), track);
   }
@@ -103,8 +103,8 @@ export class SanctumController {
   @Post('upgrade/complete')
   async completeBuild(@Req() req: AuthedRequest, @Body() body: { track?: string }) {
     const track = body?.track as UpgradeTrack;
-    if (!['sanctum', 'library', 'forge', 'altar', 'hearth'].includes(track)) {
-      throw new BadRequestException('track must be sanctum | library | forge | altar | hearth');
+    if (!['sanctum', 'library', 'forge', 'altar', 'hearth', 'arena'].includes(track)) {
+      throw new BadRequestException('track must be sanctum | library | forge | altar | hearth | arena');
     }
     return this.sanctum.completeBuild(requireHeroId(req), track);
   }
