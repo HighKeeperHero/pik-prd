@@ -29,7 +29,8 @@
     "fake:venue": "ts-node scripts/fake-venue.ts",
     "verify:slice1": "ts-node scripts/verify-slice1.ts",
     "verify:slice2": "ts-node scripts/verify-slice2.ts",
-    "provision:venue": "ts-node scripts/provision-venue.ts"
+    "provision:venue": "ts-node scripts/provision-venue.ts",
+    "census:identity": "ts-node scripts/census-identity.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "^3.1.0",
