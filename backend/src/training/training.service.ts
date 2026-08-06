@@ -217,6 +217,9 @@ export class TrainingService {
     // Legacy milestone check (post-tx, non-critical)
     await this.checkLegacyMilestone(rootId, xp);
 
+    // Settle the week's oath on the deed, not on the next read.
+    await this.settleOathOnDeed(rootId, rite.template.pillar);
+
     // Advance daily/weekly training quests (never throws)
     const questUpdates = await this.questLog.recordEvent(rootId, {
       type: 'rite_done', pillar: rite.template.pillar,
@@ -296,6 +299,9 @@ export class TrainingService {
 
     // Legacy milestone check (post-tx, non-critical)
     await this.checkLegacyMilestone(rootId, pillarXp);
+
+    // Settle the week's oath on the deed, not on the next read.
+    await this.settleOathOnDeed(rootId, dto.pillar);
 
     // Advance daily/weekly training quests (never throws)
     const questUpdates = await this.questLog.recordEvent(rootId, {
@@ -512,31 +518,7 @@ export class TrainingService {
     if (!preset) return { ...this.formatOath(oath), declaration: text };
 
     const progress = await this.oathProgress(rootId, preset, oath.weekOf);
-    let row = oath;
-
-    // Met it → resolve KEPT now, so the reward lands in the moment
-    // the hero earns it rather than at some unseen week boundary.
-    if (row.status === 'pending' && progress >= preset.target) {
-      const hero = await this.prisma.rootIdentity.findUnique({
-        where: { id: rootId }, select: { fateLevel: true },
-      });
-      const reward = oathXpFor(hero?.fateLevel ?? 1);
-      row = await this.prisma.oath.update({
-        where: { id: oath.id },
-        data:  { status: 'kept', resolvedAt: new Date(), xpGranted: reward },
-      });
-      await this.leveling.grantXp(rootId, reward).catch(() => {});
-      await this.prisma.fateMarker
-        .create({ data: { rootId, marker: `Kept the ${preset.pillar} oath: "${preset.declaration}"` } })
-        .catch(() => {});
-      await this.events.log({
-        rootId,
-        sourceId: 'codex-platform',
-        eventType: 'training.oath_resolved',
-        payload: { oath_id: oath.id, status: 'kept', xp: reward, preset_id: preset.id },
-      }).catch(() => {});
-      this.logger.log(`Oath kept: ${rootId} | ${preset.id}`);
-    }
+    const row = await this.keepOathIfMet(rootId, oath, preset, progress);
 
     return {
       ...this.formatOath(row),
@@ -550,6 +532,68 @@ export class TrainingService {
         (await this.prisma.rootIdentity.findUnique({ where: { id: rootId }, select: { fateLevel: true } }))?.fateLevel ?? 1,
       ),
     };
+  }
+
+  /** Resolve a met oath to KEPT and pay it. Idempotent — a pending
+   *  row that hasn't hit its target is returned untouched. */
+  private async keepOathIfMet(
+    rootId: string,
+    oath: { id: string; status: string; weekOf: string },
+    preset: OathPreset,
+    progress: number,
+  ) {
+    if (oath.status !== 'pending' || progress < preset.target) return oath;
+
+    const hero = await this.prisma.rootIdentity.findUnique({
+      where: { id: rootId }, select: { fateLevel: true },
+    });
+    const reward = oathXpFor(hero?.fateLevel ?? 1);
+    const row = await this.prisma.oath.update({
+      where: { id: oath.id },
+      data:  { status: 'kept', resolvedAt: new Date(), xpGranted: reward },
+    });
+    await this.leveling.grantXp(rootId, reward).catch(() => {});
+    await this.prisma.fateMarker
+      .create({ data: { rootId, marker: `Kept the ${preset.pillar} oath: "${preset.declaration}"` } })
+      .catch(() => {});
+    await this.events.log({
+      rootId,
+      sourceId: 'codex-platform',
+      eventType: 'training.oath_resolved',
+      payload: { oath_id: oath.id, status: 'kept', xp: reward, preset_id: preset.id },
+    }).catch(() => {});
+    this.logger.log(`Oath kept: ${rootId} | ${preset.id}`);
+    return row;
+  }
+
+  /** Settle the week's oath on the DEED, not on the read.
+   *
+   *  Resolution used to live only inside getActiveOath, so an oath was
+   *  paid the next time someone happened to open the Altar. Fulfil it
+   *  on a Saturday, don't open the app, and the week turned — the
+   *  reward was never granted and the row was never looked at again,
+   *  because getActiveOath only ever asks for the CURRENT week. The
+   *  oath is self-verifying; it should settle the moment it's earned.
+   *
+   *  Non-critical: a hero's rite or activity must never fail over it.
+   */
+  private async settleOathOnDeed(rootId: string, pillar: string) {
+    try {
+      const week = weekKey();
+      const oath = await this.prisma.oath.findUnique({
+        where: { rootId_weekOf: { rootId, weekOf: week } },
+      });
+      if (!oath || oath.status !== 'pending' || oath.pillar !== pillar) return;
+
+      const { presetId } = this.splitDeclaration(oath.declaration);
+      const preset = presetId ? oathPresetById(presetId) : undefined;
+      if (!preset) return;
+
+      const progress = await this.oathProgress(rootId, preset, oath.weekOf);
+      await this.keepOathIfMet(rootId, oath, preset, progress);
+    } catch (e) {
+      this.logger.warn(`Oath settle-on-deed failed for ${rootId}: ${e}`);
+    }
   }
 
   async resolveOath(rootId: string, oathId: string, dto: ResolveOathDto) {
