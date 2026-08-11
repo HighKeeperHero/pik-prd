@@ -469,7 +469,26 @@ export class TrainingService {
       payload: { pillar: preset.pillar, preset_id: preset.id, week_of: week },
     });
 
+    // ⚠ Oath v2 never told the quest engine an oath had been sworn.
+    // Only the RETIRED v1 endpoint (POST /api/sanctum/oath) emitted
+    // `{type:'oath'}`, and no client screen has called it since v2
+    // shipped 2026-07-31 — so `swear_oath` objectives could not
+    // complete. That is chapter_one STEP 4 (`story_first_oath`), and
+    // because a chapter chain only materializes once the previous one
+    // is fully claimed, the whole campaign was walled there for every
+    // hero created after v2: chapter_two never appeared at all.
+    //
+    // totalOathsSworn matters too — `seedStoryProgress` backfills
+    // swear_oath from that counter, and v1 was the only writer.
+    const oathQuestUpdates = await this.questLog.recordEvent(rootId, { type: 'oath' });
+    await this.prisma.sanctumState.upsert({
+      where:  { rootId },
+      create: { rootId, totalOathsSworn: 1 },
+      update: { totalOathsSworn: { increment: 1 } },
+    }).catch(() => { /* counter is best-effort; the vow still stands */ });
+
     return {
+      quest_updates: oathQuestUpdates,
       oath_id: oath.id,
       message: `"${preset.declaration}" — your word is entered into the Codex. The Veil watches.`,
       week_of: week,

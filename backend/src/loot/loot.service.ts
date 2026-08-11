@@ -30,6 +30,18 @@ import { QuestLogService } from '../quest/quest-log.service';
 // training); caches pay loot, essence, and materials.
 
 /** Cache rarity determines the visual treatment and drop pool weighting */
+// Shared rarity ordering for the "never open below the icon" rule
+// (Tim, locked 2026-07-25). 'rare+' is a gear-only in-between tier.
+const RARITY_ORDER = ['common', 'uncommon', 'rare', 'rare+', 'epic', 'legendary', 'artifact'];
+
+/** The higher of a rolled rarity and the cache's own icon rarity. */
+function floorRarity(rolled: string, icon: string | null | undefined): string {
+  const r = RARITY_ORDER.indexOf((rolled ?? '').toLowerCase());
+  const i = RARITY_ORDER.indexOf((icon ?? '').toLowerCase());
+  if (r < 0 || i < 0) return rolled;
+  return i > r ? icon! : rolled;
+}
+
 const CACHE_RARITIES: Record<string, { minLevel: number; label: string }> = {
   common:    { minLevel: 1,  label: 'Fate Cache' },
   uncommon:  { minLevel: 2,  label: 'Gleaming Fate Cache' },
@@ -223,7 +235,12 @@ export class LootService {
       rewardType   = 'veil_shards';
       rewardValue  = String(shardAmount);
       rewardName   = `${shardAmount} Veil Essence`;
-      rewardRarity = 'common';
+      // Carry the CACHE's rarity, not a hardcoded 'common'. A currency
+      // roll is the one engine outcome with no item to inherit from,
+      // and stamping it common made an epic cache present a common
+      // reward — the same "opened below its icon" complaint the
+      // 2026-07-25 rule exists to prevent.
+      rewardRarity = cache.rarity ?? 'common';
     }
 
     // Update cache record
@@ -330,7 +347,18 @@ export class LootService {
       });
       tiered = atTier(fullPool);
     }
+    // If nothing at-or-above the icon exists even in the full pool,
+    // `entries` still holds BELOW-rank rows and the roll would open
+    // under the icon. Seeded envs all reach legendary so this is a
+    // safety net, but staging's loot_table was empty once (2026-07-15)
+    // and the rule must not depend on seed completeness.
     if (tiered.length > 0) entries = tiered;
+    else if (cacheRank > 0) {
+      this.logger.warn(
+        `Cache ${cache.rarity} ${cache.cacheType} has no loot at-or-above its rarity — ` +
+        `opening below the icon. Seed the pool.`,
+      );
+    }
 
     if (entries.length === 0) {
       entries = await this.prisma.lootTable.findMany({
@@ -369,7 +397,11 @@ export class LootService {
         rewardType:   selected.rewardType,
         rewardValue:  selected.rewardValue,
         rewardName,
-        rewardRarity: selected.rarityTier,
+        // Floored at the icon (2026-07-25 rule). When the pool could
+        // not supply a reward at the cache's tier, the player still
+        // gets what the icon promised rather than being quietly
+        // handed a lesser card.
+        rewardRarity: floorRarity(selected.rarityTier, cache.rarity),
       },
     });
 
