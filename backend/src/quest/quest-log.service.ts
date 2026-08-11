@@ -411,9 +411,20 @@ export class QuestLogService {
 
       // updateMany, not update: two deeds landing in the same moment
       // would both clear the read above and pay the day twice. The
-      // NOT-today predicate makes the first writer the only writer.
+      // not-today predicate makes the first writer the only writer.
+      //
+      // ⚠ It MUST spell out the null branch. `NOT: { lastDeedDate: today }`
+      // compiles to `NOT (last_deed_date = $1)`, which is UNKNOWN — not
+      // true — when the column is NULL, so it matched zero rows for a
+      // hero who had never recorded a deed. Since that is every hero's
+      // first deed, the streak could never start at all. SQL three-valued
+      // logic; the unit tests pass because the bug is in the predicate,
+      // not the date maths.
       const { count } = await this.prisma.sanctumState.updateMany({
-        where: { rootId, NOT: { lastDeedDate: today } },
+        where: {
+          rootId,
+          OR: [{ lastDeedDate: null }, { lastDeedDate: { not: today } }],
+        },
         data:  {
           lastDeedDate:      today,
           deedStreak:        adv.streak,
