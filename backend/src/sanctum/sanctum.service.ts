@@ -325,10 +325,21 @@ export class SanctumService {
    *  needing a second API call. Fate XP per canon (progression.md
    *  §2) drives Adventurer Rank and content gates. */
   private async attachProgression<T extends { rootId: string }>(rootId: string, state: T) {
-    const hero = await this.prisma.rootIdentity.findUnique({
-      where:  { id: rootId },
-      select: { fateXp: true, fateLevel: true },
-    });
+    // Re-read the row rather than trusting the caller's snapshot.
+    // Every ritual captures `updated` from its own write and THEN runs
+    // afterRitual, which advances the deed streak and pays its essence
+    // — so the snapshot is already stale by the time it gets here. The
+    // player tended the hearth and the response told them their streak
+    // was 0 and their essence 5 short. Anything a post-write hook
+    // touches has to be re-read or it is invisible until the next sync.
+    const [hero, fresh] = await Promise.all([
+      this.prisma.rootIdentity.findUnique({
+        where:  { id: rootId },
+        select: { fateXp: true, fateLevel: true },
+      }),
+      this.prisma.sanctumState.findUnique({ where: { rootId } }),
+    ]);
+    if (fresh) state = { ...state, ...fresh };
     const fateXp       = hero?.fateXp ?? 0;
     // Derive Fate level fresh from XP, but never below the stored
     // level — the same monotonic promise grantXp makes (2026-07-10:
