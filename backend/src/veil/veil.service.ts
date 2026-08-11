@@ -11,15 +11,13 @@ import { EchoService, EchoFragmentFound } from '../echo/echo.service';
 import { QuestLogService, type QuestProgressUpdate } from '../quest/quest-log.service';
 import { FAUNA_SPECIES, FAUNA_BY_ID, masteryFor } from './fauna-catalog';
 import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
+import { sealXp, faunaXp } from '../leveling/reward-scale';
 
 // Phase 2 Arc A — XP granted per tear tier on a successful seal.
-// Source of truth: docs/roadmap/phase-2.md.
-const XP_BY_TEAR_TIER: Record<string, number> = {
-  minor:   50,
-  wander:  100,
-  dormant: 250,
-  double:  500,
-};
+// The flat table moved to leveling/reward-scale.ts on 2026-08-11:
+// those numbers are now the value AT THE ANCHOR LEVEL, scaled to
+// the hero by sealXp(). Source of truth: docs/roadmap/phase-2.md
+// plus the reward-scale header.
 
 // Sprint 32 — numeric tier rank for cadence quest objectives
 // (seal_tears tier_min gates: dormant-or-stronger = tier_min 3).
@@ -44,13 +42,21 @@ const RIFT_BANDS: RiftBand[] = [
   { total:  9, radius_km: 2, mix: { T1: 0.60, T2: 0.30, T3: 0.08, T4: 0.02 } },  // L1-5
   { total: 13, radius_km: 3, mix: { T1: 0.45, T2: 0.35, T3: 0.15, T4: 0.05 } },  // L6-15
   { total: 20, radius_km: 4, mix: { T1: 0.30, T2: 0.35, T3: 0.25, T4: 0.10 } },  // L16-30
-  { total: 23, radius_km: 5, mix: { T1: 0.20, T2: 0.30, T3: 0.30, T4: 0.20 } },  // L31+
+  { total: 23, radius_km: 5, mix: { T1: 0.20, T2: 0.30, T3: 0.30, T4: 0.20 } },  // L31-40
+  // 2026-08-11 — the ladder used to STOP at L31, so a L60 hero
+  // walked through the same world as a L31 one: the single most
+  // visible "there is nothing left to progress toward". Two more
+  // bands keep the mix shifting to the top of the curve.
+  { total: 26, radius_km: 5, mix: { T1: 0.12, T2: 0.24, T3: 0.34, T4: 0.30 } },  // L41-50
+  { total: 28, radius_km: 6, mix: { T1: 0.06, T2: 0.18, T3: 0.36, T4: 0.40 } },  // L51-60
 ];
 function bandForFateLevel(level: number): RiftBand {
   if (level <=  5) return RIFT_BANDS[0];
   if (level <= 15) return RIFT_BANDS[1];
   if (level <= 30) return RIFT_BANDS[2];
-  return RIFT_BANDS[3];
+  if (level <= 40) return RIFT_BANDS[3];
+  if (level <= 50) return RIFT_BANDS[4];
+  return RIFT_BANDS[5];
 }
 
 const TIER_TO_TYPE: Record<string, string> = {
@@ -406,13 +412,14 @@ export class VeilService {
       }
     }
 
-    // Phase 2 Arc A — grant XP on a successful seal. Tier-keyed
-    // table is the source of truth for amount. Result rides on
-    // the response so the client can render the level-up beat
-    // inline with the standard reward block.
+    // Phase 2 Arc A — grant XP on a successful seal. Scaled to the
+    // hero by reward-scale (level curve x readiness risk) so the
+    // same act keeps its worth at L50 as at L5; identical below
+    // the anchor level. Result rides on the response so the client
+    // can render the level-up beat inline with the reward block.
     let xpAward: XpAward | null = null;
     if (outcome === 'won') {
-      const xpAmount = XP_BY_TEAR_TIER[tearType] ?? 0;
+      const xpAmount = sealXp(tearType, hero.fateLevel ?? 1);
       if (xpAmount > 0) {
         xpAward = await this.leveling.grantXp(rootId, xpAmount);
       }
@@ -1330,7 +1337,16 @@ export class VeilService {
       create: { rootId, species: speciesId, count: 1 },
       update: { count: { increment: 1 }, lastAt: new Date() },
     });
-    const xpAward = await this.leveling.grantXp(rootId, species.xp);
+    // Scaled to the hero like a seal is — a tier-4 banish was a
+    // flat 50 XP forever, which is 0.16% of a level at L59.
+    const banisher = await this.prisma.rootIdentity.findUnique({
+      where:  { id: rootId },
+      select: { fateLevel: true },
+    });
+    const xpAward = await this.leveling.grantXp(
+      rootId,
+      faunaXp(species.xp, species.tier, banisher?.fateLevel ?? 1),
+    );
     if (species.tier >= 3) {
       await this.prisma.materialStock.upsert({
         where:  { rootId_material: { rootId, material: 'veilglass' } },

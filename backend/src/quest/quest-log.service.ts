@@ -41,6 +41,7 @@ import { PrismaService } from '../prisma.service';
 import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { LevelingService, XpAward } from '../leveling/leveling.service';
+import { questXp } from '../leveling/reward-scale';
 
 // ── Events emitted by gameplay services ─────────────────────
 
@@ -527,7 +528,18 @@ export class QuestLogService {
     let xpAward: XpAward | null = null;
 
     if (rewards.xp && rewards.xp > 0) {
-      xpAward = await this.leveling.grantXp(rootId, rewards.xp);
+      // Seeded quest XP is a flat number; read it as the value at
+      // the anchor level and ride the curve above that, or the
+      // daily/weekly ledger rots exactly as the tear tiers did.
+      // No risk term — a quest has no tier. See reward-scale.ts.
+      const claimant = await this.prisma.rootIdentity.findUnique({
+        where:  { id: rootId },
+        select: { fateLevel: true },
+      });
+      xpAward = await this.leveling.grantXp(
+        rootId,
+        questXp(rewards.xp, claimant?.fateLevel ?? 1),
+      );
     }
 
     if (rewards.essence && rewards.essence > 0) {
