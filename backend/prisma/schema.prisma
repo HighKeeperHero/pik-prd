@@ -1021,6 +1021,15 @@ model SanctumState {
   /// The Arena joined the restoration tracks 2026-08-04. Its works are
   /// physical practice + trial mastery — the wing is proven, not built.
   arenaLevel        Int      @default(1) @map("arena_level")
+  /// The daily deed streak (2026-08-11). Advances once per UTC day on
+  /// the first REAL deed — a seal, a rite, a banish, a ritual, a quest
+  /// claim — never on merely opening the app, and never on opening a
+  /// cache (a reward container is not a deed; see the XP rule in
+  /// loot.service). Breaking it costs nothing but the count: same
+  /// ethic as the Oath, where a hard week is carried, not punished.
+  lastDeedDate      String?  @map("last_deed_date") // 'YYYY-MM-DD' UTC
+  deedStreak        Int      @default(0) @map("deed_streak")
+  longestDeedStreak Int      @default(0) @map("longest_deed_streak")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
   root RootIdentity @relation(fields: [rootId], references: [id], onDelete: Cascade)

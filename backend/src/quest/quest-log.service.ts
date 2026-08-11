@@ -42,6 +42,7 @@ import { Prisma } from '@prisma/client';
 import { EventsService } from '../events/events.service';
 import { LevelingService, XpAward } from '../leveling/leveling.service';
 import { questXp } from '../leveling/reward-scale';
+import { advanceDeedStreak, isDeedEvent } from '../sanctum/deed-streak';
 
 // ── Events emitted by gameplay services ─────────────────────
 
@@ -370,11 +371,61 @@ export class QuestLogService {
   // seal, or cache-open that triggered it.
 
   async recordEvent(rootId: string, event: QuestEvent): Promise<QuestProgressUpdate[]> {
+    // The deed streak rides here because this is the one choke point
+    // every meaningful act already passes through — seals, banishes,
+    // rites, rituals, wing upgrades, chapter completions. It runs
+    // BEFORE applyEvent and outside its try, because applyEvent
+    // returns early for a hero with no active quests and the streak
+    // must not depend on having a quest log.
+    await this.touchDeedStreak(rootId, event.type);
     try {
       return await this.applyEvent(rootId, event);
     } catch (err) {
       this.logger.error(`recordEvent(${event.type}) failed for ${rootId}: ${(err as Error).message}`);
       return [];
+    }
+  }
+
+  /** Advance the daily deed streak and pay it. Best-effort in every
+   *  direction: a deed must never fail because its streak did. */
+  private async touchDeedStreak(rootId: string, eventType: string): Promise<void> {
+    if (!isDeedEvent(eventType)) return;
+    const today = todayUtc();
+    try {
+      const state = await this.prisma.sanctumState.findUnique({
+        where:  { rootId },
+        select: { lastDeedDate: true, deedStreak: true, longestDeedStreak: true },
+      });
+      // No Sanctum row yet — the hero has not opened their home. The
+      // Sanctum service creates it; there is nothing to anchor to.
+      if (!state || state.lastDeedDate === today) return;
+
+      const hero = await this.prisma.rootIdentity.findUnique({
+        where: { id: rootId }, select: { fateLevel: true },
+      });
+      const adv = advanceDeedStreak(
+        state.lastDeedDate, state.deedStreak, state.longestDeedStreak,
+        today, hero?.fateLevel ?? 1,
+      );
+      if (!adv.advanced) return;
+
+      // updateMany, not update: two deeds landing in the same moment
+      // would both clear the read above and pay the day twice. The
+      // NOT-today predicate makes the first writer the only writer.
+      const { count } = await this.prisma.sanctumState.updateMany({
+        where: { rootId, NOT: { lastDeedDate: today } },
+        data:  {
+          lastDeedDate:      today,
+          deedStreak:        adv.streak,
+          longestDeedStreak: adv.longest,
+          veilEssence:       { increment: adv.essence },
+        },
+      });
+      if (count > 0) {
+        this.logger.log(`Deed streak ${adv.streak} for ${rootId} (+${adv.essence} essence)`);
+      }
+    } catch (err) {
+      this.logger.warn(`deed streak failed for ${rootId}: ${(err as Error).message}`);
     }
   }
 
