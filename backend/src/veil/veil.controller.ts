@@ -25,6 +25,9 @@ interface RecordEncounterBody {
   world_tear_id?: string;
   /** v4 tails — per-fight combat stats for the Performance signal. */
   combat?:        CombatStatsDto;
+  /** Verge (2026-08-11) — how deep the hero chose to stand, 0-3.
+   *  A claim; the service clamps it to their Resonance ceiling. */
+  verge?:         number;
 }
 
 @Controller('api/veil')
@@ -60,6 +63,7 @@ export class VeilController {
       lon,
       worldTearId: world_tear_id,
       combat:      body.combat,
+      verge:       body.verge,
     });
   }
 

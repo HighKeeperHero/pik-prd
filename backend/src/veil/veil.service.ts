@@ -12,6 +12,8 @@ import { QuestLogService, type QuestProgressUpdate } from '../quest/quest-log.se
 import { FAUNA_SPECIES, FAUNA_BY_ID, masteryFor } from './fauna-catalog';
 import { cellIndices, cellKey as makeCellKey, CELL_DEG_DEFAULT } from './tear-gen.util';
 import { sealXp, faunaXp } from '../leveling/reward-scale';
+import { clampVerge, claimedVerge, vergeReward } from './verge';
+import { GearService } from '../gear/gear.service';
 
 // Phase 2 Arc A — XP granted per tear tier on a successful seal.
 // The flat table moved to leveling/reward-scale.ts on 2026-08-11:
@@ -191,6 +193,10 @@ export interface RecordEncounterDto {
   worldTearId?: string;
   /** Optional per-fight combat stats (older clients omit). */
   combat?: CombatStatsDto;
+  /** How deep the hero chose to stand (0-3). A CLAIM — the server
+   *  recomputes the hero's Resonance ceiling and clamps it before
+   *  anything is paid. Older clients omit it and get verge 0. */
+  verge?: number;
 }
 
 // ── Loot drop config per tier ─────────────────────────────────────────────────
@@ -227,6 +233,7 @@ export class VeilService {
     private readonly lore:         LoreService,
     private readonly echo:         EchoService,
     private readonly questLog:    QuestLogService,
+    private readonly gear:        GearService,
   ) {}
 
   // ── Record a battle outcome ───────────────────────────────────────────────
@@ -282,6 +289,23 @@ export class VeilService {
     });
     const isFirstSeal = outcome === 'won' && priorWins === 0;
 
+    // 0.9. Verge (2026-08-11). The client's depth is a CLAIM and it
+    // carries a reward multiplier, so it is re-derived here against
+    // the hero's real Resonance. A stale client sends nothing and
+    // gets 0. Best-effort: a gear read must never fail a seal, and
+    // failing closed to verge 0 only ever pays less.
+    let heroResonance = 0;
+    if (dto.verge) {
+      heroResonance = await this.gear.getComputedResonance(rootId)
+        .then(r => r.resonance)
+        .catch(() => 0);
+    }
+    const verge = clampVerge(dto.verge, heroResonance);
+    // The posted essence already had the CLAIMED verge folded in by
+    // the client's roll. We cannot decompose it, but we can scale it
+    // back to the verge the hero was actually entitled to.
+    const vergeCorrection = vergeReward(verge) / vergeReward(claimedVerge(dto.verge));
+
     // 1. Check active convergence events for this tear tier
     const now = new Date();
     const activeEvents = await this.prisma.convergenceEvent.findMany({
@@ -294,7 +318,7 @@ export class VeilService {
     });
 
     const multiplier        = activeEvents.reduce((max, e) => Math.max(max, e.shardMultiplier), 1.0);
-    const shards            = outcome === 'won' ? Math.round(rawShards * multiplier) : 0;
+    const shards            = outcome === 'won' ? Math.round(rawShards * multiplier * vergeCorrection) : 0;
     const convergenceCacheBonus = activeEvents.some(e => e.cacheBonus);
 
     // 2. Write encounter row
@@ -314,6 +338,11 @@ export class VeilService {
             encounter_id: encounter.id,
             tear_type:    tearType,
             outcome,
+            // The HONOURED verge, not the claimed one — this payload
+            // is the only record of how deep the hero actually went
+            // (TearEncounter has no column for it, and adding one is
+            // not worth a migration until the telemetry asks).
+            verge,
             ...dto.combat,
           },
         },
@@ -419,7 +448,7 @@ export class VeilService {
     // can render the level-up beat inline with the reward block.
     let xpAward: XpAward | null = null;
     if (outcome === 'won') {
-      const xpAmount = sealXp(tearType, hero.fateLevel ?? 1);
+      const xpAmount = Math.round(sealXp(tearType, hero.fateLevel ?? 1) * vergeReward(verge));
       if (xpAmount > 0) {
         xpAward = await this.leveling.grantXp(rootId, xpAmount);
       }
@@ -462,6 +491,11 @@ export class VeilService {
       encounter_id:      encounter.id,
       outcome,
       shards,
+      // What the server actually honoured. If this is below what the
+      // client sent, the hero's Resonance did not carry the descent
+      // and the result card should say so rather than quietly paying
+      // less than the selector promised.
+      verge,
       multiplier:        multiplier !== 1.0 ? multiplier : undefined,
       convergence_event: activeEvents.length > 0 ? activeEvents[0].name : undefined,
       cache_earned:      cacheEarned,

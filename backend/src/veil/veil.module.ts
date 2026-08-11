@@ -15,9 +15,13 @@ import { EchoModule } from '../echo/echo.module';
 // (omitting it crash-loops the app at boot; see doctrine.module).
 import { FateAccountModule } from '../fate-account/fate-account.module';
 import { AccountGuard } from '../auth/guards/account.guard';
+// Verge (2026-08-11) — the depth ceiling is derived from real
+// Resonance, so recordEncounter has to be able to compute it.
+// GearModule does not import VeilModule, so this is acyclic.
+import { GearModule } from '../gear/gear.module';
 
 @Module({
-  imports:     [VenturesModule, QuestModule, LevelingModule, LoreModule, EchoModule, FateAccountModule],
+  imports:     [VenturesModule, QuestModule, LevelingModule, LoreModule, EchoModule, FateAccountModule, GearModule],
   controllers: [VeilController],
   providers:   [VeilService, PrismaService, ConfigService, TearGenService, AccountGuard],
   exports:     [VeilService],
