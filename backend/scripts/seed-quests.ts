@@ -333,21 +333,15 @@ const QUESTS: QuestSeed[] = [
     objectives: [{ id: 'o1', type: 'seal_tears', label: 'Seal a Dormant-or-deeper tear', target: 1, tier_min: 3 }],
     rewards: { xp: 200, cache_rarity: 'rare' },
   },
-  // ⚠ DRAFT until Chapter II prose ships (2026-08-11). This asked the
-  // player to "read the closing Chronicle of Chapter II", and there is
-  // no such Chronicle: native `ALL_CHAPTERS` is `[chapter1]`, so
-  // Chapter II is not in the History list, cannot be opened, and
-  // `completeChapter(2)` — the only thing that emits complete_chapter —
-  // is never called. It was seeded ahead of its content and sat at the
-  // end of the chapter_two chain as a permanently unclaimable frontier.
-  // Flip back to active the moment `src/chapters/chapter-2.ts` exists
-  // and HistoryScreen lists it; the objective already works (Chapter I
-  // fires it correctly from ChapterRereadScreen).
+  // Re-ACTIVATED 2026-08-12: Chapter II prose shipped
+  // (src/chapters/chapter-2.ts, generated from the canonical
+  // markdown), HistoryScreen lists it, and reading it fires
+  // completeChapter(2). It was briefly draft on 2026-08-11 because
+  // the quest had been seeded a year ahead of its Chronicle.
   {
     slug: 'story_ch2', name: 'The Gathering Storm',
     description: 'One Tear was a warning. Three were a pattern. The Elite was an answer. The Veil is not merely breaking — it is listening.',
-    cadence: 'story', chainKey: 'chapter_two', chainStep: 7,
-    status: 'draft', minLevel: 3, sortOrder: 170,
+    cadence: 'story', chainKey: 'chapter_two', chainStep: 7, minLevel: 3, sortOrder: 170,
     objectives: [{ id: 'o1', type: 'complete_chapter', label: 'Read the closing Chronicle of Chapter II', target: 1, chapter: 2 }],
     rewards: { xp: 200, essence: 50, title_id: 'title_tearwarden' },
   },

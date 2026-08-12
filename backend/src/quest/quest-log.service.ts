@@ -303,6 +303,21 @@ export class QuestLogService {
         case 'complete_trial':  current = (await getSanctum())?.totalTrials       ?? 0; break;
         case 'complete_augury': current = (await getSanctum())?.totalAuguries     ?? 0; break;
         case 'reach_level':     current = fateLevel; break;
+        // A chapter read BEFORE its quest step materialized would
+        // otherwise be lost forever: completeChapter is idempotent on
+        // the chapter.completed event and returns no quest_updates on
+        // a re-read, so the credit can never be re-issued. Now the
+        // step credits itself from the event whenever it appears —
+        // reading ahead is safe.
+        case 'complete_chapter':
+          current = await this.prisma.identityEvent.count({
+            where: {
+              rootId,
+              eventType: 'chapter.completed',
+              ...(o.chapter ? { payload: { path: ['chapter'], equals: o.chapter } } : {}),
+            },
+          });
+          break;
         case 'seal_tears':
           current = await this.prisma.tearEncounter.count({
             where: {
