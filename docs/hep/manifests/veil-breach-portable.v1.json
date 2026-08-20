@@ -1,0 +1,90 @@
+{
+  "experienceId": "veil_breach_portable",
+  "experienceVersion": "1",
+  "manifestSchemaVersion": 1,
+  "roomProfile": "portable_small",
+
+  "minimumClearanceMeters": 2.5,
+  "supportedPlayers": { "minimum": 1, "maximum": 1 },
+  "supportedDeviceProfiles": ["ios_arkit_phone", "android_arcore_phone"],
+
+  "requiredAnchors": [
+    {
+      "name": "origin",
+      "type": "verification",
+      "localPosition": [0.0, 0.0, 0.0],
+      "localRotation": [0.0, 0.0, 0.0]
+    },
+    {
+      "name": "fate_fox_spawn",
+      "type": "content",
+      "localPosition": [0.0, 0.0, -1.5],
+      "localRotation": [0.0, 0.0, 0.0]
+    },
+    {
+      "name": "rune_pedestal",
+      "type": "content",
+      "localPosition": [-1.6, 0.0, -2.2],
+      "localRotation": [0.0, 45.0, 0.0]
+    },
+    {
+      "name": "veil_rift",
+      "type": "content",
+      "localPosition": [0.0, 1.5, -3.4],
+      "localRotation": [0.0, 180.0, 0.0]
+    },
+    {
+      "name": "relic",
+      "type": "content",
+      "localPosition": [1.6, 0.9, -2.4],
+      "localRotation": [0.0, -45.0, 0.0]
+    },
+    {
+      "name": "hero_echo",
+      "type": "content",
+      "localPosition": [0.9, 0.0, -2.0],
+      "localRotation": [0.0, 200.0, 0.0]
+    },
+    {
+      "name": "end_point",
+      "type": "marker",
+      "localPosition": [0.0, 0.0, -0.5],
+      "localRotation": [0.0, 0.0, 0.0]
+    }
+  ],
+
+  "requiredZones": [
+    {
+      "name": "player_start",
+      "kind": "player_start",
+      "shape": "circle",
+      "geometry": { "radius": 0.6 }
+    },
+    {
+      "name": "play_boundary",
+      "kind": "safety",
+      "shape": "polygon",
+      "geometry": {
+        "points": [[-2.2, 0.6], [2.2, 0.6], [2.2, -3.0], [-2.2, -3.0]]
+      }
+    },
+    {
+      "name": "rune_reach",
+      "kind": "interaction",
+      "shape": "circle",
+      "geometry": { "radius": 0.9 }
+    },
+    {
+      "name": "relic_reach",
+      "kind": "interaction",
+      "shape": "circle",
+      "geometry": { "radius": 0.9 }
+    },
+    {
+      "name": "rift_clearance",
+      "kind": "clearance",
+      "shape": "box",
+      "geometry": { "size": [2.4, 2.6, 1.2] }
+    }
+  ]
+}
