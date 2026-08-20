@@ -261,3 +261,84 @@ Kit §28 is good and should be enforced. Add one line to it:
 > exactly the thing that will tempt someone to. For v0.1 the graph may
 > live in the Unity template; it must not be written to disk as a format
 > anyone else will read.
+
+---
+
+## 9. Re-baseline: two people, a fixed date (decided 2026-08-20)
+
+Two answers landed on 2026-08-20 and both narrow the build:
+
+- **Tim + Claude execute directly.** No firm, no hire.
+- **November 1 is a fixed external date.** It does not move.
+
+A fixed date with a fixed (and very small) team means scope is the only
+variable left. Deciding the cuts now is strictly better than discovering
+them in the Oct 16-24 hardening window, when there is nothing left to cut
+but quality.
+
+### The kit's §3 Definition of Done survives. Its §12 asset kit does not.
+
+Eleven engineering line-items in §3 are achievable — they are mostly a
+client for routes that already exist (§2). Thirteen asset rows, five
+animation sets, nine VFX systems, ten audio cues and thirteen UI items,
+authored from nothing, are not. **The Definition of Done is the promise;
+the asset kit is a wish list, and it is the thing that will silently eat
+the schedule if nobody cuts it deliberately.**
+
+### The art cut, in priority order
+
+| Asset | Call | Why |
+|---|---|---|
+| **Fate Fox** | **Bespoke. Commission this week.** | The only asset that is the IP. A prospect remembers the fox; they do not remember a pedestal. Rigged + animated mobile-ready runs weeks of lead time, so this is the long pole and it starts now or it does not arrive. |
+| **Veil Rift** | Bespoke — but **shader and VFX, not mesh** | Highest wow per hour of anyone's time, and it is where the brand actually lives visually. No modelling, no rig, no animation pipeline. |
+| Rune pedestal, Relic | **Licensed base mesh, re-textured** | Simple props. Authoring them from scratch buys nothing a prospect can see. |
+| **Hero Echo** | **CUT to VFX shell + voice cue for v0.1** | It exists to deliver one warning line (kit §11). A spectral shell plus VO delivers that beat at a fraction of the cost. **The anchor slot stays exactly where it is**, so it upgrades to a real character after Nov 1 without touching the manifest or a single calibrated room. |
+| Tendrils, sparks, debris, glyphs, markers | Procedural / licensed | Kit already marks debris optional. |
+| Audio (10 cues) | **Licensed library + one bespoke Fate Fox summon cue** | The fox's signature cue is identity. The rest is craft anyone can license. |
+
+That reduces bespoke art production to: **one rigged character, one
+shader family, one audio cue.** Everything else is assembly.
+
+### Fixed date changes two things immediately
+
+1. **Fallback Mode D is a week-one deliverable.** Kit §29 asks for "one
+   recorded deployment from blank room to live demo" as a handoff item.
+   With an immovable date it is not a handoff item, it is insurance:
+   shoot the first one on graybox the day Gate 2 passes, and re-shoot at
+   every gate. A rough recording of a real deployment is a working demo
+   when the venue Wi-Fi and the tracking both fail. A polished one that
+   does not exist yet is not.
+2. **The SOP outranks the feature list from October onward.** Gate 6 —
+   ten consecutive runs — is an operations result. It is also the gate
+   that actually predicts what happens on the show floor, and the only
+   one that cannot be recovered by working a weekend.
+
+### The engine question is now open, and should be closed this week
+
+Kit §5 names Unity + AR Foundation. That was the right default for a
+firm or an XR hire. It is worth re-examining for this team:
+
+- **Unity is not installed on the build machine.** Day one of Gate 1 is
+  a Hub install, a licence, and an IL2CPP toolchain.
+- Xcode 26.6 and three registered iOS devices already are.
+- The Nov 1 demo is **one operator device handed to one prospect** —
+  single player, single platform in practice.
+- The §6 local-persistence path (`ARWorldMap`) is **iOS-only anyway**.
+- Claude can build, deploy and drive an Xcode/iOS project from this
+  session. It cannot drive the Unity Editor.
+
+**Against native ARKit/RealityKit:** no Android, and Niantic's NSDK is
+Unity-only, so the optional VPS2 upgrade path (Gate 5) closes. Kit §2
+already says VPS2 must never be show-critical, and §6 above proposes
+spending that window on local persistence instead — but this is a real
+door being shut, and it is the door marked "fundraising spike."
+
+Whichever way it goes, **decide it this week.** Both paths consume the
+Aug 20-28 window and neither survives being started twice.
+
+### The one thing that must happen regardless, this week
+
+Commission the Fate Fox. It is engine-agnostic (FBX/glTF either way),
+it has the longest lead time of anything on this page, and every gate
+from Sep 8 onward has it on the critical path. See
+[`field-deploy-art-brief.md`](field-deploy-art-brief.md).
