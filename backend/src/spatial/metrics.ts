@@ -104,6 +104,45 @@ export const THRESHOLDS: ThresholdSpec[] = [
     target: 300,
     label: 'Room reset time ≤5 minutes',
   },
+  // ── The technical spike's own metrics (added 2026-08-18) ────
+  // Rows 4-8 of the Niantic spike test protocol had no destination: the
+  // brief says to record recovery time, cold-return offset and a pass
+  // rate over 10+ sessions, and nothing here could hold them. A spike
+  // whose central result lands in a notebook cannot be compared against
+  // the pilot that follows it, and the pilot is judged by this table.
+  {
+    metric: 'anchor.cold_return_success',
+    unit: 'ratio',
+    direction: 'higher_is_better',
+    configKey: 'spatial.min_cold_return_success',
+    target: 0.9,
+    label: 'Cold return resolves the anchor \u2265 90% of sessions',
+  },
+  {
+    // THE spike number. Everything else is diagnosis; this is the verdict.
+    // p95, not mean: a fox that lands 8cm out nineteen times and 60cm out
+    // once is a fox that walked through a wall in front of an investor.
+    metric: 'anchor.cold_return_offset_m',
+    unit: 'm',
+    direction: 'lower_is_better',
+    configKey: 'spatial.max_cold_return_offset_m',
+    target: 0.1,
+    label: 'Object returns within 10cm of its intended feature',
+  },
+  {
+    metric: 'anchor.relocalization_success',
+    unit: 'ratio',
+    direction: 'higher_is_better',
+    target: 0.9,
+    label: 'Tracking loss recovers without operator intervention \u2265 90%',
+  },
+  {
+    metric: 'anchor.relocalization_time_s',
+    unit: 's',
+    direction: 'lower_is_better',
+    target: 10,
+    label: 'Recovery from tracking loss \u2264 10s',
+  },
   {
     metric: 'rewards.sync_success',
     unit: 'ratio',

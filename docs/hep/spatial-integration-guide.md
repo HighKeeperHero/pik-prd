@@ -13,10 +13,13 @@ line of client code.
 
 **Every pose we store or return is room-local.**
 
-- **Metres**, **Y up**
 - Origin at the room's **calibrated origin anchor**
-- Rotations are **euler degrees `[x, y, z]`**
+- **Metres**
+- **Right-handed**, **+Y up**, **−Z forward** — the glTF / OpenXR / ARKit /
+  ARCore basis
 - Positions are `[x, y, z]`
+- Rotations are **euler degrees `[x, y, z]`**, applied **intrinsically in
+  the order Y → X → Z** (yaw, then pitch, then roll)
 
 Never device space, never provider space. Two headsets in the same room
 disagree about where the world is and agree about where the room is, so
@@ -26,6 +29,36 @@ will hand it back to the next device unchanged.
 
 Every resolve response repeats this as `coordinate_space:
 "room_local_meters_y_up"` so it is visible without consulting a document.
+
+### Read this bit twice
+
+The handedness and the euler order above are the whole contract, and **the
+server cannot enforce either of them.** A pose is three floats to us; we
+store and return them untouched. If your client and ours disagree about
+what they mean, nothing errors — the room is simply mirrored, or the Fate
+Fox faces a wall, and it looks like drift.
+
+Two consequences:
+
+- **Right-handed is not what Unity uses.** Unity is left-handed with +Z
+  forward. If you build the calibration client or the runtime in Unity,
+  negate Z on the way in and on the way out, in your provider adapter, in
+  one place. We chose the provider-side basis deliberately: the engine is
+  still an open decision and every spatial provider you will integrate is
+  right-handed, so the conversion belongs at the engine boundary rather
+  than in our data.
+- **Y→X→Z intrinsic is Unity's `eulerAngles` order** (equivalently, extrinsic
+  Z-X-Y). That is not a coincidence; given the handedness conversion has to
+  happen anyway, the rotation order may as well cost nothing.
+
+> **Divergence from the developer brief.** §4.2 of the Spatial Platform
+> Developer Brief specifies `local_rotation {x,y,z,w}` — a quaternion. The
+> server stores euler degrees as described above and always has. **This
+> document is the contract; the brief is out of date on this point.** If you
+> would rather we moved the wire format to quaternions, say so **before you
+> write the calibration client**. While no room has been published it is a
+> cheap change; once calibrations exist it means migrating measured poses,
+> which is the one kind of data nobody can re-derive from a desk.
 
 ---
 
@@ -42,6 +75,52 @@ That separation is what lets an experience be deployed to a second venue
 without re-authoring, and it is why a placement naming nothing in the
 manifest is a warning and a manifest anchor with no placement is a
 publish failure.
+
+### There is no `VenuePackage`
+
+§6 of the Spatial Platform Developer Brief describes a single immutable
+`VenuePackage` carrying venue, experience, content, assets and rewards
+together. **That object does not exist and we do not intend to build it.**
+Do not write a loader for it.
+
+The brief is right about the requirement — versioned, immutable, no
+hard-coded scenes — and describes it as one blob because that is the
+simplest way to say it. But one blob welds the experience to the venue,
+and the brief's own repeatability metric ("a second venue deployed through
+configuration rather than new application code") is the thing that welding
+breaks. So the contract is split at the manifest/RoomConfig seam above, and
+your runtime assembles from two calls: the experience's manifest, and the
+room's published config.
+
+Where each field in §6 actually lives today:
+
+| §6 field | Where it lives | |
+|---|---|---|
+| `venue_id` | `Source` (the venue) + `VenueRoom.slug` | ✅ |
+| `venue_version` | `RoomConfig.version` | ✅ |
+| `experience_id` / `experience_version` | `Experience.slug` / `.version` | ✅ |
+| `localization_config` | `RoomConfig.originMode`, `orientationReference`, `supportedDeviceProfiles` | ✅ |
+| `anchors[]` | `AnchorRecord` | ✅ |
+| `zones[]` | `SpatialZone` | ✅ |
+| `reward_definitions[]` | `Experience.rewards` | ✅ |
+| `safety_rules[]` | `SpatialZone` kinds `safety` / `clearance`, plus the `spatial.*` tolerances | ✅ |
+| `objects[]` | `ContentPlacement` says **where**. Nothing says **what** — no prefab, type, presentation, interaction or state model | ⚠ partial |
+| `asset_bundles[]` | `/api/relic-marks/:slug/ar` negotiates USDZ/GLB per platform, but nothing binds a bundle set to a room config | ⚠ partial |
+| `required_runtime_version` | nowhere | ❌ |
+| `triggers[]` | nowhere | ❌ |
+| `encounters[]` | nowhere | ❌ |
+
+The ⚠ and ❌ rows are the brief's §4.3 spatial object model, §4.4 object
+library, and the trigger/encounter graph. They are real work and they are
+not built. **Do not invent them at your end and hand us the result** — that
+is the version we would have to migrate off. Tell us what your runtime
+needs to interpret and we will design the schema with you; that is the
+cheapest conversation on this page.
+
+Until those exist, an experience is: named anchors, named zones, placements,
+and a reward bundle settled server-side. That is enough for the POC in §12
+of the brief, and it is deliberately not enough for a second experience —
+which is the right time to build the rest.
 
 ---
 
@@ -197,12 +276,29 @@ are yours to shape — we would rather agree the contract than guess it.
    orphans from abandoned calibrations leak until an invoice notices. We
    track `releasedAt` on our side; we would like your lifecycle to match.
 
-One product question we cannot answer alone: **a session lost to
-untrustworthy tracking is not an abandonment.** Today our payout model
-has victory / timeout / abandoned, and paying a tracking failure as
-"abandoned" (0.00) penalises a guest for our problem. That needs a new
-outcome and a payout weight, and it is a commercial decision we will make
-once we know how often it actually happens.
+### Answered: a tracking failure is not an abandonment (2026-08-14)
+
+This used to be listed here as an open commercial question. It is decided
+and shipped, because leaving it open meant the first session your runtime
+lost would have paid a guest 0.00 for our failure.
+
+`tracking_lost` is now a fourth run outcome. Report it via
+`POST /api/partner/v1/runs/{run_id}/fail` with `outcome: "tracking_lost"`
+when localization is unrecoverable — relocalization exhausted, anchors
+unresolvable, the room no longer trustworthy. It pays **0.75 plus the
+normal milestone bonus, capped at a victory**, settles to its own run
+status, and is reported separately in venue analytics. Full rules in
+`partner-integration-guide.md` §4.
+
+Two asks:
+
+- **Send it rather than going silent.** A run with no heartbeat for 90
+  minutes is swept as `abandoned` and pays nothing, and the sweeper cannot
+  tell a dead client from a party that left.
+- **Pair it with telemetry.** A `tracking_lost` run with no accompanying
+  spatial metrics tells us a room failed but not why. The run says *that*
+  it happened; §3b says *what the tracking was doing*. We need both to
+  know whether a threshold in §4 is set wrong or a room needs re-scanning.
 
 ---
 

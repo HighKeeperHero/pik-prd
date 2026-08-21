@@ -1778,7 +1778,11 @@ model AnchorRecord {
   /// origin | content | verification | marker
   role String @default("content")
 
-  /// arcore | meta | local_marker | editor_sim | androidxr
+  /// niantic | arcore | meta | local_marker | editor_sim | androidxr
+  ///
+  /// 'niantic' is NSDK 4.x / VPS2 — the technical spike's provider.
+  /// Not validated against a list on purpose: a new provider must cost a
+  /// string, not a migration, which is the whole point of Workstream 2.
   provider         String
   /// Opaque to us. Cloud-anchor ids are billable and TTL'd, which is why
   /// deletion is tracked rather than the row being hard-deleted.

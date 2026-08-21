@@ -38,6 +38,18 @@ const TOLERANCES: Array<{ key: string; value: string; description: string }> = [
     description: 'Max floor-height error to publish a room (metres). W9 target: 3cm.',
   },
   {
+    key: 'spatial.min_cold_return_success',
+    value: '0.90',
+    description:
+      'Spike/pilot gate: fraction of cold returns that must resolve the anchor. The Niantic spike asks for a documented pass rate over 10+ relaunches and sets no bar; this is the bar.',
+  },
+  {
+    key: 'spatial.max_cold_return_offset_m',
+    value: '0.10',
+    description:
+      'Spike/pilot gate: p95 offset between where an object returns and its intended physical feature (metres). The single number that decides PASS / FAIL.',
+  },
+  {
     key: 'venue.certification_required',
     value: 'spatial',
     description:
