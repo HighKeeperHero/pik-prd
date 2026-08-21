@@ -70,6 +70,24 @@ export interface CompleteRunInput {
   details?: Record<string, unknown>;
 }
 
+/** Outcomes a venue may report to `fail`. `victory` is the other endpoint. */
+const FAILURE_OUTCOMES: RunOutcome[] = ['timeout', 'abandoned', 'tracking_lost'];
+
+/**
+ * Terminal run status per outcome.
+ *
+ * `tracking_lost` gets its own status rather than folding into `failed`.
+ * A venue reading its own dashboard needs to tell "parties keep running out
+ * of time" from "this room's tracking keeps dying" — those have different
+ * remedies, and only one of them is ours.
+ */
+const RUN_STATUS_BY_OUTCOME: Record<RunOutcome, string> = {
+  victory: 'completed',
+  timeout: 'failed',
+  abandoned: 'abandoned',
+  tracking_lost: 'tracking_lost',
+};
+
 @Injectable()
 export class PartnerService {
   private readonly logger = new Logger(PartnerService.name);
@@ -271,8 +289,19 @@ export class PartnerService {
     runId: string,
     dto: CompleteRunInput & { reason?: string },
   ) {
-    const outcome: RunOutcome =
-      dto.outcome === 'abandoned' ? 'abandoned' : 'timeout';
+    // `timeout` remains the default for anything unrecognised: this endpoint
+    // is live, and a partner sending a value we have not shipped yet should
+    // get the conservative settlement rather than a 400 mid-session. The warn
+    // is how we find out they are sending one.
+    let outcome: RunOutcome = 'timeout';
+    if (dto.outcome && FAILURE_OUTCOMES.includes(dto.outcome)) {
+      outcome = dto.outcome;
+    } else if (dto.outcome && dto.outcome !== 'timeout') {
+      this.logger.warn(
+        `${source.name} (${source.id}) failed run ${runId} with unsupported ` +
+          `outcome "${dto.outcome}" — settling as timeout`,
+      );
+    }
     return this.settleRun(source, runId, outcome, dto, dto.reason);
   }
 
@@ -418,7 +447,7 @@ export class PartnerService {
     const updated = await this.prisma.experienceRun.update({
       where: { id: runId },
       data: {
-        status: outcome === 'victory' ? 'completed' : outcome === 'abandoned' ? 'abandoned' : 'failed',
+        status: RUN_STATUS_BY_OUTCOME[outcome],
         endedAt,
         durationSec,
         milestonesHit: Math.max(0, Math.floor(dto.milestones_hit ?? 0)),

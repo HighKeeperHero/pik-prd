@@ -43,6 +43,9 @@ const ECHOES_OF_KINGVALE = {
       discreteRewardMinMultiplier: 1.0,
     },
   },
+      // Seeded explicitly even though resolveScaling() would default it:
+      // a key absent from the JSON is a dial nobody knows they can turn.
+      trackingLostBase: 0.75,
 };
 
 /** Titles referenced by experience bundles must exist in the reference table. */

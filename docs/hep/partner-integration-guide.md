@@ -113,6 +113,11 @@ Every few minutes while the party plays. A run silent for **90 minutes** is
 swept as abandoned and pays nothing. If your experience can legitimately run
 longer, heartbeat it.
 
+The sweeper cannot tell a party that walked out from a client that died
+holding a broken localization — silence looks the same either way. If your
+runtime knows tracking is unrecoverable, settle the run as `tracking_lost`
+yourself rather than letting it go quiet and be swept to 0.00.
+
 ### Finish
 
 ```http
@@ -128,9 +133,26 @@ POST /api/partner/v1/runs/{run_id}/fail
 | Party won | `complete`, `outcome: victory` | 100% + 5% per milestone, max +20% |
 | Timer expired | `fail`, `outcome: timeout` | 50%, no loot |
 | Party left | `fail`, `outcome: abandoned` | nothing |
+| Tracking failed | `fail`, `outcome: tracking_lost` | 75% + 5% per milestone, capped at 100%, no loot |
 
 `milestones_hit` is yours to define — the beats your runtime knows the party
 reached. Heroes never infers it.
+
+**Report `tracking_lost` honestly, and please do report it.** It is for a
+session your spatial runtime could not keep localized — relocalization
+exhausted, anchors unrecoverable, the room no longer trustworthy. That is
+our failure, not the guest's, so it pays close to a completion and it is
+milestone-weighted: a party that lost tracking after four beats had four
+beats' worth of the experience.
+
+It settles to its own run status, `tracking_lost`, and is counted separately
+in venue analytics — which is the point. We would rather see a room's real
+tracking-failure rate and go fix it than have it filed as abandonment and
+read as parties walking out. It can never pay more than a victory, so there
+is nothing to game in either direction.
+
+If you send an outcome we do not recognise we settle it as `timeout` and log
+a warning, rather than failing your call mid-session.
 
 Settling is idempotent: calling `complete` twice pays once and returns
 `"replayed": true`.
@@ -228,6 +250,8 @@ Suggested order:
 3. Redeem the claim on a test account end to end
 4. Add identified players, having consented from the app first
 5. Exercise `fail` with `timeout`, and confirm the reduced payout
+6. Exercise `fail` with `tracking_lost`, and confirm it pays more than a
+   timeout and lands in its own status
 
 ---
 

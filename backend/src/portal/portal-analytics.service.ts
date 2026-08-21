@@ -36,7 +36,12 @@ export class PortalAnalyticsService {
     const completed = runs.filter((r) => r.status === 'completed');
     const failed = runs.filter((r) => r.status === 'failed');
     const abandoned = runs.filter((r) => r.status === 'abandoned');
-    const settled = completed.length + failed.length + abandoned.length;
+    const trackingLost = runs.filter((r) => r.status === 'tracking_lost');
+    // tracking_lost MUST be in the denominator. Leaving it out would make
+    // completion_rate rise every time our own spatial runtime failed —
+    // a metric that improves when the product breaks.
+    const settled =
+      completed.length + failed.length + abandoned.length + trackingLost.length;
 
     // ── Visitors ────────────────────────────────────────────────
     const seats = runs.flatMap((r) => r.participants);
@@ -112,6 +117,7 @@ export class PortalAnalyticsService {
         completed: completed.length,
         failed: failed.length,
         abandoned: abandoned.length,
+        tracking_lost: trackingLost.length,
         // Of runs that actually ended. Counting in-progress runs as
         // incomplete would make the rate drift with time of day.
         completion_rate: settled > 0 ? round(completed.length / settled, 3) : null,
@@ -152,6 +158,12 @@ export class PortalAnalyticsService {
         // operationally different and should not be summed.
         reported: failed.filter((r) => Boolean(r.failureReason)).length,
         abandoned: abandoned.length,
+        // Sessions the spatial runtime could not keep localized. Broken out
+        // because this is the only line here that is our fault, and it is
+        // the one that should be read against the room's spatial metrics.
+        tracking_lost: trackingLost.length,
+        tracking_lost_rate:
+          settled > 0 ? round(trackingLost.length / settled, 3) : null,
       },
 
       by_experience: summariseByExperience(runs),

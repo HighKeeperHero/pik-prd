@@ -28,6 +28,7 @@
     "seed:experiences": "ts-node scripts/seed-experiences.ts",
     "fake:venue": "ts-node scripts/fake-venue.ts",
     "verify:slice1": "ts-node scripts/verify-slice1.ts",
+    "verify:payout": "ts-node scripts/verify-payout-policy.ts",
     "verify:slice2": "ts-node scripts/verify-slice2.ts",
     "provision:venue": "ts-node scripts/provision-venue.ts",
     "census:identity": "ts-node scripts/census-identity.ts",

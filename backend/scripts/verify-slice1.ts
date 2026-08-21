@@ -335,6 +335,29 @@ async function main() {
     seatT?.applied,
   );
 
+  // ── 5b. A tracking failure is not an abandonment ─────────────────
+  // The payout maths is covered offline by verify-payout-policy.ts. What
+  // this asserts is the part that needs a server: the outcome survives the
+  // wire, gets its own terminal status, and actually pays a hero.
+  console.log('\n5b. tracking_lost settles as its own outcome');
+  const preLost = await xpOf(ROOT_A!);
+  const r2b = unwrap((await call('/api/partner/v1/runs', {
+    method: 'POST', headers: venue(keyA),
+    body: { experience_slug: 'echoes_of_kingvale', partner_run_key: `${RUN}-r2b`, root_ids: [ROOT_A] },
+  })).body);
+  const lost = unwrap((await call(`/api/partner/v1/runs/${r2b.run_id}/fail`, {
+    method: 'POST', headers: venue(keyA),
+    body: { outcome: 'tracking_lost', milestones_hit: 2, reason: 'relocalization failed twice' },
+  })).body);
+
+  check('tracking_lost gets its own status', lost?.status === 'tracking_lost', lost?.status);
+  check('tracking_lost multiplier is 0.85 at 2 milestones', lost?.payout_multiplier === 0.85, lost?.payout_multiplier);
+
+  const lostGain = (await xpOf(ROOT_A!)) - preLost;
+  check('a tracking failure still paid the hero', lostGain > 0, { lostGain });
+  check('and paid more than a timeout would have', lostGain > timeoutGain, { lostGain, timeoutGain });
+  check('but less than a victory', lostGain < gained, { lostGain, gained });
+
   // ── 6. rewards scope gates payout ────────────────────────────────
   console.log('\n6. A venue without `rewards` runs but does not pay');
   const preNoPay = await xpOf(ROOT_A!);

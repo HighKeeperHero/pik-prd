@@ -492,7 +492,11 @@ model ExperienceRun {
   experienceVersion Int       @map("experience_version")
   /// Partner-supplied idempotency key for the run (their own session id).
   partnerRunKey     String    @map("partner_run_key")
-  /// active | completed | failed | abandoned
+  /// active | completed | failed | abandoned | tracking_lost
+  ///
+  /// `tracking_lost` is separate from `failed` on purpose: it is the one
+  /// terminal status that indicts our spatial runtime rather than the
+  /// party, and it is paid differently. See partner/reward-policy.ts.
   status            String    @default("active")
   startedAt         DateTime  @default(now()) @map("started_at")
   lastHeartbeat     DateTime  @default(now()) @map("last_heartbeat")
