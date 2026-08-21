@@ -238,15 +238,17 @@ Answer-independent work, done before the ownership question resolves:
 
 ### Next, in order
 
-1. **Answer the ownership question.** Firm, hire, or Tim-plus-Claude.
-2. Scaffold the Unity repo to kit §18 with `verify:field-deploy` wired
-   into its CI, so the contract is enforced from commit one.
+1. ~~Answer the ownership question.~~ **Tim + Claude, 2026-08-20.**
+2. ~~Scaffold the repo.~~ **Done** — `heroes-field-deploy`, §10.
 3. Reconcile the euler/quaternion contradiction and define
-   `coordinateConvention` (§3 above).
+   `coordinateConvention` (§3 above). Native makes this cheaper, not
+   unnecessary: the document still contradicts itself.
 4. Cut the Hero Echo to a VFX-plus-audio beat for v0.1 (§4, Risk 2).
 5. Book the three unfamiliar test rooms for the Gate 4 window **now** —
    an unfamiliar room you have to go and find in October is a schedule
    risk disguised as a logistics task.
+6. Build the ARKit provider and the app target. **Gate 1 then waits on
+   nothing but a walk around a room.**
 
 ---
 
@@ -313,28 +315,34 @@ shader family, one audio cue.** Everything else is assembly.
    that actually predicts what happens on the show floor, and the only
    one that cannot be recovered by working a weekend.
 
-### The engine question is now open, and should be closed this week
+### DECIDED: native ARKit/RealityKit, iOS-only (2026-08-20)
 
-Kit §5 names Unity + AR Foundation. That was the right default for a
-firm or an XR hire. It is worth re-examining for this team:
+Kit §5 names Unity + AR Foundation. That was the right default for a firm
+or an XR hire, and the wrong one for two people on a fixed date.
 
-- **Unity is not installed on the build machine.** Day one of Gate 1 is
-  a Hub install, a licence, and an IL2CPP toolchain.
-- Xcode 26.6 and three registered iOS devices already are.
-- The Nov 1 demo is **one operator device handed to one prospect** —
-  single player, single platform in practice.
-- The §6 local-persistence path (`ARWorldMap`) is **iOS-only anyway**.
-- Claude can build, deploy and drive an Xcode/iOS project from this
-  session. It cannot drive the Unity Editor.
+What native buys:
 
-**Against native ARKit/RealityKit:** no Android, and Niantic's NSDK is
-Unity-only, so the optional VPS2 upgrade path (Gate 5) closes. Kit §2
-already says VPS2 must never be show-critical, and §6 above proposes
-spending that window on local persistence instead — but this is a real
-door being shut, and it is the door marked "fundraising spike."
+- **No Hub, no licence, no IL2CPP.** Unity was not installed on the build
+  machine; day one of Gate 1 would have been a toolchain.
+- **`ARWorldMap` is first-class**, so the §6 local-persistence path is
+  nearly free rather than a port.
+- **No handedness conversion at all.** ARKit's world coordinate space is
+  *already* right-handed, +Y up, −Z forward — the exact convention §3
+  pins. A Unity client has to negate Z in its provider adapter, and a
+  mistake there mirrors the room instead of erroring: it reads as drift
+  and costs a week to find. That entire bug class is gone.
+- Claude can build, deploy and drive an Xcode/iOS project directly. It
+  cannot drive the Unity Editor — which on a two-person team is the
+  difference between one pair of hands and two.
 
-Whichever way it goes, **decide it this week.** Both paths consume the
-Aug 20-28 window and neither survives being started twice.
+What it costs, stated plainly: **Android, and the Unity-only Niantic
+NSDK.** Gate 5's VPS2 upgrade path closes. Kit §2 already says VPS2 must
+never be show-critical and §6 proposes spending that window on local
+persistence instead — but this is a real door shut, and it is the door
+marked "fundraising spike." Reopening it means a Unity client later, not
+a flag.
+
+**Repo: `~/dev/heroes-veritas/heroes-field-deploy`** (see §10).
 
 ### The one thing that must happen regardless, this week
 
@@ -342,3 +350,98 @@ Commission the Fate Fox. It is engine-agnostic (FBX/glTF either way),
 it has the longest lead time of anything on this page, and every gate
 from Sep 8 onward has it on the critical path. See
 [`field-deploy-art-brief.md`](field-deploy-art-brief.md).
+
+---
+
+## 10. The repo — `heroes-field-deploy` (2026-08-20)
+
+A fourth repo. `codexpwa` / `pik-prd` / `heroes-veritas-native` are
+unchanged; "tri-repo" is now a historical name.
+
+### The constraint that shapes it
+
+**ARKit does not run in the Simulator.** An app whose authoring rules live
+inside an `ARView` is an app one person with one phone can verify — which
+on a 73-day clock with a two-person team means the other person is blind
+for the whole build.
+
+So everything decidable without a camera lives in a Swift package:
+
+```bash
+cd ~/dev/heroes-veritas/heroes-field-deploy && swift test   # 29 tests
+```
+
+The state machine, the serialiser and the safety rules run on a laptop.
+The device is reserved for the one question only a device can answer:
+*does it track?* **Preserve this split** — it is what makes the team size
+survivable, and it degrades quietly the first time a rule is written into
+a view controller.
+
+| | |
+|---|---|
+| `Core/RoomLocal.swift` | The coordinate convention, and why it is free under ARKit |
+| `Core/RoomManifest.swift` | Decodes `veil-breach-portable.v1.json`, unmodified |
+| `Core/VenueDraft.swift` | The saved venue file — already the platform draft body |
+| `Spatial/SpatialProvider.swift` | Kit §2's provider seam |
+| `Spatial/MockSpatialProvider.swift` | Same preconditions as ARKit, no camera |
+| `Authoring/DeploySession.swift` | The eight steps and their gates |
+| `Authoring/SafetyValidator.swift` | Kit §24, evaluated in the room |
+
+### Two deliberate deviations from the kit
+
+1. **Template selection moved ahead of the boundary draw.** Kit §10 orders
+   these Boundary (3) then Template (4), which has the operator draw a
+   boundary before anything has told them the required clearance — so a
+   short room surfaces at Validate and they walk it back. On a 15-minute
+   clock with a prospect watching, that round trip is most of the budget.
+   Now a 2 m room is refused while the operator is still at the wall.
+2. **Validation does not survive what it validated.** Moving an anchor
+   after a green pass clears both the validation and the test flag. A
+   stale tick over a room that has since moved is worse than no tick.
+
+### Not built yet
+
+The ARKit provider, the operator UI, the experience runtime, and the app
+target. Gate 1 needs the first of those — and a phone.
+
+---
+
+## 11. The Codex seam — already built, not yet used
+
+Field Deploy is a **separate app on a shared backend**, not a fork.
+`veil_breach_portable` is an `Experience` row beside `echoes_of_kingvale`,
+running the same `RoomConfig` → `ExperienceRun` → settlement pipeline. No
+code is shared with Codex — Swift vs React Native — and none should be.
+
+**The bridge between them already ships.** Slice 1's guest-claim path:
+a guest plays with no account, their deeds are witnessed and held, they
+leave with a QR plus a printed short code, and they redeem it onto a real
+hero later. Codex has the screens live today —
+`src/screens/Testament/{TestamentScreen,VenueCheckInScreen,WitnessesScreen}.tsx`,
+wired into `CodexStack`.
+
+**The Nov 1 demo does not use it.** As specced the encounter ends at a
+local reward screen and nothing leaves the phone.
+
+### Why it is worth wiring, and when
+
+Fast deploy alone proves *"we can augment your space in 15 minutes"* — a
+cost argument. With the testament bridge it proves *"and your guest walks
+out with something that persists into an identity they keep"* — a
+retention argument, and the actual north-star hypothesis. For a partner
+deciding whether to host us, the second is the stronger sentence.
+
+The build is small — start the run, settle it, show the claim QR. Two HTTP
+calls against endpoints that already exist, which is the same shape as
+finding #1 of the Niantic spike review.
+
+Two constraints if we do it:
+
+- ⚠ **Optional, and it must degrade silently.** Kit §2/§8: the core demo
+  needs no internet. Offline ⇒ no claim code, demo runs identically. Same
+  discipline that keeps Niantic off the critical path.
+- It needs a venue `Source` row and an API key **provisioned ahead of
+  time**, never in the room.
+
+**Sequence it as a Gate 4/5 item, flag-gated** — after the deployment loop
+is solid. It is the wrong thing to be debugging in September.
