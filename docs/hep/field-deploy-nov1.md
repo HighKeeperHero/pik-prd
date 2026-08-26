@@ -445,3 +445,96 @@ Two constraints if we do it:
 
 **Sequence it as a Gate 4/5 item, flag-gated** — after the deployment loop
 is solid. It is the wrong thing to be debugging in September.
+
+---
+
+## 12. Buying art: kitbash, FAB, and what actually ports (2026-08-20)
+
+The question was whether Unity assets from FAB can dress this demo. The
+answer splits, and the split is favourable — **the part that ports is the
+expensive part to make, and the part that doesn't was always going to be
+ours.**
+
+A `.unitypackage` is prefabs, `.mat` files bound to Unity shaders,
+ShaderGraph, Animator controllers and Shuriken/VFX Graph systems. None of
+that runs in RealityKit. What survives is the geometry underneath: meshes,
+textures, rigs, animation clips.
+
+| Asset | Buy it? |
+|---|---|
+| Rune pedestal, Relic, glyphs, debris, totem | ✅ Ideal — mesh + texture is all they are |
+| **Veil Rift, seal beam, essence burst, spectral Echo** | ❌ **Buys nothing.** This is exactly the shader/VFX layer that does not port |
+| Fate Fox | ⚠️ A rigged base mesh could cut the commission materially |
+
+**Shop the "3D Models" category, not the Unity-packaged listings** — often
+the same assets, but engine-neutral source and usually broader rights. A
+listing offering USD/USDZ is zero conversion.
+
+⚠ **Licence trap: FAB carries *Engine Restricted* listings (Unreal-only)
+and some Personal Use content.** This is a commercial demonstrator shown to
+partners, not a hobby build. Verify per listing and keep the receipt with
+the asset. Not legal advice — get the terms checked.
+
+⚠ **Apple's toolchain cannot read FBX or glTF.** Verified against ModelIO:
+imports OBJ / USD / ABC / PLY / STL only. So there is a mandatory
+conversion hop, and Blender (which reads FBX and GLB, writes USD) is not
+installed on the build machine.
+
+### Animation is a far smaller problem than kit §13 implies
+
+Read that list again against RealityKit and **only one asset needs
+skeletal animation at all**:
+
+| Kit §13 asks for | What it actually is |
+|---|---|
+| Rift: closed → tear → active → destabilize → seal → collapse | **One shader parameter being driven.** Not animation |
+| Rune: dormant → charge → active → discharge | Shader parameter + particles |
+| Relic: idle float, spin, highlight, collected | Transform animation. **No rig** |
+| Hero Echo | Already cut to VFX + voice (§9) |
+| **Fate Fox** | ✅ Genuinely skeletal |
+
+That is what makes prebuilt props viable: four of five need no animation
+data whatsoever.
+
+### Confirmed present in the iOS SDK
+
+Compiled against it rather than trusted to documentation:
+`ParticleEmitterComponent`, `ShaderGraphMaterial` + `setParameter` (drive
+the rift's five states from one float), `CustomMaterial` with Metal
+modifiers as the escape hatch, `FromToByAnimation`, `InputTargetComponent`,
+`CollisionComponent`.
+
+⚠ Particles and ShaderGraphMaterial are **iOS 18+**. Deployment target
+moved from 17 to 18. Free — every registered device is on 26.x.
+
+⚠ **ShaderGraphMaterial is authored in Reality Composer Pro's GUI.** Claude
+can write the runtime that drives the parameters and define the parameter
+contract, but the node graph is hands-on. It can be hand-authored as USDA
+text if absolutely necessary; it is not pleasant to iterate on. This is the
+one place the two-person split has a real gap — plan for it.
+
+### The architecture that makes kitbash safe
+
+Built 2026-08-20, `heroes-field-deploy`:
+
+```
+manifest slot ─┬─► where it is        RoomConfig, calibrated per room
+               ├─► what it looks like binding table (data, swappable)
+               └─► what it does       component keyed to the slot name
+```
+
+Behaviour binds to the slot **name**, never a model. October's commissioned
+fox lands as a one-line edit, **with no room needing recalibration**.
+
+**The scale guard is the piece to keep.** Every bound model is loaded
+through RealityKit on macOS and measured against the height its binding
+claims. A purchased asset arriving in centimetres is the most common way a
+bought-art pipeline wastes a day — unmissable in a room, invisible in a
+diff. Watched it fail deliberately before trusting it.
+
+### One addendum to the fox commission
+
+RealityKit's weak spot is multiple named clips inside a single USDZ. Ask
+for **FBX source plus one USDZ per clip** (idle / appear / move / look_at /
+vanish). Trivial if it is in the contract on day one; a renegotiation in
+October.
