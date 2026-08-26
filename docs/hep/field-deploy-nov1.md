@@ -538,3 +538,80 @@ RealityKit's weak spot is multiple named clips inside a single USDZ. Ask
 for **FBX source plus one USDZ per clip** (idle / appear / move / look_at /
 vanish). Trivial if it is in the contract on day one; a renegotiation in
 October.
+
+---
+
+## 13. Re-baseline: no vendor, two audiences (2026-08-20, later)
+
+The capital raise did not land, so **fox vendor selection is delayed**.
+November 1 **still holds**, and the demonstrator now has to carry **both**
+claims: the partner pitch *and* the fundraise.
+
+That is not a smaller job. It is a differently-shaped one, and it inverts
+the art priority set out in §9.
+
+### The expensive asset is blocked; the striking one was always free
+
+| | Cost | Status |
+|---|---|---|
+| Fate Fox — rigged, animated character | **Vendor money** | ❌ Blocked |
+| **Veil Rift — shader + VFX** | **Our labour** | ✅ Unblocked, highest wow per hour |
+| Rune, relic, props, glyphs | ~marketplace | ✅ Fine (§12) |
+
+§9 made the fox the long pole because it had the longest *lead time*. With
+no vendor, lead time is not the constraint — money is. **So lead with the
+rift.** It was always where the brand lives visually and it costs time
+rather than cash.
+
+### The fox becomes a wisp, and that is a story
+
+`heroes-veritas-native/assets/VeilRift_Assets/Wisp/` already holds a nebula
+light-form. **A Fate Fox that has not fully manifested through the Veil is
+canon, not a corner cut** — and it matches the ethereal gold trail in the
+fox's own concept art. Pure VFX: particles and a shader, no mesh, no rig,
+no vendor.
+
+A prospect reads *"the Veil is thin here and something is coming through."*
+They do not read *"they could not afford a model."*
+
+And it is genuinely reversible: when the fox is commissioned, it lands as
+**one line in the binding table** (§12) — no code, no recalibration. That
+is the scenario the slot/costume split was built for; it was not expected
+to be needed this soon.
+
+### Cold return moves into core scope
+
+§6 offered `ARWorldMap` persistence as the *alternative* use of the Oct
+6–15 window. With the fundraise now riding on this build, it is **core**:
+"we set this room up yesterday and here it still is" is the investor claim,
+and it is the one a venue is actually buying too.
+
+The two claims share everything except save/restore, so the marginal cost
+is small. `ARKitSpatialProvider` already carries `saveWorldMap` /
+`loadWorldMap`, and `VenueStore` (built 2026-08-20) is the rest of the
+spine — saved rooms, most-recently-used ordering, deploy counts, and
+staleness detection, all testable without a camera.
+
+⚠ **A missing world map must not discard the calibration.** The room is
+still true; the operator just rescans to re-find the origin. Throwing the
+venue away because a cache file vanished turns a two-minute rescan into a
+fifteen-minute redeployment. Encoded as `VenueStaleness.blocksReopen`.
+
+### The constraint that just moved onto the critical path
+
+With the art plan becoming almost entirely shader and VFX work,
+**Reality Composer Pro's GUI is now on the critical path** (§12). Claude
+can build the runtime, the parameter contract and the state driving; the
+node graph is hands-on. That is Tim's calendar, and it is the one place
+the two-person split cannot substitute.
+
+Plan for it explicitly rather than discovering it in October.
+
+### Revised priorities
+
+1. **Rift shader + VFX** — the demo's whole visual claim, and free.
+2. **Cold return** — venue store ✅, world map save/restore, reopen flow.
+3. Marketplace props via Blender → USDZ (Blender **is** installed;
+   §12's note that it was not is wrong).
+4. Wisp-form fox — particles and a shader.
+5. Fox commission — **post-Nov 1 upgrade**, whenever capital allows.
