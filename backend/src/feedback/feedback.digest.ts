@@ -116,10 +116,25 @@ export class FeedbackDigestService {
       kind: 'feedback_digest',
     });
 
-    this.logger.log(
-      `Digest sent (${res.transport}): ${fresh.length} report(s), ${open} open → ${to}`,
-    );
-    return { sent: res.delivered, count: fresh.length, open };
+    // Report what actually happened. Saying "sent" on a provider
+    // rejection is the same failure mode this whole feature exists to
+    // fix — a message that looks delivered and isn't.
+    if (res.delivered) {
+      this.logger.log(
+        `Digest delivered (${res.transport}): ${fresh.length} report(s), ${open} open → ${to}`,
+      );
+    } else {
+      this.logger.error(
+        `Digest NOT delivered (${res.transport}): ${fresh.length} report(s) for ${to}. ` +
+        'Check the provider log above — an unverified sending domain rejects silently to the caller.',
+      );
+    }
+    return {
+      sent: res.delivered,
+      ...(res.delivered ? {} : { reason: `mail transport ${res.transport} did not deliver` }),
+      count: fresh.length,
+      open,
+    };
   }
 }
 
