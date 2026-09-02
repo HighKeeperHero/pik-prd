@@ -4,6 +4,7 @@
 // Sprint 13: VeilModule added
 // ============================================================
 import { Module, Global } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ThrottlerModule, ThrottlerGuard, SkipThrottle } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -104,6 +105,8 @@ class HealthController {
 @Global()
 @Module({
   imports: [
+    // The feedback digest is the only scheduled job so far.
+    ScheduleModule.forRoot(),
     // ── Rate Limiting ──────────────────────────────────────────────────────────
     // 120/min, raised from 60 for the closed alpha (2026-07-31).
     // Opening the app fires several calls at once (hero, flags,

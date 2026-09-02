@@ -198,11 +198,17 @@ export class QuestLogService {
     // start at zero (the period IS the point) but stat thresholds
     // (reach_level) are facts, not deeds — they materialize met
     // when the hero already holds the level (Tim 2026-07-13).
+    // Only asked when a lore objective is actually in play — this is
+    // two counts and the common case has none.
+    const wantsLore = templates.some(t =>
+      (t.objectives as unknown as CadenceObjective[]).some(o => o.type === 'collect_lore'));
+    const archiveDone = wantsLore ? await this.loreExhausted(rootId) : false;
+
     for (const t of templates.filter(t => t.cadence !== 'story')) {
       if (!eligible(t)) continue;
       const periodKey = this.periodKeyFor(t.cadence);
       if (have.has(`${t.id}:${periodKey}`)) continue;
-      const fresh = this.freshProgress(t, hero.fateLevel);
+      const fresh = this.freshProgress(t, hero.fateLevel, archiveDone);
       toCreate.push({
         rootId, questId: t.id, periodKey, progress: fresh.progress,
         ...(fresh.allComplete ? { status: 'completed', completedAt: new Date() } : {}),
@@ -362,10 +368,19 @@ export class QuestLogService {
   private freshProgress(
     t: { objectives: Prisma.JsonValue },
     fateLevel: number,
+    /** True when the hero has recovered every entry the Archive holds.
+     *  A `collect_lore` objective then asks for something no action can
+     *  produce — see loreExhausted(). */
+    loreExhausted = false,
   ): { progress: Prisma.InputJsonValue; allComplete: boolean } {
     const objectives = t.objectives as unknown as CadenceObjective[];
     const progress: ObjProgress[] = objectives.map(o => {
-      const current = o.type === 'reach_level' ? Math.min(fateLevel, o.target) : 0;
+      const current =
+        o.type === 'reach_level' ? Math.min(fateLevel, o.target)
+        // Completed BY EXHAUSTION, not skipped: there is no 41st entry
+        // to find, so the task is as done as it can ever be.
+        : o.type === 'collect_lore' && loreExhausted ? o.target
+        : 0;
       const completed = current >= o.target;
       return {
         objective_id: o.id,
@@ -378,6 +393,32 @@ export class QuestLogService {
       progress: progress as unknown as Prisma.InputJsonValue,
       allComplete: progress.length > 0 && progress.every(p => p.completed),
     };
+  }
+
+  /** Has this hero recovered the whole Archive?
+   *
+   *  A tester reported (2026-08-06) that "find 2 archives" could never
+   *  be completed because they had already found all 40 before the
+   *  quest existed. They were right and it was unwinnable: daily and
+   *  weekly rows deliberately do NOT backfill from history (their
+   *  period is the point), so `collect_lore` advances only on a
+   *  `lore_find` event — and a hero holding every entry can never fire
+   *  one again. The weekly sat at 0/2 forever, and took the "complete
+   *  all your dailies" quests down with it.
+   *
+   *  Guarded on a non-empty catalog so an unseeded environment
+   *  (`seed:lore` not run) can't read as "exhausted" and hand out free
+   *  completions. */
+  private async loreExhausted(rootId: string): Promise<boolean> {
+    try {
+      const [found, total] = await Promise.all([
+        this.prisma.heroLore.count({ where: { rootId } }),
+        this.prisma.loreEntry.count(),
+      ]);
+      return total > 0 && found >= total;
+    } catch {
+      return false;
+    }
   }
 
   // ── EVENT-DRIVEN PROGRESS ────────────────────────────────
@@ -698,6 +739,56 @@ export class QuestLogService {
    *  is already in the hero's history gets credited on the next
    *  log fetch. Cheap — a hero has at most a couple of active
    *  story frontiers. */
+  /** Release daily/weekly rows holding a `collect_lore` objective the
+   *  hero can no longer satisfy — the Archive is fully recovered, so
+   *  no `lore_find` will ever arrive. Repairs rows materialized before
+   *  loreExhausted() existed; the tester who reported this had one
+   *  sitting at 0/2 since 2026-08-06. */
+  private async healExhaustedLoreRows(rootId: string): Promise<void> {
+    try {
+      const rows = await this.prisma.playerQuest.findMany({
+        where: {
+          rootId, status: 'active',
+          quest: { cadence: { in: ['daily', 'weekly'] }, status: 'active' },
+        },
+        include: { quest: true },
+      });
+      const candidates = rows.filter(r =>
+        (r.quest.objectives as unknown as CadenceObjective[]).some(o => o.type === 'collect_lore'));
+      if (!candidates.length) return;
+      if (!(await this.loreExhausted(rootId))) return;
+
+      for (const row of candidates) {
+        const objectives = row.quest.objectives as unknown as CadenceObjective[];
+        const prev = row.progress as unknown as ObjProgress[];
+        let touched = false;
+        const next = objectives.map((o, i) => {
+          const p = prev[i] ?? { objective_id: o.id, completed: false, completed_at: null, current: 0 };
+          if (o.type !== 'collect_lore' || p.completed) return p;
+          touched = true;
+          return {
+            objective_id: o.id,
+            completed: true,
+            completed_at: new Date().toISOString(),
+            current: o.target,
+          };
+        });
+        if (!touched) continue;
+        const done = next.every(n => n.completed);
+        await this.prisma.playerQuest.update({
+          where: { id: row.id },
+          data: {
+            progress: next as unknown as Prisma.InputJsonValue,
+            ...(done ? { status: 'completed', completedAt: new Date() } : {}),
+          },
+        });
+        this.logger.log(`Lore quest released (archive complete): ${rootId} | ${row.quest.slug}`);
+      }
+    } catch (e) {
+      this.logger.warn(`healExhaustedLoreRows failed for ${rootId}: ${e}`);
+    }
+  }
+
   private async healStuckStoryRows(rootId: string): Promise<void> {
     try {
       const rows = await this.prisma.playerQuest.findMany({
@@ -798,6 +889,7 @@ export class QuestLogService {
   async getLog(rootId: string) {
     await this.ensureLog(rootId);
     await this.healStuckStoryRows(rootId);
+    await this.healExhaustedLoreRows(rootId);
     await this.refreshStatObjectives(rootId);
 
     const now = new Date();
