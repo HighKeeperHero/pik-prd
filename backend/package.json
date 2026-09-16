@@ -24,6 +24,7 @@
     "seed:quests": "ts-node scripts/seed-quests.ts",
     "feedback": "npx tsx scripts/feedback.ts",
     "feedback:digest": "npx tsx scripts/feedback-digest.ts",
+    "testers": "npx tsx scripts/testers.ts",
     "seed:spatial": "ts-node scripts/seed-spatial.ts",
     "flags": "ts-node scripts/flags.ts",
     "users": "ts-node scripts/users.ts",
