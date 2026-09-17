@@ -43,6 +43,7 @@ import { EventsService } from '../events/events.service';
 import { LevelingService, XpAward } from '../leveling/leveling.service';
 import { questXp } from '../leveling/reward-scale';
 import { advanceDeedStreak, isDeedEvent } from '../sanctum/deed-streak';
+import { oathWeekKey, UNDER_OATH_STATUSES } from '../training/oath-week';
 
 // ── Events emitted by gameplay services ─────────────────────
 
@@ -203,12 +204,18 @@ export class QuestLogService {
     const wantsLore = templates.some(t =>
       (t.objectives as unknown as CadenceObjective[]).some(o => o.type === 'collect_lore'));
     const archiveDone = wantsLore ? await this.loreExhausted(rootId) : false;
+    // Same shape for the oath: a weekly row created mid-week for a hero
+    // who already swore is already done — the swear event came before
+    // the row existed.
+    const wantsOath = templates.some(t => t.cadence !== 'story' &&
+      (t.objectives as unknown as CadenceObjective[]).some(o => o.type === 'swear_oath'));
+    const sworn = wantsOath ? await this.underOath(rootId) : false;
 
     for (const t of templates.filter(t => t.cadence !== 'story')) {
       if (!eligible(t)) continue;
       const periodKey = this.periodKeyFor(t.cadence);
       if (have.has(`${t.id}:${periodKey}`)) continue;
-      const fresh = this.freshProgress(t, hero.fateLevel, archiveDone);
+      const fresh = this.freshProgress(t, hero.fateLevel, archiveDone, sworn);
       toCreate.push({
         rootId, questId: t.id, periodKey, progress: fresh.progress,
         ...(fresh.allComplete ? { status: 'completed', completedAt: new Date() } : {}),
@@ -372,6 +379,8 @@ export class QuestLogService {
      *  A `collect_lore` objective then asks for something no action can
      *  produce — see loreExhausted(). */
     loreExhausted = false,
+    /** True when the hero stands under this week's oath. */
+    underOath = false,
   ): { progress: Prisma.InputJsonValue; allComplete: boolean } {
     const objectives = t.objectives as unknown as CadenceObjective[];
     const progress: ObjProgress[] = objectives.map(o => {
@@ -380,6 +389,7 @@ export class QuestLogService {
         // Completed BY EXHAUSTION, not skipped: there is no 41st entry
         // to find, so the task is as done as it can ever be.
         : o.type === 'collect_lore' && loreExhausted ? o.target
+        : o.type === 'swear_oath' && underOath ? o.target
         : 0;
       const completed = current >= o.target;
       return {
@@ -418,6 +428,49 @@ export class QuestLogService {
       return total > 0 && found >= total;
     } catch {
       return false;
+    }
+  }
+
+  /** Does this hero stand under this week's oath?
+   *
+   *  Oath v2 (2026-07-31) is WEEKLY — one vow, re-swearing blocked until
+   *  the Sunday reset — but the quest log kept its v1 daily shape until
+   *  2026-09-16: a daily "Swear the daily Oath" completable one day in
+   *  seven, and A Perfect Day gated on `oathTodayDate`, a column only the
+   *  retired v1 endpoint ever wrote, so it (and Rhythm of the Keep) could
+   *  never complete at all. Quests now ask this instead of counting swear
+   *  events: oath weeks start Sunday and quest weeks Monday, so a count
+   *  per quest week strands players whenever a swear lands on a Sunday. */
+  async underOath(rootId: string): Promise<boolean> {
+    try {
+      const oath = await this.prisma.oath.findUnique({
+        where:  { rootId_weekOf: { rootId, weekOf: oathWeekKey() } },
+        select: { status: true },
+      });
+      return !!oath && (UNDER_OATH_STATUSES as readonly string[]).includes(oath.status);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Fire `ritual_day` if today is a perfect day: Hearth, Trial and Augury
+   *  all done this UTC day, under this week's oath. Called after each of
+   *  those rituals AND after swearing, since the oath can be the last
+   *  piece to land. Never throws. */
+  async ritualDayEvent(rootId: string): Promise<QuestProgressUpdate[]> {
+    try {
+      const today = todayUtc();
+      const s = await this.prisma.sanctumState.findUnique({
+        where:  { rootId },
+        select: { lastHearthClaim: true, lastTrialComplete: true, lastAuguryDate: true },
+      });
+      const ritesDone = !!s &&
+        s.lastHearthClaim === today && s.lastTrialComplete === today && s.lastAuguryDate === today;
+      if (!ritesDone || !(await this.underOath(rootId))) return [];
+      return await this.recordEvent(rootId, { type: 'ritual_day' });
+    } catch (e) {
+      this.logger.warn(`ritualDayEvent failed for ${rootId}: ${e}`);
+      return [];
     }
   }
 
@@ -744,7 +797,25 @@ export class QuestLogService {
    *  no `lore_find` will ever arrive. Repairs rows materialized before
    *  loreExhausted() existed; the tester who reported this had one
    *  sitting at 0/2 since 2026-08-06. */
-  private async healExhaustedLoreRows(rootId: string): Promise<void> {
+  private healExhaustedLoreRows(rootId: string): Promise<void> {
+    return this.releaseObjectiveRows(rootId, 'collect_lore', () => this.loreExhausted(rootId), 'archive complete');
+  }
+
+  /** Release open weekly rows holding `swear_oath` for a hero already
+   *  under this week's oath — the swear may predate the row, or the
+   *  quest's week may have turned after it. */
+  private healUnderOathRows(rootId: string): Promise<void> {
+    return this.releaseObjectiveRows(rootId, 'swear_oath', () => this.underOath(rootId), 'under oath');
+  }
+
+  /** Complete every open daily/weekly objective of `type` when `holds()`
+   *  says the fact it asks for is already true. */
+  private async releaseObjectiveRows(
+    rootId: string,
+    type: string,
+    holds: () => Promise<boolean>,
+    why: string,
+  ): Promise<void> {
     try {
       const rows = await this.prisma.playerQuest.findMany({
         where: {
@@ -754,9 +825,9 @@ export class QuestLogService {
         include: { quest: true },
       });
       const candidates = rows.filter(r =>
-        (r.quest.objectives as unknown as CadenceObjective[]).some(o => o.type === 'collect_lore'));
+        (r.quest.objectives as unknown as CadenceObjective[]).some(o => o.type === type));
       if (!candidates.length) return;
-      if (!(await this.loreExhausted(rootId))) return;
+      if (!(await holds())) return;
 
       for (const row of candidates) {
         const objectives = row.quest.objectives as unknown as CadenceObjective[];
@@ -764,7 +835,7 @@ export class QuestLogService {
         let touched = false;
         const next = objectives.map((o, i) => {
           const p = prev[i] ?? { objective_id: o.id, completed: false, completed_at: null, current: 0 };
-          if (o.type !== 'collect_lore' || p.completed) return p;
+          if (o.type !== type || p.completed) return p;
           touched = true;
           return {
             objective_id: o.id,
@@ -782,10 +853,10 @@ export class QuestLogService {
             ...(done ? { status: 'completed', completedAt: new Date() } : {}),
           },
         });
-        this.logger.log(`Lore quest released (archive complete): ${rootId} | ${row.quest.slug}`);
+        this.logger.log(`Quest released (${why}): ${rootId} | ${row.quest.slug}`);
       }
     } catch (e) {
-      this.logger.warn(`healExhaustedLoreRows failed for ${rootId}: ${e}`);
+      this.logger.warn(`releaseObjectiveRows(${type}) failed for ${rootId}: ${e}`);
     }
   }
 
@@ -890,6 +961,7 @@ export class QuestLogService {
     await this.ensureLog(rootId);
     await this.healStuckStoryRows(rootId);
     await this.healExhaustedLoreRows(rootId);
+    await this.healUnderOathRows(rootId);
     await this.refreshStatObjectives(rootId);
 
     const now = new Date();

@@ -10,10 +10,10 @@
 //                           weekly_deep_seals, story chains
 //   Caches                → daily_cache, weekly_caches, forge prep
 //   Hearth                → daily_hearth, story_first_hearth
-//   Oath                  → daily_oath, story_first_oath
+//   Oath                  → weekly_oath, story_first_oath (daily_oath retired 2026-09-16)
 //   Veil Trial            → daily_trial, weekly_trials
 //   Augury                → daily_augury, story_first_augury
-//   Perfect ritual day    → daily_perfect, weekly_perfect_days
+//   Perfect ritual day    → daily_perfect, weekly_perfect_days (Hearth + Trial + Augury, under oath)
 //   Lore Archive          → weekly_lore (plus tear/augury drops)
 //   Restoration upgrades  → weekly_upgrade, story_first_upgrade
 //   Fate leveling         → story_reach_l3 / _l5 / _l8
@@ -71,9 +71,12 @@ const QUESTS: QuestSeed[] = [
     rewards: { xp: 15 },
   },
   {
+    // RETIRED 2026-09-16. Oath v2 is weekly and blocks re-swearing until
+    // the Sunday reset, so a daily swear could complete one day in seven.
+    // Superseded by weekly_oath; draft so existing rows drop out on reseed.
     slug: 'daily_oath', name: 'Word Given',
     description: 'Swear the day’s oath at the altar. The thread remembers what is promised.',
-    cadence: 'daily', sortOrder: 30,
+    cadence: 'daily', sortOrder: 30, status: 'draft',
     objectives: [{ id: 'o1', type: 'swear_oath', label: 'Swear the daily Oath', target: 1 }],
     rewards: { xp: 15 },
   },
@@ -99,10 +102,13 @@ const QUESTS: QuestSeed[] = [
     rewards: { xp: 20 },
   },
   {
+    // The oath leg is "under this week's oath", not "swore today" — see
+    // QuestLogService.ritualDayEvent. Before 2026-09-16 this asked for a
+    // daily oath that no longer exists and could never complete.
     slug: 'daily_perfect', name: 'A Perfect Day',
-    description: 'Hearth, Oath, Trial, and Augury — all four rites in a single day.',
+    description: 'Hearth, Trial, and Augury in a single day — kept while you stand under your oath.',
     cadence: 'daily', sortOrder: 70,
-    objectives: [{ id: 'o1', type: 'ritual_days', label: 'Complete all four daily rituals', target: 1 }],
+    objectives: [{ id: 'o1', type: 'ritual_days', label: 'Complete the day’s rites under oath', target: 1 }],
     rewards: { xp: 50, cache_rarity: 'uncommon' },
   },
 
@@ -195,6 +201,16 @@ const QUESTS: QuestSeed[] = [
     cadence: 'weekly', sortOrder: 48,
     objectives: [{ id: 'o1', type: 'cleanse_corruption', label: 'Remove 3,000 corruption', target: 3000 }],
     rewards: { xp: 250, cache_rarity: 'rare' },
+  },
+  {
+    // Completes while the hero stands under this week's oath — checked
+    // as state, not counted as events, because oath weeks start Sunday
+    // and quest weeks Monday (QuestLogService.underOath).
+    slug: 'weekly_oath', name: 'Word Given',
+    description: 'Swear this week’s oath at the altar. The thread remembers what is promised.',
+    cadence: 'weekly', sortOrder: 5,
+    objectives: [{ id: 'o1', type: 'swear_oath', label: 'Stand under this week’s Oath', target: 1 }],
+    rewards: { xp: 100 },
   },
   {
     slug: 'weekly_perfect_days', name: 'Rhythm of the Keep',

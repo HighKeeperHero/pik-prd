@@ -291,25 +291,22 @@ export class SanctumService {
     private readonly questLog: QuestLogService,
   ) {}
 
-  /** Sprint 32 — quest hooks. Fires the ritual's own quest event,
-   *  plus 'ritual_day' when this ritual closes out all four for the
-   *  UTC day (the "perfect day" objective). recordEvent never throws. */
+  /** Sprint 32 — quest hooks. Fires the ritual's own quest event, plus
+   *  'ritual_day' when this ritual completes a perfect day. Neither throws.
+   *
+   *  A perfect day was "all four, today" — including `oathTodayDate ===
+   *  today`. Oath v2 went weekly on 2026-07-31 and never writes that
+   *  column (only the retired v1 swear below does), so no perfect day
+   *  could happen from then until 2026-09-16. It is now Hearth, Trial and
+   *  Augury today while under this week's oath; the rule lives in
+   *  QuestLogService.ritualDayEvent so the weekly swear shares it. */
   private async afterRitual(
     rootId: string,
     ritual: 'hearth' | 'oath' | 'trial' | 'augury',
-    state: { lastHearthClaim: string | null; oathTodayDate: string | null;
-             lastTrialComplete: string | null; lastAuguryDate: string | null },
+    _state?: unknown,
   ): Promise<QuestProgressUpdate[]> {
     const updates = await this.questLog.recordEvent(rootId, { type: ritual });
-    const today = todayUtc();
-    const allFour =
-      state.lastHearthClaim === today &&
-      state.oathTodayDate === today &&
-      state.lastTrialComplete === today &&
-      state.lastAuguryDate === today;
-    if (allFour) {
-      updates.push(...await this.questLog.recordEvent(rootId, { type: 'ritual_day' }));
-    }
+    updates.push(...await this.questLog.ritualDayEvent(rootId));
     return updates;
   }
 

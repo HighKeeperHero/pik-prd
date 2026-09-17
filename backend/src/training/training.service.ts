@@ -26,6 +26,7 @@ import {
   RITE_ACTIVITY, ATTR_LEVELS, LEGACY_LEVELS, levelFromXp,
 } from './legacy';
 import { OATH_PRESETS, oathPresetById, type OathPreset } from './oaths';
+import { oathWeekKey } from './oath-week';
 
 // ── XP Constants ──────────────────────────────────────────────────────────────
 const XP = {
@@ -72,10 +73,7 @@ function todayKey() {
   return new Date().toISOString().split('T')[0]; // "2026-03-08"
 }
 function weekKey() {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay()); // Start of week (Sunday)
-  return d.toISOString().split('T')[0];
+  return oathWeekKey(); // Start of week (Sunday) — shared with the quest log
 }
 function lastWeekKey() {
   const d = new Date();
@@ -481,6 +479,9 @@ export class TrainingService {
     // totalOathsSworn matters too — `seedStoryProgress` backfills
     // swear_oath from that counter, and v1 was the only writer.
     const oathQuestUpdates = await this.questLog.recordEvent(rootId, { type: 'oath' });
+    // Swearing can be the last piece of a perfect day (Hearth, Trial and
+    // Augury already done today) — check here, not only after the rites.
+    oathQuestUpdates.push(...await this.questLog.ritualDayEvent(rootId));
     await this.prisma.sanctumState.upsert({
       where:  { rootId },
       create: { rootId, totalOathsSworn: 1 },
