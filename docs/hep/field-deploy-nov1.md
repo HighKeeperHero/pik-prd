@@ -615,3 +615,103 @@ Plan for it explicitly rather than discovering it in October.
    §12's note that it was not is wrong).
 4. Wisp-form fox — particles and a shader.
 5. Fox commission — **post-Nov 1 upgrade**, whenever capital allows.
+
+---
+
+## 14. The eight-point program, and where Nov 1 sits in it (2026-09-28)
+
+The program intent was restated as eight capabilities:
+
+scan a room · set anchor points · **an asset library** · **drag an object
+from the library to an anchor** · floor/wall/**ceiling** snap · **select
+interactions for an object** · **set hide/appear triggers** · zero to
+deployed in under 15 minutes.
+
+Measured against what exists:
+
+| | |
+|---|---|
+| Scan a room | ✅ planes h+v, mesh where supported, tracking quality — **device-unproven** |
+| Set anchor points | ✅ origin, raycast placement, room-local, saved and reopenable |
+| Asset library | ❌ not started |
+| Drag library → anchor | ❌ not started |
+| Floor / wall / ceiling snap | ⚠️ floor + wall raycast only; **no ceiling, no actual snapping** |
+| Select interactions | ❌ not started |
+| Hide/appear triggers | ❌ not started |
+| Zero → deployed <15 min | ⚠️ complete and fast in the Simulator; never timed in a room |
+
+### The gap is a difference in kind, not in size
+
+What is built is a **calibration client for one fixed experience**. The
+eight points describe a **general-purpose spatial authoring tool**. They
+share a spine — scan, anchor, snap, deploy — and differ entirely in the
+middle. Today the manifest *names* the next slot and the operator taps a
+surface; there is no choosing. Four of the eight replace that with "pick
+anything, put it anywhere, give it behaviour."
+
+The kit deferred all four deliberately: §7 marks Template Editor "NO — use
+Unity-authored templates initially", and §28's do-not-build list names
+partner self-service tools.
+
+⚠ **The hidden cost is the safety validator.** Every rule in it keys off
+*named manifest slots* — the relic must be inside the boundary, the rift is
+mounted so it may overhang. An arbitrary user-placed object has no slot
+semantics, no expected height, no walked-to/mounted classification. Free
+placement needs a **new validation model**, not new UI.
+
+### Decided 2026-09-28: November 1 is unchanged
+
+Nov 1 ships the **fixed Veil Breach demonstrator**. Remaining: the device
+proof, the rift material, three placeholder assets.
+
+**Pulled forward — roughly one week:** ceiling detection, *real* surface
+snapping (align to the plane normal, not just a hit point), and a **minimal
+asset library**. This is the cheapest change that moves what a prospect sees
+from "six predetermined things" to "anything, anywhere, and it sits on the
+wall properly" — without needing the interaction/trigger schema, which is
+the genuinely expensive half.
+
+Interactions and triggers are the December–February build, and their schema
+gets designed **against the backend**, not invented in the app. The
+integration guide §2 already lists `objects[].what`, `triggers[]` and
+`encounters[]` as known gaps and asks for exactly that.
+
+---
+
+## 15. ⚠ Reversal: partners will author their own experiences
+
+**Decided 2026-09-28.** This **supersedes the HEP Phase 2 principle
+"canonical experiences only — partners configure, never author"**
+([[hep_phase2]]). It is a deliberate change of the business model, from
+deploying our content into partner spaces to putting an authoring tool in
+partner hands. Recorded here because a future reader will otherwise act on
+the older principle, which is still written down elsewhere.
+
+Nov 1 is unaffected — the demonstrator remains fixed. What changes is what
+the platform must become, and four things follow that should be designed
+for rather than discovered:
+
+1. **`PUT /api/experiences/:slug/manifest` is platform-admin only**,
+   precisely because partners were never meant to author. That
+   authorization model has to change, and manifest validation stops being a
+   formality and becomes the guard on arbitrary third-party content.
+2. **Certification (Slice 9) stops being paperwork and becomes the
+   product's safety boundary.** Today it fingerprints spatial accuracy for
+   *our* content. With partner-authored experiences it is the only thing
+   between a partner and shipping something unsafe to a guest. The
+   moonshot thesis already argues certification should encode the
+   multisensory and ethical standards as *gates*; partner authoring makes
+   that argument load-bearing rather than aspirational.
+3. **Safety validation must handle content we did not write.** See §14 —
+   the slot-keyed rules do not survive contact with free placement.
+4. ⚠ **Asset licensing needs a real answer.** Our Fab Standard licences
+   cover *our* use in *our* product. A partner authoring with a library we
+   supply, and shipping it to their guests, may exceed that. Not a
+   judgement call to make casually and not one to make here — it wants
+   proper advice before a library ships to anyone outside Heroes.
+
+Also worth holding in view: partner-authored content bypasses Heroes canon,
+and the [[strategic-north-star]] hypothesis is *persistent mythic identity*.
+The identity layer is what everything else is instrumental to. A tool that
+lets partners author freely needs some canon boundary, or the thing the
+whole platform exists to validate gets diluted by its own distribution.
