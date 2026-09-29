@@ -715,3 +715,134 @@ and the [[strategic-north-star]] hypothesis is *persistent mythic identity*.
 The identity layer is what everything else is instrumental to. A tool that
 lets partners author freely needs some canon boundary, or the thing the
 whole platform exists to validate gets diluted by its own distribution.
+
+## 16. Stabilization: the last 33 days (2026-09-29 → Nov 1)
+
+POC complete 2026-09-28. Functionality is no longer the variable; from here
+the only question is whether it survives one live room on one fixed day.
+
+### The reframe
+
+A code audit on 2026-09-29 found **no unsafe force-unwraps anywhere** in
+the app or the kit. The two `fatalError`s are launch-time, deterministic,
+and fire on every build if they would fire at all. There is no latent crash
+to hunt.
+
+So the risk is not defects. It is these four, in order:
+
+1. **Almost nothing has been verified on hardware.** Scale is reported
+   wrong and unmeasured. The Veil has never been seen lit. `ARWorldMap`
+   cold return has never run on a device. iPad shipped 2026-09-29 and is
+   unopened. Every estimate below is provisional until week 1 closes.
+2. **Three slots are still stand-in art** — `HV_UI_EndMarker`,
+   `HV_CH_HeroEcho`, `HV_PR_RunePedestal` (`.usda` generated placeholders).
+   This is the only work with a procurement lead time and the only work
+   Claude cannot do. It is therefore the long pole regardless of size.
+3. **A demo fails differently from a product.** It happens once, live, in
+   a room we do not control, in front of the people the whole exercise is
+   for. Recovery paths matter more than features.
+4. **No freeze discipline yet.** The most common way a fixed-date demo
+   dies is a change landed in the last week.
+
+### The shape
+
+Backwards from the date, not forwards from today.
+
+| Window | Name | Rule |
+|---|---|---|
+| Sep 29 – Oct 5 | **Verify on hardware** | Measure, do not build. Close every open loop. |
+| Oct 6 – Oct 12 | **Art in, room in** | Final props integrated. Demo room chosen and scanned. |
+| Oct 13 – Oct 19 | **Polish** | Visual and timing quality. Last window for anything new. |
+| Oct 20 – Oct 26 | **Rehearse** | Full runbook, timed, in the real room. Failure drills. |
+| **Oct 27** | **🔒 FREEZE** | Last TestFlight build. After this, demo-stopping bugs only. |
+| Oct 28 – Oct 31 | **Frozen** | No code. Rehearse, charge, verify installs on every device. |
+| Nov 1 | **Demo** | |
+
+Freeze is five days out, not one. A build uploaded on Oct 27 is installed,
+rehearsed against, and lived with for four days before it matters.
+
+### Week 1 (Sep 29 – Oct 5) — verify, do not build
+
+Every item is a measurement with a number attached, not a task.
+
+- **Scale.** Read `veil_rift`, `hero_echo`, `veil_membrane` off the size
+  readout on device. Decide from the numbers whether it is a scale bug or
+  a field-of-view artefact of a small room. Build 23's ultra-wide toggle
+  exists to answer exactly this — test both lenses in the same room.
+- **The Veil, lit.** Step RIFT through all six states on device. This has
+  never been observed; two defensive changes were made blind and are
+  reasoned, not seen.
+- **Cold return.** `ARWorldMap` save → cold launch → relocalize, on
+  hardware, in a real room. Per §2 this is the cheap persistence answer
+  and it has never once run. If it fails, persistence is out of Nov 1 and
+  stays out — say so early rather than discovering it in week 4.
+- **iPad.** Build 24 on the largest iPad available. If it has LiDAR,
+  compare plane detection, floor raycast and boundary taps against an
+  iPhone in the same room. This may resolve the scale report on its own.
+- **A full 8-step deploy, timed, start to finish.** The number is the
+  product claim. Write it down.
+
+### Week 2 (Oct 6 – Oct 12) — art and room
+
+- **Buy or commission the three props. This week or it eats polish.**
+  Hero Echo (statue, static, ~1.75 m) · End Point (floor sigil, ~0.6 m) ·
+  Rune Pedestal (plinth, ~0.9 m). §12's kitbash guidance applies; the
+  conversion pipeline (`tools/*.py`, `tools/verify-assets.sh`) is proven
+  on three purchased assets and should absorb three more in a day.
+- **Choose the demo room and scan it repeatedly.** The one documented
+  failure mode for indoor spatial work is blank walls, glass, mirrors and
+  repetitive tiling — i.e. a clean modern venue. Find this out in week 2,
+  not on Nov 1. If the room is hostile, the fix is dressing the room, and
+  that also has a lead time.
+- **Retire the STAND-IN pill** once the bindings are real. It is
+  deliberately visible; it must not be visible on the day.
+
+### Week 3 (Oct 13 – Oct 19) — polish, and the last new thing
+
+**One feature addition, and only one: instrument the deploy.** Time each
+of the eight steps, persist it on `SavedVenue`, and show a total on the
+deploy screen. The headline claim is *zero to deployed in under 15
+minutes*. Right now that is an assertion. Instrumented, it becomes a
+number on screen at the end of the demo, in front of the partner — the
+proof artefact and the polish are the same work.
+
+Otherwise: motion and timing quality, the rift's state transitions, the
+fox's entrance, banner copy, and the one-tap recovery path below.
+
+### Week 4 (Oct 20 – Oct 26) — rehearse and drill
+
+Not "test". Rehearse: the full operator flow, timed, in the real room,
+repeatedly, by the person who will run it.
+
+**Failure drills — each needs a rehearsed answer, not a code fix:**
+
+- Tracking lost mid-run. What does the operator do? What does the guest see?
+- Room too dark, too bright, or feature-poor.
+- Boundary will not close.
+- A prop lands somewhere wrong and the guest is watching.
+- The device is at 20% battery and thermally throttled after three runs.
+  *AR is the most expensive thing an iPhone does. Run it hot before the day.*
+
+**Two things to build into the app for this, in week 3, not week 4:**
+
+1. **One-tap full reset to a known-good state**, reachable in under five
+   seconds without the step rail.
+2. **A canned fallback.** Record a clean successful run on video. If the
+   room defeats the tracking on the day, the demo becomes a screening
+   rather than a failure. Nobody wants to use it; not having it is how a
+   bad room becomes a bad meeting.
+
+### Freeze rule (Oct 27)
+
+After the Oct 27 build, the bar for a change is: *without this the demo
+cannot be given*. Not "this is better". Not "this is a one-liner" — the
+`.png.png` bug and the `rm -rf` near-miss were both one-liners.
+
+### Explicitly out
+
+- **Niantic / VPS.** Decided out 2026-09-29, see [[niantic-spike]]. Its
+  scan-upload-process step argues against the 15-minute claim the
+  demonstrator exists to prove.
+- **The 8-point authoring tool.** Dec–Feb, per §14.
+- **Interactions and hide/appear triggers.** Post-Nov, and the schema gets
+  designed *with* the backend, not invented in the app.
