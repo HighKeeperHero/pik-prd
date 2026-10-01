@@ -784,7 +784,30 @@ Every item is a measurement with a number attached, not a task.
 
 ### Week 2 (Oct 6 – Oct 12) — art and room
 
-- **Buy or commission the three props. This week or it eats polish.**
+**DONE 2026-10-01, two weeks early.** Hero Echo (medieval knight
+sculpture, 1.750 m), Rune Pedestal (stone altar, scaled 1.906 → 0.900 m
+to honour the binding contract), End Marker (runic platform, 683k tris of
+photogrammetry decimated to 15k, 1.000 m across × 0.058 m proud).
+`tools/props.py` generalises `relic.py`; all 9 usdz ARKit-valid; nothing
+in the shipping set is stand-in art and a test now guards that.
+
+⚠ **The end marker is a 1 m slab, not the 0.02 m decal the manifest
+assumed.** It is something a guest stands on rather than walks to, which
+means the `end_point` anchor now needs ~0.5 m more clearance inside the
+boundary than the validator was tuned for. **Re-run
+`verify-field-deploy.ts` against a real deployed room in week 1 and watch
+that anchor specifically.** It is not sunk flush into the floor: without
+scene-depth occlusion the sunk portion stays visible and reads as a slab
+clipping through the ground.
+
+⚠ `obj.dimensions` in Blender lies after an in-place mesh edit — it
+reported 3.074 m for 2.720 m of geometry and neither `view_layer.update()`
+nor `data.update()` refreshes it. It silently poisoned both the scale
+factor and the log that should have caught it. `props.py` measures from
+`obj.data.vertices` and asserts its target. **Any future conversion
+script must do the same.**
+
+- ~~Buy or commission the three props. This week or it eats polish.~~
   Hero Echo (statue, static, ~1.75 m) · End Point (floor sigil, ~0.6 m) ·
   Rune Pedestal (plinth, ~0.9 m). §12's kitbash guidance applies; the
   conversion pipeline (`tools/*.py`, `tools/verify-assets.sh`) is proven
@@ -794,8 +817,12 @@ Every item is a measurement with a number attached, not a task.
   repetitive tiling — i.e. a clean modern venue. Find this out in week 2,
   not on Nov 1. If the room is hostile, the fix is dressing the room, and
   that also has a lead time.
-- **Retire the STAND-IN pill** once the bindings are real. It is
-  deliberately visible; it must not be visible on the day.
+- ~~Retire the STAND-IN pill~~ — done; it now stays dark because every
+  binding is real, and `testNothingInTheShippingSetIsStandInArt` fails the
+  build if that regresses.
+- **Week 2 is therefore free.** Spend the recovered fortnight on the demo
+  room: choose it, scan it repeatedly, and find out early whether it is
+  one of the hostile ones (blank walls, glass, mirrors, repetitive tiling).
 
 ### Week 3 (Oct 13 – Oct 19) — polish, and the last new thing
 
